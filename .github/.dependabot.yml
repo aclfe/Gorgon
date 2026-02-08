@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 15
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "lint"
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "go"
+      - "testing"
+    commit-message:
+      prefix: "chore(deps):"
+
+  # - package-ecosystem: "docker"
+  #   directory: "/"
+  #   schedule:
+  #     interval: monthly

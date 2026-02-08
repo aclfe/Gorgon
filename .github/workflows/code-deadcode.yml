@@ -1,0 +1,66 @@
+name: Coverage & Dead Code
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  coverage-and-deadcode:
+    name: Coverage & Dead Code - Go stable
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up latest Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+          cache: false
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Install go-test-coverage
+        run: go install github.com/vladopajic/go-test-coverage/v2@latest
+
+      - name: Enforce 100% coverage with exclusions
+        run: |
+          # Use .testcoverage.yml for config (create in repo root if needed)
+          go-test-coverage --profile coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage HTML artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.html
+          retention-days: 14
+
+      - name: Install deadcode tool
+        run: go install golang.org/x/tools/cmd/deadcode@latest
+
+      - name: Check for dead code
+        run: |
+          deadcode -test ./... || exit 1
