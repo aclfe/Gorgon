@@ -1,0 +1,75 @@
+name: Go Tests (latest + 2 prev)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+
+  check-new-go:
+    name: Check for Newer Go Release
+    runs-on: ubuntu-latest
+    outputs:
+      should_test: ${{ steps.compare.outputs.should_test }}
+    steps:
+      - name: Fetch latest stable Go version
+        id: fetch
+        run: |
+          LATEST=$(curl -sSf https://go.dev/VERSION?m=text | head -n1 | sed 's/^go//')
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest stable Go: $LATEST"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          MATRIX_MAX="1.25"               # change on new version!!
+          LATEST="${{ steps.fetch.outputs.latest }}"
+          
+          # Extract major.minor reliably (e.g., 1.25.7 → 1.25, 1.26.0 → 1.26)
+          MATRIX_MM=$(echo "$MATRIX_MAX" | cut -d. -f1-2)
+          LATEST_MM=$(echo "$LATEST" | cut -d. -f1-2)
+          
+          if [[ "$LATEST_MM" > "$MATRIX_MM" ]]; then
+            echo "::error::Newer Go major/minor $LATEST detected (matrix max major/minor is $MATRIX_MM)"
+            echo "should_test=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "Go version OK (latest $LATEST has same or lower major/minor than matrix max $MATRIX_MM)"
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: Go ${{ matrix.go }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: check-new-go
+    if: ${{ needs.check-new-go.outputs.should_test == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.23', 'oldstable', 'stable']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+          cache: false
+          cache-dependency-path: go.sum
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race ./...

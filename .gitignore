@@ -28,5 +28,29 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+/bin/
+/dist/
+
+# Cache and temp
+.cache/
+.tmp/
+*.tmp
+.temp
+bin
+
+# Coverage reports
+coverage.html
+coverage.txt
+coverage.out
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
