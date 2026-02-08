@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	fmt.Println("Setup")
+	_, _ = fmt.Println("Setup")
 }

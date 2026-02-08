@@ -43,11 +43,12 @@ jobs:
           # Use .testcoverage.yml for config (create in repo root if needed)
           go-test-coverage --profile coverage.out
 
-      - name: Upload coverage to Coveralls
-        uses: shogo82148/actions-goveralls@v1
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         with:
-          path-to-profile: coverage.out
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          files: ./coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
+          comment: false
 
       - name: Upload coverage HTML artifact
         if: always()
