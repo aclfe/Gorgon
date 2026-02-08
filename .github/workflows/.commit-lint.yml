@@ -1,0 +1,28 @@
+name: Lint PR Title & Body
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  lint-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Conventional PR Lint
+        uses: Namchee/conventional-pr@v0.5.0
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+          types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
+          allow-issue-prefix: true
+          body-pattern: 'Issue\s*#\s*(nil|\d+)'
+          body-pattern-flags: i
+          body-pattern-message: 'PR description must contain "Issue #nil" or "Issue #<number>" (e.g., Issue #123)'
+          strict: true
