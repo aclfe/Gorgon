@@ -1,0 +1,21 @@
+# .github/workflows/ci.yml
+name: Octocov Coverage Test
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v3
+      -
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      -
+        name: Run tests with coverage report output
+        run: go test ./... -coverprofile=coverage.out
+      -
+        uses: k1LoW/octocov-action@v1
