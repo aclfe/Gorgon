@@ -18,15 +18,17 @@ SECTION := @echo "\n$(BOLD)$(CYAN)━━━━━━━━━━━━━━━�
 BINARY_NAME := gorgon
 BUILD_DIR   := bin
 
+PKGS := $(shell go list ./... | grep -v "cmd/gorgon$$")
+COVER_PKGS := $(shell echo $(PKGS) | sed 's/ /,/g')
 
-.PHONY: all check tidy test coverage deadcode vet lint clean help build install cross-compile
+.PHONY: all check tidy test coverage deadcode vet lint clean help build install cross-compile bench bench-compare bench-mem
 
 all: check build install cross-compile
 	$(SECTION)
 	@echo "$(GREEN)$(BOLD)All checks passed. PR away.$(RESET)"
 	$(SECTION)
 
-check: tidy vet test coverage deadcode lint
+check: tidy vet fmt test coverage deadcode lint
 	$(SUCCESS) Full local validation complete.
 
 tidy:
@@ -36,19 +38,27 @@ tidy:
 	@go mod download 2>&1 | grep -v "no module dependencies" || true
 	$(SUCCESS) Go modules tidied.
 
+fmt:
+	$(SECTION)
+	$(INFO) Formatting code with gofumpt...
+	@go run mvdan.cc/gofumpt@latest -w .
+	$(SUCCESS) Code formatted.
+
 test:
 	$(SECTION)
+	@go clean -testcache
 	$(INFO) Running unit tests with race detector...
-	@go test -v -race ./...
+	@go test -v -race $(PKGS)
 	$(SUCCESS) Unit tests passed.
 
 coverage:
 	$(SECTION)
 	$(INFO) Generating coverage report...
-	@go test -coverprofile=coverage.out ./...
+	@go test -coverpkg=$(COVER_PKGS) -coverprofile=coverage.out $(PKGS)
+	@go tool cover -html=coverage.out -o coverage.html
 	@echo ""
 	@octocov
-	$(SUCCESS) Coverage metrics generated.
+	$(SUCCESS) Coverage metrics generated. Open coverage.html to view details.
 
 deadcode:
 	$(SECTION)
@@ -60,6 +70,12 @@ deadcode:
 	@deadcode -test ./...
 	$(SUCCESS) No unreachable code found.
 
+lint-fix:
+	$(SECTION)
+	$(INFO) Running golangci-lint with auto-fix...
+	@golangci-lint run --config .golangci.yml --timeout=5m --color=always --fix ./...
+	$(SUCCESS) Auto-fixes applied.
+
 lint:
 	$(SECTION)
 	$(INFO) Running golangci-lint...
@@ -68,7 +84,8 @@ lint:
 		echo "$(YELLOW)Install with:$(RESET) ./scripts/setup.sh"; \
 		exit 1; \
 	fi
-	@golangci-lint run --timeout=5m --color=always ./...
+	@golangci-lint cache clean
+	@golangci-lint run --config .golangci.yml --timeout=5m --color=always ./...
 	$(SUCCESS) Lint passed.
 
 vet:
@@ -80,6 +97,34 @@ vet:
 		staticcheck ./...; \
 	fi
 	$(SUCCESS) Vet passed.
+
+bench:
+	$(SECTION)
+	$(INFO) Running benchmarks...
+	@go test -bench=. -benchmem -benchtime=3s ./internal/engine
+	$(SUCCESS) Benchmarks complete.
+
+bench-compare:
+	$(SECTION)
+	$(INFO) Running comparative benchmarks...
+	@echo "$(CYAN)Running benchmarks and saving to bench-old.txt...$(RESET)"
+	@go test -bench=. -benchmem -benchtime=3s ./internal/engine > bench-old.txt
+	@echo ""
+	@echo "$(YELLOW)Make your code changes, then run:$(RESET)"
+	@echo "  $(GREEN)go test -bench=. -benchmem -benchtime=3s ./internal/engine > bench-new.txt$(RESET)"
+	@echo "  $(GREEN)benchstat bench-old.txt bench-new.txt$(RESET)"
+	@echo ""
+	@echo "$(DIM)Install benchstat with: go install golang.org/x/perf/cmd/benchstat@latest$(RESET)"
+	$(SUCCESS) Baseline saved to bench-old.txt
+
+bench-mem:
+	$(SECTION)
+	$(INFO) Running memory-focused benchmarks...
+	@go test -bench=. -benchmem -memprofile=mem.out -cpuprofile=cpu.out ./internal/engine
+	@echo ""
+	@echo "$(CYAN)View memory profile:$(RESET) go tool pprof -http=:8080 mem.out"
+	@echo "$(CYAN)View CPU profile:$(RESET)    go tool pprof -http=:8080 cpu.out"
+	$(SUCCESS) Profiles saved to mem.out and cpu.out
 
 build:
 	$(SECTION)
@@ -104,11 +149,11 @@ cross-compile:
 	@GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/gorgon
 	$(SUCCESS) Cross-compiled all platforms to $(BUILD_DIR)/
 
-
 clean:
 	$(SECTION)
 	$(INFO) Cleaning generated files...
 	@rm -f coverage.out coverage.html
+	@rm -f bench-old.txt bench-new.txt mem.out cpu.out
 	@rm -rf $(BUILD_DIR)
 	@go clean
 	$(SUCCESS) Cleaned.
@@ -128,5 +173,10 @@ help:
 	@echo "  $(CYAN)make lint$(RESET)       → Run golangci-lint"
 	@echo "  $(CYAN)make vet$(RESET)        → Run go vet + staticcheck"
 	@echo "  $(CYAN)make clean$(RESET)      → Remove generated files"
+	@echo ""
+	@echo "$(BOLD)Benchmarking:$(RESET)"
+	@echo "  $(MAGENTA)make bench$(RESET)         → Run performance benchmarks"
+	@echo "  $(MAGENTA)make bench-compare$(RESET) → Save baseline for before/after comparison"
+	@echo "  $(MAGENTA)make bench-mem$(RESET)     → Generate memory & CPU profiles"
 	@echo ""
 	@echo "$(DIM)One-time setup: ./scripts/setup.sh$(RESET)"
