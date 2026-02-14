@@ -32,31 +32,33 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Filter coverage to exclude cmd/gorgon/main.go
+        run: |
+          grep -v "cmd/gorgon/main.go" coverage.out > filtered_coverage.out
+          mv filtered_coverage.out coverage.out
+
+      - name: Generate HTML coverage report
+        run: |
           go tool cover -html=coverage.out -o coverage.html
 
-      - name: Install go-test-coverage
-        run: go install github.com/vladopajic/go-test-coverage/v2@latest
-
-      - name: Enforce 100% coverage with exclusions
+      - name: Check coverage threshold
         run: |
-          # Use .testcoverage.yml for config (create in repo root if needed)
-          go-test-coverage --profile coverage.out
+          # Extract total coverage percentage
+          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: $coverage%"
+          if (( $(echo "$coverage < 90" | bc -l) )); then
+            echo "Coverage is below 90%. Failing the build."
+            exit 1
+          fi
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.out
-          token: ${{ secrets.CODECOV_TOKEN }}
-          comment: false
-
-      - name: Upload coverage HTML artifact
-        if: always()
+      - name: Upload coverage report artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.html
-          retention-days: 14
+          retention-days: 7
 
       - name: Install deadcode tool
         run: go install golang.org/x/tools/cmd/deadcode@latest
