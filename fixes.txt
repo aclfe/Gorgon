@@ -1,0 +1,5 @@
+This is just a personal note for me. 
+
+- Reduce that technical debt of linters. Some really need to go. 
+- I'm reducing code cov on both to 70% for now. Next optimizations and changes will definately make it hit high numbers.
+- make docs for what methods we have

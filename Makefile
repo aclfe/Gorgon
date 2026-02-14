@@ -18,7 +18,7 @@ SECTION := @echo "\n$(BOLD)$(CYAN)━━━━━━━━━━━━━━━�
 BINARY_NAME := gorgon
 BUILD_DIR   := bin
 
-PKGS := $(shell go list ./... | grep -v "cmd/gorgon$$")
+PKGS := $(shell go list ./... | grep -v "cmd/gorgon$$" | grep -v "examples")
 COVER_PKGS := $(shell echo $(PKGS) | sed 's/ /,/g')
 
 .PHONY: all check tidy test coverage deadcode vet lint clean help build install cross-compile bench bench-compare bench-mem
@@ -28,7 +28,7 @@ all: check build install cross-compile
 	@echo "$(GREEN)$(BOLD)All checks passed. PR away.$(RESET)"
 	$(SECTION)
 
-check: tidy vet fmt test coverage deadcode lint
+check: tidy vet vulncheck fmt test coverage deadcode lint
 	$(SUCCESS) Full local validation complete.
 
 tidy:
@@ -54,6 +54,7 @@ test:
 coverage:
 	$(SECTION)
 	$(INFO) Generating coverage report...
+	@go clean -testcache
 	@go test -coverpkg=$(COVER_PKGS) -coverprofile=coverage.out $(PKGS)
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo ""
@@ -97,6 +98,16 @@ vet:
 		staticcheck ./...; \
 	fi
 	$(SUCCESS) Vet passed.
+
+vulncheck:
+	$(SECTION)
+	$(INFO) Running govulncheck...
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		$(WARN) govulncheck missing - installing...; \
+		go install golang.org/x/vuln/cmd/govulncheck; \
+	fi
+	@govulncheck ./...
+	$(SUCCESS) No vulnerabilities found.
 
 bench:
 	$(SECTION)

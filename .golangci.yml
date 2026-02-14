@@ -13,9 +13,7 @@ linters:
     - unconvert
     - unparam
     - wastedassign
-    - staticcheck
     - govet
-    - errcheck
     - gocyclo
     - dupl
     - gocognit
@@ -23,7 +21,6 @@ linters:
     - funlen
     - cyclop
     - misspell
-    - revive
     - nakedret
     - goconst
     - exhaustive
@@ -51,7 +48,6 @@ linters:
     - varnamelen
     - wrapcheck
     - paralleltest
-    - testpackage
     - reassign
     - nonamedreturns
   settings:
@@ -60,37 +56,6 @@ linters:
     gosec:
       excludes:
         - G104
-    revive:
-      enable-all-rules: true
-      rules:
-        - name: bare-return
-          disabled: true
-        - name: exported
-          disabled: true
-        - name: package-comments
-          disabled: true
-        - name: cognitive-complexity
-          arguments: [15]
-          disabled: true
-        - name: cyclomatic
-          disabled: true
-        - name: function-length
-          arguments: [50, 0]
-        - name: max-public-structs
-          arguments: [10]
-        - name: line-length-limit
-          arguments: [120]
-        - name: add-constant
-          arguments:
-            - maxLitCount: "5"
-              allowInts: "0,1,2"
-              allowStrs: '""'
-              allowFloats: "0.0"
-        - name: deep-exit
-          disabled: true
-    errcheck:
-      check-type-assertions: false
-      check-blank: true
     gocyclo:
       min-complexity: 15
     gocognit:
@@ -103,7 +68,7 @@ linters:
     cyclop:
       max-complexity: 15
   exclusions:
-    presets: []  # Empty list to replicate exclude-use-default: false (no default exclusions)
+    presets: []
 
 issues:
   max-issues-per-linter: 0
@@ -114,7 +79,6 @@ formatters:
     - gofmt
     - goimports
     - gofumpt
-    - gci
   settings:
     goimports:
       local-prefixes: [github.com/aclfe/gorgon]

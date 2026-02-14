@@ -19,7 +19,8 @@ func BenchmarkTraverseTreeGo(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := engine.Traverse(path, func(_ ast.Node) bool {
+		e := engine.NewEngine(false)
+		err := e.Traverse(path, func(_ ast.Node) bool {
 			return true
 		})
 		if err != nil {
