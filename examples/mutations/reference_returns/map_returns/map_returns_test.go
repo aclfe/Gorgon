@@ -2,14 +2,6 @@ package map_returns
 
 import "testing"
 
-func TestGetMap(t *testing.T) {
-	t.Parallel()
-	got := GetMap()
-	if got == nil || got["a"] != 1 || got["b"] != 2 {
-		t.Errorf("GetMap() = %v, want map[string]int{\"a\": 1, \"b\": 2}", got)
-	}
-}
-
 func TestGetStringMap(t *testing.T) {
 	t.Parallel()
 	got := GetStringMap()

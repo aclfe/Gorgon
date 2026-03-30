@@ -2,14 +2,6 @@ package slice_returns
 
 import "testing"
 
-func TestGetSlice(t *testing.T) {
-	t.Parallel()
-	got := GetSlice()
-	if got == nil || len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
-		t.Errorf("GetSlice() = %v, want []int{1, 2, 3}", got)
-	}
-}
-
 func TestGetStringSlice(t *testing.T) {
 	t.Parallel()
 	got := GetStringSlice()

@@ -9,10 +9,11 @@ import (
 type Context struct {
 	ReturnType     string
 	FunctionName   string
-	PackageName    string
-	FileName       string
-	Position       token.Position
-	EnclosingFunc  *ast.FuncDecl
+	PackageName   string
+	FileName      string
+	Position      token.Position
+	EnclosingFunc *ast.FuncDecl
+	File          *ast.File
 }
 
 type Operator interface {

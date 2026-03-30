@@ -1,8 +1,10 @@
-package mutator
+package reference_returns
 
 import (
 	"go/ast"
 	"go/token"
+
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 type InterfaceReturns struct{}
@@ -20,7 +22,7 @@ func (InterfaceReturns) CanApply(n ast.Node) bool {
 	return isInterfaceLiteral(expr)
 }
 
-func (InterfaceReturns) CanApplyWithContext(n ast.Node, ctx Context) bool {
+func (InterfaceReturns) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	ret, ok := n.(*ast.ReturnStmt)
 	if !ok || len(ret.Results) == 0 {
 		return false
@@ -36,7 +38,7 @@ func (InterfaceReturns) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
-func (InterfaceReturns) MutateWithContext(n ast.Node, ctx Context) ast.Node {
+func (InterfaceReturns) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	ret, ok := n.(*ast.ReturnStmt)
 	if !ok || len(ret.Results) == 0 {
 		return nil
@@ -52,7 +54,7 @@ func isInterfaceLiteral(expr ast.Expr) bool {
 	case *ast.BasicLit:
 		return e.Kind == token.STRING || e.Kind == token.CHAR || e.Kind == token.INT
 	case *ast.Ident:
-		return e.Name == "nil"
+		return false
 	case *ast.ParenExpr:
 		return isInterfaceLiteral(e.X)
 	default:
@@ -61,8 +63,8 @@ func isInterfaceLiteral(expr ast.Expr) bool {
 }
 
 func init() {
-	Register(InterfaceReturns{})
+	mutator.Register(InterfaceReturns{})
 }
 
-var _ Operator = InterfaceReturns{}
-var _ ContextualOperator = InterfaceReturns{}
+var _ mutator.Operator = InterfaceReturns{}
+var _ mutator.ContextualOperator = InterfaceReturns{}

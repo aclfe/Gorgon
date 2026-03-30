@@ -21,21 +21,15 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
-
-type mutantForSite struct {
-	ID          int
-	Op          mutator.Operator
-	ReturnType  string
-}
 
 const (
 	filePermissions = 0o600
 )
 
 // GenerateAndRunSchemata is the new blazing-fast mutation testing path using schemata.
-// I had to add these comments since the function is getting too deeply nested.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int) ([]Mutant, error) {
@@ -43,7 +37,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return sites[i].File.Name() < sites[j].File.Name()
 	})
 
-	// unique IDs
 	var mutants []Mutant
 	mutantID := 1
 	for _, site := range sites {
@@ -56,10 +49,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				apply = op.CanApply(site.Node)
 			}
 			if apply {
-				_, isCaseClause := site.Node.(*ast.CaseClause)
-				if isCaseClause {
-					continue
-				}
 				mutants = append(mutants, Mutant{
 					ID:       mutantID,
 					Site:     site,
@@ -79,7 +68,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		moduleRoot = filepath.Dir(modPath)
 	}
 
-	// make absolute
 	absModule, err := filepath.Abs(moduleRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for module root: %w", err)
@@ -99,7 +87,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
 	defer func() {
-		_ = os.RemoveAll(tempDir) //nolint:errcheck // ignore error from cleanup
+		_ = os.RemoveAll(tempDir)
 	}()
 
 	if err := CopyDir(moduleRoot, tempDir); err != nil {
@@ -154,11 +142,10 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 		testBinary := filepath.Join(pkgDir, "package.test")
 
-		// Validate relPkg to prevent command injection
 		if strings.Contains(relPkg, "\n") || strings.Contains(relPkg, "\r") {
 			return nil, fmt.Errorf("invalid package path contains newline: %s", relPkg)
 		}
-		//nolint:gosec // Running tests requires executing a binary
+
 		cmd := exec.Command("go", "test", "-c", "-o", testBinary, relPkg)
 		cmd.Dir = tempDir
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -168,8 +155,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		pkgToBinary[pkgDir] = testBinary
 	}
 
-	// pre-compiled test binaries for every mutant in parallel
-	// the key to the whole process being fast
 	if concurrent == 0 {
 		concurrent = runtime.NumCPU()
 	}
@@ -203,7 +188,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				testBinary := pkgToBinary[pkgDir]
 
 				for _, mutantID := range mutantIDs {
-					//nolint:gosec // Running tests requires executing a binary
 					cmd := exec.CommandContext(ctx, testBinary, "-test.timeout=10s")
 					cmd.Dir = pkgDir
 					cmd.Env = append(os.Environ(), fmt.Sprintf("GORGON_MUTANT_ID=%d", mutantID))
@@ -224,11 +208,10 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	go func() {
-		_ = errGroup.Wait() //nolint:errcheck // ignore error from Wait in goroutine
+		_ = errGroup.Wait()
 		close(resultsChan)
 	}()
 
-	// Collect results
 	for result := range resultsChan {
 		idx := mutantIDToIndex[result.id]
 		mutants[idx].Status = result.status
@@ -243,7 +226,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	return mutants, nil
 }
 
-//nolint:gocognit // Function handles complex file processing logic
 func RewriteImports(tempDir string) error {
 	err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -287,7 +269,6 @@ func RewriteImports(tempDir string) error {
 
 func MakeSelfContained(tempDir string) error {
 	goModPath := filepath.Join(tempDir, "go.mod")
-	//nolint:gosec // Reading go.mod is safe here
 	data, err := os.ReadFile(goModPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read go.mod: %w", err)
@@ -297,7 +278,6 @@ func MakeSelfContained(tempDir string) error {
 	if os.IsNotExist(err) {
 		content = "module gorgon-bench\ngo 1.21\n"
 	} else {
-		// Rename module
 		content = strings.Replace(content, "module github.com/aclfe/gorgon", "module gorgon-bench", 1)
 	}
 
@@ -305,7 +285,6 @@ func MakeSelfContained(tempDir string) error {
 		return fmt.Errorf("write go.mod: %w", err)
 	}
 
-	// Tidy zhe deps
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = tempDir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -316,7 +295,6 @@ func MakeSelfContained(tempDir string) error {
 }
 
 func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
-	//nolint:gosec // Reading source file is safe here
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filePath, err)
@@ -332,10 +310,10 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		Line   int
 		Column int
 	}
-	posToMutants := make(map[posKey][]mutantForSite)
+	posToMutants := make(map[posKey][]schemata_nodes.MutantForSite)
 	for _, mutant := range fileMutants {
 		key := posKey{Line: mutant.Site.Line, Column: mutant.Site.Column}
-		posToMutants[key] = append(posToMutants[key], mutantForSite{
+		posToMutants[key] = append(posToMutants[key], schemata_nodes.MutantForSite{
 			ID:         mutant.ID,
 			Op:         mutant.Operator,
 			ReturnType: mutant.Site.ReturnType,
@@ -350,19 +328,22 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		var nodePos token.Position
 		if be, ok := node.(*ast.BinaryExpr); ok {
 			nodePos = fset.Position(be.OpPos)
+		} else if cc, ok := node.(*ast.CaseClause); ok {
+			nodePos = fset.Position(cc.Case)
 		} else {
 			nodePos = fset.Position(node.Pos())
 		}
 		if !nodePos.IsValid() {
 			return true
 		}
+
 		key := posKey{Line: nodePos.Line, Column: nodePos.Column}
 		if mutants, ok := posToMutants[key]; ok {
 			returnType := ""
 			if len(mutants) > 0 {
 				returnType = mutants[0].ReturnType
 			}
-			schemata := createSchemataExpr(node, mutants, returnType)
+			schemata := createSchemataExpr(node, mutants, returnType, file)
 			cursor.Replace(schemata)
 		}
 		return true
@@ -378,65 +359,23 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	return nil
 }
 
-func createSchemataExpr(original ast.Node, mutants []mutantForSite, returnType string) ast.Node {
-	if _, isStmt := original.(ast.Stmt); isStmt {
-		if len(mutants) == 0 {
-			return original
-		}
-
-		stmts := make([]ast.Stmt, 0, len(mutants)+1)
-
-		for _, mutant := range mutants {
-			var mutated ast.Node
-			ctx := mutator.Context{ReturnType: returnType}
-			if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-				mutated = cop.MutateWithContext(original, ctx)
-			} else {
-				mutated = mutant.Op.Mutate(original)
-			}
-			if mutated == nil {
-				continue
-			}
-
-			mutatedStmt, ok := mutated.(ast.Stmt)
-			if !ok {
-				continue
-			}
-
-			stmts = append(stmts, &ast.IfStmt{
-				Cond: &ast.BinaryExpr{
-					X:  &ast.Ident{Name: "activeMutantID"},
-					Op: token.EQL,
-					Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
-				},
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{mutatedStmt},
-				},
-			})
-		}
-
-		var originalStmt ast.Stmt
-		if s, ok := original.(ast.Stmt); ok {
-			originalStmt = s
-		} else {
-			originalStmt = &ast.ReturnStmt{}
-		}
-		stmts = append(stmts, originalStmt)
-
-		if len(stmts) == 1 {
-			return original
-		}
-
-		return &ast.BlockStmt{List: stmts}
+func createSchemataExpr(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
+	handler := schemata_nodes.GetHandler(original)
+	if handler != nil {
+		return handler(original, mutants, returnType, file)
 	}
 
+	return handleExpression(original, mutants, returnType, file)
+}
+
+func handleExpression(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
 	resultType := inferResultType(original)
 
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
 	for _, mutant := range mutants {
+		ctx := mutator.Context{ReturnType: returnType, File: file}
 		var mutated ast.Node
-		ctx := mutator.Context{ReturnType: returnType}
 		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
 			mutated = cop.MutateWithContext(original, ctx)
 		} else {
@@ -504,7 +443,6 @@ func inferResultType(node ast.Node) string {
 }
 
 func isComparisonOp(op token.Token) bool {
-	//nolint:exhaustive
 	switch op {
 	case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
 		return true
@@ -512,7 +450,6 @@ func isComparisonOp(op token.Token) bool {
 	return false
 }
 
-// InjectSchemataHelpers injects helper code.
 func InjectSchemataHelpers(_ string, fileToMutants map[string][]*Mutant) error {
 	pkgToFiles := make(map[string][]string)
 	for tempFile := range fileToMutants {
@@ -525,7 +462,6 @@ func InjectSchemataHelpers(_ string, fileToMutants map[string][]*Mutant) error {
 			continue
 		}
 
-		// Get package name from first file
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, files[0], nil, parser.PackageClauseOnly)
 		var pkgName string

@@ -13,6 +13,8 @@ import (
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
 )
 
 func main() {
