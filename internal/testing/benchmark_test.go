@@ -338,11 +338,12 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 
 		ast.Inspect(f, func(n ast.Node) bool {
 			if be, ok := n.(*ast.BinaryExpr); ok {
+				pos := fset.Position(be.OpPos)
 				sites = append(sites, engine.Site{
-					File: fset.File(be.OpPos),
-					Pos:  be.OpPos,
-					End:  be.End(),
-					Node: be,
+					File:   fset.File(be.OpPos),
+					Line:   pos.Line,
+					Column: pos.Column,
+					Node:   be,
 				})
 			}
 			return true

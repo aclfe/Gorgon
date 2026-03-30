@@ -25,21 +25,32 @@ func (ArithmeticFlip) CanApply(n ast.Node) bool {
 	return false
 }
 
-func (ArithmeticFlip) Mutate(n ast.Node) string {
+func (ArithmeticFlip) Mutate(n ast.Node) ast.Node {
 	be, ok := n.(*ast.BinaryExpr)
 	if !ok {
-		return ""
+		return nil
 	}
+	var newOp token.Token
 	//nolint:exhaustive
 	switch be.Op {
 	case token.ADD:
-		return "-"
+		newOp = token.SUB
 	case token.SUB:
-		return "+"
+		newOp = token.ADD
 	case token.MUL:
-		return "/"
+		newOp = token.QUO
 	case token.QUO:
-		return "*"
+		newOp = token.MUL
+	default:
+		return nil
 	}
-	return ""
+	return &ast.BinaryExpr{
+		X:  be.X,
+		Op: newOp,
+		Y:  be.Y,
+	}
+}
+
+func init() {
+	Register(ArithmeticFlip{})
 }

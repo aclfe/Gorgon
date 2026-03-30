@@ -5,8 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"go/ast"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +33,24 @@ func main() {
 		target = flag.Arg(0)
 	}
 
+	var ops []mutator.Operator
+	if *operatorsFlag == "all" {
+		ops = mutator.List()
+	} else {
+		opNames := strings.Split(*operatorsFlag, ",")
+		for _, name := range opNames {
+			name = strings.TrimSpace(name)
+			op, ok := mutator.Get(name)
+			if !ok {
+				fmt.Fprintf(os.Stderr, "Unknown operator: %s\n", name)
+				os.Exit(1)
+			}
+			ops = append(ops, op)
+		}
+	}
+
 	eng := engine.NewEngine(*printAST)
+	eng.SetOperators(ops)
 	if err := eng.Traverse(target, nil); err != nil {
 		//nolint:errcheck
 		_, _ = os.Stderr.WriteString(err.Error() + "\n")
@@ -47,30 +62,6 @@ func main() {
 	}
 
 	sites := eng.Sites()
-
-	allOps := map[string]mutator.Operator{
-		"arithmetic_flip":    mutator.ArithmeticFlip{},
-		"condition_negation": mutator.ConditionNegation{},
-		// add more here later
-	}
-
-	var ops []mutator.Operator
-	if *operatorsFlag == "all" {
-		for _, op := range allOps {
-			ops = append(ops, op)
-		}
-	} else {
-		opNames := strings.Split(*operatorsFlag, ",")
-		for _, name := range opNames {
-			name = strings.TrimSpace(name)
-			op, ok := allOps[name]
-			if !ok {
-				fmt.Fprintf(os.Stderr, "Unknown operator: %s\n", name)
-				os.Exit(1)
-			}
-			ops = append(ops, op)
-		}
-	}
 
 	baseDir := target
 	if info, err := os.Stat(target); err == nil && !info.IsDir() {
@@ -112,26 +103,3 @@ func printUsageAndExit() {
 	fmt.Fprintln(os.Stderr, "  gorgon -print-ast main.go")
 	os.Exit(1)
 }
-
-func getWriter(output, path string) (io.Writer, func() error) {
-	if output == "" {
-		fmt.Printf("=== AST for %s ===\n", path)
-		return os.Stdout, func() error { return nil }
-	}
-
-	const fileMode = 0o600
-	//nolint:gosec // Writing to user-provided output file
-	fileOut, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, fileMode)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open output file %s: %v\n", output, err)
-		os.Exit(1)
-	}
-
-	if _, err := fmt.Fprintf(fileOut, "=== AST for %s ===\n", filepath.Base(path)); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write header: %v\n", err)
-	}
-
-	return fileOut, fileOut.Close
-}
-
-var _ ast.Node

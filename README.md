@@ -1,12 +1,33 @@
-# Gorgon
-v0.1.0 - Alpha
+## Gorgon v0.3.0
+
+Go mutation testing tool.
+
+## Mutations
+
+Arithmetic
+- `arithmetic_flip` - + ↔ -, * ↔ /
+
+Logical
+- `condition_negation` - == ↔ !=, < ↔ >=, etc.
 
 
-## Installation
-no possible rn, the scripts need fixes
+Reference Returns
+- `zero_value_return` - Replace literals with zero values
+- `pointer_returns` - return &x → return nil
+- `slice_returns` - return []T{} → return nil
+- `map_returns` - return map[K]V{} → return nil
+- `channel_returns` - return make(chan T) → return nil
+- `interface_returns` - return "foo" → return nil (interface{} only)
 
-## Benchmarks
-I'll add a lot of these. This is the highlight of the tool as of now. 
+## Engine
 
-TODO:
-- [fixes.txt](fixes.txt)
+- Context-aware - passes type info to mutators
+- Extensible - implement Operator or ContextualOperator interface
+- Schemata-based for fast testing
+
+## Usage
+
+```
+gorgon ./path/to/code
+gorgon -operators=arithmetic_flip,condition_negation ./path
+```

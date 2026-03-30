@@ -25,25 +25,36 @@ func (ConditionNegation) CanApply(n ast.Node) bool {
 	return false
 }
 
-func (ConditionNegation) Mutate(n ast.Node) string {
+func (ConditionNegation) Mutate(n ast.Node) ast.Node {
 	be, ok := n.(*ast.BinaryExpr)
 	if !ok {
-		return ""
+		return nil
 	}
+	var newOp token.Token
 	//nolint:exhaustive
 	switch be.Op {
 	case token.EQL:
-		return "!="
+		newOp = token.NEQ
 	case token.NEQ:
-		return "=="
+		newOp = token.EQL
 	case token.LSS:
-		return ">="
+		newOp = token.GEQ
 	case token.LEQ:
-		return ">"
+		newOp = token.GTR
 	case token.GTR:
-		return "<="
+		newOp = token.LEQ
 	case token.GEQ:
-		return "<"
+		newOp = token.LSS
+	default:
+		return nil
 	}
-	return ""
+	return &ast.BinaryExpr{
+		X:  be.X,
+		Op: newOp,
+		Y:  be.Y,
+	}
+}
+
+func init() {
+	Register(ConditionNegation{})
 }
