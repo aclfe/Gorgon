@@ -25,8 +25,9 @@ import (
 )
 
 type mutantForSite struct {
-	ID int
-	Op mutator.Operator
+	ID          int
+	Op          mutator.Operator
+	ReturnType  string
 }
 
 const (
@@ -47,7 +48,14 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	mutantID := 1
 	for _, site := range sites {
 		for _, op := range operators {
-			if op.CanApply(site.Node) {
+			apply := false
+			if cop, ok := op.(mutator.ContextualOperator); ok {
+				ctx := mutator.Context{ReturnType: site.ReturnType}
+				apply = cop.CanApplyWithContext(site.Node, ctx)
+			} else {
+				apply = op.CanApply(site.Node)
+			}
+			if apply {
 				mutants = append(mutants, Mutant{
 					ID:       mutantID,
 					Site:     site,
@@ -322,22 +330,36 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	}
 	posToMutants := make(map[posKey][]mutantForSite)
 	for _, mutant := range fileMutants {
-		targetPos := mutant.Site.File.Position(mutant.Site.Pos)
-		key := posKey{Line: targetPos.Line, Column: targetPos.Column}
+		key := posKey{Line: mutant.Site.Line, Column: mutant.Site.Column}
 		posToMutants[key] = append(posToMutants[key], mutantForSite{
-			ID: mutant.ID,
-			Op: mutant.Operator,
+			ID:         mutant.ID,
+			Op:         mutant.Operator,
+			ReturnType: mutant.Site.ReturnType,
 		})
 	}
 
 	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-		if be, ok := cursor.Node().(*ast.BinaryExpr); ok {
-			opPos := fset.Position(be.OpPos)
-			key := posKey{Line: opPos.Line, Column: opPos.Column}
-			if mutants, ok := posToMutants[key]; ok {
-				schemata := createSchemataExpr(be, mutants)
-				cursor.Replace(schemata)
+		node := cursor.Node()
+		if node == nil {
+			return true
+		}
+		var nodePos token.Position
+		if be, ok := node.(*ast.BinaryExpr); ok {
+			nodePos = fset.Position(be.OpPos)
+		} else {
+			nodePos = fset.Position(node.Pos())
+		}
+		if !nodePos.IsValid() {
+			return true
+		}
+		key := posKey{Line: nodePos.Line, Column: nodePos.Column}
+		if mutants, ok := posToMutants[key]; ok {
+			returnType := ""
+			if len(mutants) > 0 {
+				returnType = mutants[0].ReturnType
 			}
+			schemata := createSchemataExpr(node, mutants, returnType)
+			cursor.Replace(schemata)
 		}
 		return true
 	})
@@ -352,21 +374,80 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	return nil
 }
 
-func createSchemataExpr(original *ast.BinaryExpr, mutants []mutantForSite) ast.Expr {
-	resultType := "int"
-	if isComparisonOp(original.Op) {
-		resultType = "bool"
+func createSchemataExpr(original ast.Node, mutants []mutantForSite, returnType string) ast.Node {
+	if _, isStmt := original.(ast.Stmt); isStmt {
+		if len(mutants) == 0 {
+			return original
+		}
+
+		stmts := make([]ast.Stmt, 0, len(mutants)+1)
+
+		for _, mutant := range mutants {
+			var mutated ast.Node
+			ctx := mutator.Context{ReturnType: returnType}
+			if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
+				mutated = cop.MutateWithContext(original, ctx)
+			} else {
+				mutated = mutant.Op.Mutate(original)
+			}
+			if mutated == nil {
+				continue
+			}
+
+			mutatedStmt, ok := mutated.(ast.Stmt)
+			if !ok {
+				continue
+			}
+
+			stmts = append(stmts, &ast.IfStmt{
+				Cond: &ast.BinaryExpr{
+					X:  &ast.Ident{Name: "activeMutantID"},
+					Op: token.EQL,
+					Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
+				},
+				Body: &ast.BlockStmt{
+					List: []ast.Stmt{mutatedStmt},
+				},
+			})
+		}
+
+		var originalStmt ast.Stmt
+		if s, ok := original.(ast.Stmt); ok {
+			originalStmt = s
+		} else {
+			originalStmt = &ast.ReturnStmt{}
+		}
+		stmts = append(stmts, originalStmt)
+
+		if len(stmts) == 1 {
+			return original
+		}
+
+		return &ast.BlockStmt{List: stmts}
 	}
+
+	resultType := inferResultType(original)
 
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
 	for _, mutant := range mutants {
-		newOpStr := mutant.Op.Mutate(original)
-		mutated := &ast.BinaryExpr{
-			X:  original.X,
-			Op: parseOperator(newOpStr),
-			Y:  original.Y,
+		var mutated ast.Node
+		ctx := mutator.Context{ReturnType: returnType}
+		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
+			mutated = cop.MutateWithContext(original, ctx)
+		} else {
+			mutated = mutant.Op.Mutate(original)
 		}
+		if mutated == nil {
+			continue
+		}
+
+		mutatedExpr, ok := mutated.(ast.Expr)
+		if !ok {
+			continue
+		}
+
+		retStmt := &ast.ReturnStmt{Results: []ast.Expr{mutatedExpr}}
 
 		stmts = append(stmts, &ast.IfStmt{
 			Cond: &ast.BinaryExpr{
@@ -375,14 +456,19 @@ func createSchemataExpr(original *ast.BinaryExpr, mutants []mutantForSite) ast.E
 				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
 			},
 			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ReturnStmt{Results: []ast.Expr{mutated}},
-				},
+				List: []ast.Stmt{retStmt},
 			},
 		})
 	}
 
-	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{original}})
+	var originalExpr ast.Expr
+	switch n := original.(type) {
+	case ast.Expr:
+		originalExpr = n
+	default:
+		originalExpr = &ast.Ident{Name: "nil"}
+	}
+	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{originalExpr}})
 
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
@@ -395,6 +481,21 @@ func createSchemataExpr(original *ast.BinaryExpr, mutants []mutantForSite) ast.E
 			},
 			Body: &ast.BlockStmt{List: stmts},
 		},
+	}
+}
+
+func inferResultType(node ast.Node) string {
+	switch node.(type) {
+	case *ast.BinaryExpr:
+		be := node.(*ast.BinaryExpr)
+		if isComparisonOp(be.Op) {
+			return "bool"
+		}
+		return "int"
+	case *ast.ReturnStmt:
+		return "interface{}"
+	default:
+		return "interface{}"
 	}
 }
 

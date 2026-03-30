@@ -49,15 +49,14 @@ func Report(mutants []testing.Mutant) error {
 	fmt.Println("\nSurvived Mutants:")
 	for _, mutant := range mutants {
 		if mutant.Status == "survived" {
-			pos := mutant.Site.File.Position(mutant.Site.Pos)
-			col := pos.Column
+			col := mutant.Site.Column
 			if content, err := os.ReadFile(mutant.Site.File.Name()); err == nil {
-				col = calculateVisualColumn(content, pos.Line, pos.Column)
+				col = calculateVisualColumn(content, mutant.Site.Line, mutant.Site.Column)
 			}
 			fmt.Printf("- %s in %s:%d:%d (Operator: %s)\n",
 				mutant.Status,
 				mutant.Site.File.Name(),
-				pos.Line,
+				mutant.Site.Line,
 				col,
 				mutant.Operator.Name())
 		}

@@ -15,6 +15,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 // Visitor is a function that visits AST nodes. Return true to continue traversal, false to stop.
@@ -22,13 +24,149 @@ import (
 type Visitor func(n ast.Node) bool
 
 type Engine struct {
-	PrintAST bool
-	sites    []Site
-	mu       sync.Mutex
+	PrintAST  bool
+	sites     []Site
+	operators []mutator.Operator
+	mu        sync.Mutex
 }
 
 func NewEngine(printAST bool) *Engine {
 	return &Engine{PrintAST: printAST}
+}
+
+func (e *Engine) SetOperators(ops []mutator.Operator) {
+	e.operators = ops
+}
+
+func getReturnType(node ast.Node, file *ast.File) string {
+	retStmt, ok := node.(*ast.ReturnStmt)
+	if !ok {
+		return ""
+	}
+
+	targetFunc := findEnclosingFunc(file, retStmt)
+	if targetFunc != nil && targetFunc.Type.Results != nil {
+		for _, field := range targetFunc.Type.Results.List {
+			return typeToString(field.Type, file)
+		}
+	}
+	return ""
+}
+
+func findEnclosingFunc(file *ast.File, node ast.Node) *ast.FuncDecl {
+	var targetFunc *ast.FuncDecl
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil {
+			for _, stmt := range fn.Body.List {
+				if containsNode(stmt, node) {
+					targetFunc = fn
+					return false
+				}
+			}
+		}
+		return true
+	})
+
+	return targetFunc
+}
+
+func getPackageName(file *ast.File) string {
+	if file.Name != nil {
+		return file.Name.Name
+	}
+	return ""
+}
+
+func containsNode(parent, target ast.Node) bool {
+	found := false
+	ast.Inspect(parent, func(n ast.Node) bool {
+		if n == target {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func typeToString(t ast.Expr, file *ast.File) string {
+	if t == nil {
+		return ""
+	}
+	switch expr := t.(type) {
+	case *ast.Ident:
+		return resolveTypeName(expr.Name, file)
+	case *ast.StarExpr:
+		return "*" + typeToString(expr.X, file)
+	case *ast.ArrayType:
+		if expr.Len == nil {
+			return "[]" + typeToString(expr.Elt, file)
+		}
+		return "[" + expr.Len.(*ast.BasicLit).Value + "]" + typeToString(expr.Elt, file)
+	case *ast.MapType:
+		return "map[" + typeToString(expr.Key, file) + "]" + typeToString(expr.Value, file)
+	case *ast.ChanType:
+		return "chan " + typeToString(expr.Value, file)
+	case *ast.InterfaceType:
+		return "interface{}"
+	case *ast.FuncType:
+		return "func"
+	case *ast.SelectorExpr:
+		if ident, ok := expr.X.(*ast.Ident); ok {
+			return ident.Name + "." + expr.Sel.Name
+		}
+		return expr.Sel.Name
+	case *ast.ParenExpr:
+		return typeToString(expr.X, file)
+	case *ast.Ellipsis:
+		return "..." + typeToString(expr.Elt, file)
+	default:
+		return ""
+	}
+}
+
+func resolveTypeName(typeName string, file *ast.File) string {
+	for _, decl := range file.Decls {
+		if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
+			for _, spec := range genDecl.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					if typeSpec.Name.Name == typeName {
+						if typeSpec.Type != nil {
+							return typeToString(typeSpec.Type, file)
+						}
+					}
+				}
+			}
+		}
+	}
+	return typeName
+}
+
+func getNodePosition(node ast.Node, fset *token.FileSet) token.Position {
+	if be, ok := node.(*ast.BinaryExpr); ok {
+		return fset.Position(be.OpPos)
+	}
+	return fset.Position(node.Pos())
+}
+
+func buildContext(node ast.Node, file *ast.File, fset *token.FileSet) mutator.Context {
+	ctx := mutator.Context{
+		FileName: fset.File(file.Pos()).Name(),
+		PackageName: getPackageName(file),
+	}
+
+	if retStmt, ok := node.(*ast.ReturnStmt); ok {
+		ctx.ReturnType = getReturnType(retStmt, file)
+		ctx.EnclosingFunc = findEnclosingFunc(file, retStmt)
+		if ctx.EnclosingFunc != nil {
+			ctx.FunctionName = ctx.EnclosingFunc.Name.Name
+		}
+	}
+
+	ctx.Position = getNodePosition(node, fset)
+
+	return ctx
 }
 
 //nolint:gocognit,cyclop
@@ -76,22 +214,28 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 						fmt.Println("=====================================")
 					}
 					ast.Inspect(syntax, func(node ast.Node) bool {
-						if binaryExpr, ok := node.(*ast.BinaryExpr); ok {
-							//nolint:exhaustive
-							switch binaryExpr.Op {
-							case token.ADD, token.SUB, token.MUL, token.QUO,
-								token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
+						if node == nil {
+							return true
+						}
+						mctx := buildContext(node, syntax, pkg.Fset)
+						for _, op := range e.operators {
+							apply := false
+							if cop, ok := op.(mutator.ContextualOperator); ok {
+								apply = cop.CanApplyWithContext(node, mctx)
+							} else {
+								apply = op.CanApply(node)
+							}
+							if apply {
+								pos := getNodePosition(node, pkg.Fset)
 								e.mu.Lock()
-								opLen := len(binaryExpr.Op.String())
 								e.sites = append(e.sites, Site{
-									File: tfile,
-									Pos:  binaryExpr.OpPos,
-									End:  binaryExpr.OpPos + token.Pos(opLen),
-									Node: binaryExpr,
+									File:       tfile,
+									Line:       pos.Line,
+									Column:     pos.Column,
+									Node:       node,
+									ReturnType: mctx.ReturnType,
 								})
 								e.mu.Unlock()
-							default:
-								// no-op
 							}
 						}
 						if visitor != nil {
@@ -129,25 +273,30 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
-		//nolint:exhaustive
-		if binaryExpr, ok := node.(*ast.BinaryExpr); ok {
-			switch binaryExpr.Op {
-			case token.ADD, token.SUB, token.MUL, token.QUO,
-				token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
+		if node == nil {
+			return true
+		}
+		mctx := buildContext(node, file, fset)
+		for _, op := range e.operators {
+			apply := false
+			if cop, ok := op.(mutator.ContextualOperator); ok {
+				apply = cop.CanApplyWithContext(node, mctx)
+			} else {
+				apply = op.CanApply(node)
+			}
+			if apply {
+				pos := getNodePosition(node, fset)
 				e.mu.Lock()
-				opLen := len(binaryExpr.Op.String())
 				e.sites = append(e.sites, Site{
-					File: tfile,
-					Pos:  binaryExpr.OpPos,
-					End:  binaryExpr.OpPos + token.Pos(opLen),
-					Node: binaryExpr,
+					File:       tfile,
+					Line:       pos.Line,
+					Column:     pos.Column,
+					Node:       node,
+					ReturnType: mctx.ReturnType,
 				})
 				e.mu.Unlock()
-			default:
-				// no-op
 			}
 		}
-		// I'll add more node types here later (e.g., if statements, loops)
 		if visitor != nil {
 			return visitor(node)
 		}
