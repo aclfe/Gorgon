@@ -238,6 +238,19 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 								e.mu.Unlock()
 							}
 						}
+					if caseClause, ok := node.(*ast.CaseClause); ok {
+						if caseClause.List == nil {
+							e.mu.Lock()
+							e.sites = append(e.sites, Site{
+								File:       tfile,
+								Line:       mctx.Position.Line,
+								Column:     mctx.Position.Column,
+								Node:       caseClause,
+								ReturnType: mctx.ReturnType,
+							})
+							e.mu.Unlock()
+						}
+					}
 						if visitor != nil {
 							return visitor(node)
 						}
@@ -293,6 +306,20 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 					Column:     pos.Column,
 					Node:       node,
 					ReturnType: mctx.ReturnType,
+				})
+				e.mu.Unlock()
+			}
+		}
+		if caseClause, ok := node.(*ast.CaseClause); ok {
+			if caseClause.List == nil {
+				pos := getNodePosition(caseClause, fset)
+				e.mu.Lock()
+				e.sites = append(e.sites, Site{
+					File:       tfile,
+					Line:       pos.Line,
+					Column:     pos.Column,
+					Node:       caseClause,
+					ReturnType: "",
 				})
 				e.mu.Unlock()
 			}

@@ -56,6 +56,10 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				apply = op.CanApply(site.Node)
 			}
 			if apply {
+				_, isCaseClause := site.Node.(*ast.CaseClause)
+				if isCaseClause {
+					continue
+				}
 				mutants = append(mutants, Mutant{
 					ID:       mutantID,
 					Site:     site,
