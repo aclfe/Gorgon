@@ -22,6 +22,25 @@ func (AssignmentOperator) CanApply(n ast.Node) bool {
 	}
 	switch as.Tok {
 	case token.ASSIGN, token.ADD_ASSIGN, token.SUB_ASSIGN, token.MUL_ASSIGN, token.QUO_ASSIGN:
+		if as.Tok == token.ASSIGN {
+			switch expr := as.Rhs[0].(type) {
+			case *ast.BasicLit:
+				switch expr.Kind {
+				case token.INT, token.FLOAT:
+					return true
+				}
+				return false
+			case *ast.Ident:
+				if expr.Name == "true" || expr.Name == "false" || expr.Name == "nil" {
+					return false
+				}
+				return true
+			case *ast.BinaryExpr, *ast.CallExpr, *ast.UnaryExpr:
+				return true
+			default:
+				return false
+			}
+		}
 		return true
 	}
 	return false

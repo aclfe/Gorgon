@@ -2,6 +2,8 @@
 
 Go mutation testing tool.
 
+benchmark: [benchmarks](benchmarks/current_benchmark.txt)
+
 ## Mutations
 
 Arithmetic

@@ -187,6 +187,44 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 		return e.traverseSingleFile(path, visitor)
 	}
 
+	// Find all go.mod files to detect multiple modules
+	modFiles, err := findGoModFiles(path)
+	if err != nil {
+		return fmt.Errorf("failed to find go.mod files: %w", err)
+	}
+
+	// If multiple go.mod files found, traverse each module separately
+	if len(modFiles) > 1 {
+		for _, modFile := range modFiles {
+			modDir := filepath.Dir(modFile)
+			if err := e.traverseModule(modDir, visitor); err != nil {
+				return fmt.Errorf("failed to traverse module %s: %w", modDir, err)
+			}
+		}
+		return nil
+	}
+
+	// Single module or no go.mod - use original behavior
+	return e.traverseModule(path, visitor)
+}
+
+// findGoModFiles finds all go.mod files in the given directory tree
+func findGoModFiles(root string) ([]string, error) {
+	var modFiles []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Name() == "go.mod" && !info.IsDir() {
+			modFiles = append(modFiles, path)
+		}
+		return nil
+	})
+	return modFiles, err
+}
+
+// traverseModule loads and traverses a single Go module
+func (e *Engine) traverseModule(path string, visitor Visitor) error {
 	cfg := &packages.Config{
 		Mode:  packages.NeedFiles | packages.NeedSyntax,
 		Dir:   path,

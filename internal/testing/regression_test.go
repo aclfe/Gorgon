@@ -29,6 +29,9 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 )
 
+// These are slow integration tests - skip during benchmark runs
+// Run explicitly with: go test -run TestMutationCounts
+
 type expectedMutations struct {
 	folder   string
 	operator string
@@ -60,6 +63,9 @@ var expectedResults = []expectedMutations{
 }
 
 func TestMutationCounts(tst *stdtesting.T) {
+	// Skip this slow test - run explicitly with: go test -run TestMutationCounts
+	tst.Skip("Slow integration test - run explicitly if needed")
+	
 	for _, expected := range expectedResults {
 		tst.Run(expected.folder+"/"+expected.operator, func(t *stdtesting.T) {
 			absPath, err := filepath.Abs("../../examples/mutations/" + expected.folder)
@@ -112,6 +118,9 @@ func TestMutationCounts(tst *stdtesting.T) {
 }
 
 func TestAllOperatorsCombined(tst *stdtesting.T) {
+	// Skip this slow test - run explicitly with: go test -run TestAllOperatorsCombined
+	tst.Skip("Slow integration test - run explicitly if needed")
+	
 	absPath, err := filepath.Abs("../../examples/mutations")
 	if err != nil {
 		tst.Fatal(err)

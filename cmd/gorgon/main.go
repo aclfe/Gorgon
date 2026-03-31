@@ -15,6 +15,7 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
 	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
 	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
 	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"

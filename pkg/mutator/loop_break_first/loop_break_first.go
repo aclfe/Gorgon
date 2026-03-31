@@ -2,6 +2,7 @@ package loop_break_first
 
 import (
 	"go/ast"
+	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -45,7 +46,7 @@ func (LoopBreakFirst) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 		copy(newBody, stmt.Body.List)
 		newBody[len(newBody)-1] = &ast.BranchStmt{
 			TokPos: stmt.Body.End(),
-			Tok:    0,
+			Tok:    token.BREAK,
 		}
 		return &ast.ForStmt{
 			For:  stmt.For,
@@ -62,7 +63,7 @@ func (LoopBreakFirst) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 		copy(newBody, stmt.Body.List)
 		newBody[len(newBody)-1] = &ast.BranchStmt{
 			TokPos: stmt.Body.End(),
-			Tok:    0,
+			Tok:    token.BREAK,
 		}
 		return &ast.RangeStmt{
 			For:    stmt.For,
