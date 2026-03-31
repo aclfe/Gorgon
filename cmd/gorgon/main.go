@@ -13,8 +13,24 @@ import (
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/logical_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
 	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
 	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
+	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 )
 
 func main() {
@@ -42,6 +58,10 @@ func main() {
 		opNames := strings.Split(*operatorsFlag, ",")
 		for _, name := range opNames {
 			name = strings.TrimSpace(name)
+			if categoryOps, ok := mutator.GetCategory(name); ok {
+				ops = append(ops, categoryOps...)
+				continue
+			}
 			op, ok := mutator.Get(name)
 			if !ok {
 				fmt.Fprintf(os.Stderr, "Unknown operator: %s\n", name)

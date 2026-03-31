@@ -147,6 +147,9 @@ func getNodePosition(node ast.Node, fset *token.FileSet) token.Position {
 	if be, ok := node.(*ast.BinaryExpr); ok {
 		return fset.Position(be.OpPos)
 	}
+	if ids, ok := node.(*ast.IncDecStmt); ok {
+		return fset.Position(ids.TokPos)
+	}
 	return fset.Position(node.Pos())
 }
 

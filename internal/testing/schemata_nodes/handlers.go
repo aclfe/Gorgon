@@ -43,6 +43,7 @@ func init() {
 	Handlers["*ast.DeclStmt"] = HandleDeclStmt
 	Handlers["*ast.EmptyStmt"] = HandleEmptyStmt
 	Handlers["*ast.BlockStmt"] = HandleBlockStmt
+	Handlers["*ast.FuncDecl"] = HandleFuncDecl
 }
 
 func GetHandler(node ast.Node) SchemataHandler {
@@ -64,6 +65,11 @@ func HandleCallExpr(original ast.Node, mutants []MutantForSite, returnType strin
 
 func wrapExpression(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File, resultType string) ast.Node {
 	if len(mutants) == 0 {
+		return original
+	}
+
+	originalExpr, ok := original.(ast.Expr)
+	if !ok {
 		return original
 	}
 
@@ -100,13 +106,6 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 		})
 	}
 
-	var originalExpr ast.Expr
-	switch n := original.(type) {
-	case ast.Expr:
-		originalExpr = n
-	default:
-		originalExpr = &ast.Ident{Name: "nil"}
-	}
 	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{originalExpr}})
 
 	return &ast.CallExpr{
@@ -310,8 +309,47 @@ func HandleBlockStmt(original ast.Node, mutants []MutantForSite, returnType stri
 	return WrapStatement(original, mutants, returnType, file)
 }
 
+func HandleFuncDecl(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
+	if len(mutants) == 0 {
+		return original
+	}
+
+	for _, mutant := range mutants {
+		ctx := mutator.Context{ReturnType: returnType, File: file}
+		var mutated ast.Node
+		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
+			mutated = cop.MutateWithContext(original, ctx)
+		} else {
+			mutated = mutant.Op.Mutate(original)
+		}
+		if mutated == nil {
+			continue
+		}
+
+		if _, ok := mutated.(*ast.FuncDecl); ok {
+			return &ast.IfStmt{
+				Cond: &ast.BinaryExpr{
+					X:  &ast.Ident{Name: "activeMutantID"},
+					Op: token.EQL,
+					Y:  &ast.BasicLit{Kind: token.INT, Value: fmt.Sprintf("%d", mutant.ID)},
+				},
+				Body: &ast.BlockStmt{
+					List: []ast.Stmt{&ast.ExprStmt{X: mutated.(ast.Expr)}},
+				},
+			}
+		}
+	}
+
+	return original
+}
+
 func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	if len(mutants) == 0 {
+		return original
+	}
+
+	originalStmt, ok := original.(ast.Stmt)
+	if !ok {
 		return original
 	}
 
@@ -346,10 +384,6 @@ func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string
 		})
 	}
 
-	originalStmt, ok := original.(ast.Stmt)
-	if !ok {
-		return original
-	}
 	stmts = append(stmts, originalStmt)
 
 	if len(stmts) == 1 {

@@ -320,34 +320,53 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		})
 	}
 
-	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-		node := cursor.Node()
-		if node == nil {
-			return true
-		}
-		var nodePos token.Position
-		if be, ok := node.(*ast.BinaryExpr); ok {
-			nodePos = fset.Position(be.OpPos)
-		} else if cc, ok := node.(*ast.CaseClause); ok {
-			nodePos = fset.Position(cc.Case)
-		} else {
-			nodePos = fset.Position(node.Pos())
-		}
-		if !nodePos.IsValid() {
-			return true
-		}
-
-		key := posKey{Line: nodePos.Line, Column: nodePos.Column}
-		if mutants, ok := posToMutants[key]; ok {
-			returnType := ""
-			if len(mutants) > 0 {
-				returnType = mutants[0].ReturnType
+	recoveredErr := make(chan error, 1)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				recoveredErr <- fmt.Errorf("panic during schemata application: %v", r)
 			}
-			schemata := createSchemataExpr(node, mutants, returnType, file)
-			cursor.Replace(schemata)
-		}
-		return true
-	})
+		}()
+
+		astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
+			node := cursor.Node()
+			if node == nil {
+				return true
+			}
+
+			var nodePos token.Position
+			if be, ok := node.(*ast.BinaryExpr); ok {
+				nodePos = fset.Position(be.OpPos)
+			} else if cc, ok := node.(*ast.CaseClause); ok {
+				nodePos = fset.Position(cc.Case)
+			} else if ids, ok := node.(*ast.IncDecStmt); ok {
+				nodePos = fset.Position(ids.TokPos)
+			} else {
+				nodePos = fset.Position(node.Pos())
+			}
+			if !nodePos.IsValid() {
+				return true
+			}
+
+			key := posKey{Line: nodePos.Line, Column: nodePos.Column}
+			if mutants, ok := posToMutants[key]; ok {
+				returnType := ""
+				if len(mutants) > 0 {
+					returnType = mutants[0].ReturnType
+				}
+				schemata := createSchemataExpr(node, mutants, returnType, file)
+				if schemata != nil && schemata != node {
+					cursor.Replace(schemata)
+				}
+			}
+			return true
+		})
+		recoveredErr <- nil
+	}()
+
+	if err := <-recoveredErr; err != nil {
+		return err
+	}
 
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
@@ -360,15 +379,27 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 }
 
 func createSchemataExpr(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
+	if len(mutants) == 0 {
+		return original
+	}
+
 	handler := schemata_nodes.GetHandler(original)
 	if handler != nil {
 		return handler(original, mutants, returnType, file)
 	}
 
-	return handleExpression(original, mutants, returnType, file)
+	if _, isExpr := original.(ast.Expr); isExpr {
+		return handleExpression(original, mutants, returnType, file)
+	}
+
+	return original
 }
 
 func handleExpression(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
+	if _, isExpr := original.(ast.Expr); !isExpr {
+		return original
+	}
+
 	resultType := inferResultType(original)
 
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
@@ -434,6 +465,8 @@ func inferResultType(node ast.Node) string {
 		if isComparisonOp(be.Op) {
 			return "bool"
 		}
+		return "int"
+	case *ast.IncDecStmt:
 		return "int"
 	case *ast.ReturnStmt:
 		return "interface{}"

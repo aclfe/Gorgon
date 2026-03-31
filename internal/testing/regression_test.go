@@ -8,8 +8,25 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
+	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/logical_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
+	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
 	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
 	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
+	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 )
 
 type expectedMutations struct {
@@ -23,7 +40,12 @@ type expectedMutations struct {
 var expectedResults = []expectedMutations{
 	{folder: "arithmetic_flip", operator: "arithmetic_flip", total: 6, killed: 3, survived: 3},
 	{folder: "condition_negation", operator: "condition_negation", total: 4, killed: 2, survived: 2},
-	{folder: "zero_value_return", operator: "zero_value_return", total: 3, killed: 3, survived: 0},
+	{folder: "boundary_value", operator: "boundary_value", total: 6, killed: 5, survived: 1},
+	{folder: "zero_value_return", operator: "zero_value_return_numeric", total: 1, killed: 1, survived: 0},
+	{folder: "zero_value_return", operator: "zero_value_return_string", total: 1, killed: 1, survived: 0},
+	{folder: "sign_toggle", operator: "sign_toggle", total: 4, killed: 4, survived: 0},
+	{folder: "binary_math", operator: "binary_math", total: 5, killed: 5, survived: 0},
+	{folder: "inc_dec_flip", operator: "inc_dec_flip", total: 2, killed: 2, survived: 0},
 	{folder: "switch_mutations/switch_remove_default", operator: "switch_remove_default", total: 3, killed: 2, survived: 1},
 	{folder: "switch_mutations/swap_case_bodies", operator: "swap_case_bodies", total: 11, killed: 11, survived: 0},
 	{folder: "reference_returns/pointer_returns", operator: "pointer_returns", total: 2, killed: 1, survived: 1},
@@ -31,6 +53,10 @@ var expectedResults = []expectedMutations{
 	{folder: "reference_returns/map_returns", operator: "map_returns", total: 3, killed: 2, survived: 1},
 	{folder: "reference_returns/interface_returns", operator: "interface_returns", total: 2, killed: 2, survived: 0},
 	{folder: "reference_returns/channel_returns", operator: "channel_returns", total: 2, killed: 1, survived: 1},
+	{folder: "conditional_expression/if_condition_true", operator: "if_condition_true", total: 3, killed: 1, survived: 2},
+	{folder: "conditional_expression/if_condition_false", operator: "if_condition_false", total: 3, killed: 1, survived: 2},
+	{folder: "conditional_expression/for_condition_true", operator: "for_condition_true", total: 3, killed: 3, survived: 0},
+	{folder: "conditional_expression/for_condition_false", operator: "for_condition_false", total: 2, killed: 0, survived: 2},
 }
 
 func TestMutationCounts(tst *stdtesting.T) {
@@ -133,7 +159,18 @@ func TestOperatorDetection(tst *stdtesting.T) {
 	expectedOperators := []string{
 		"arithmetic_flip",
 		"condition_negation",
-		"zero_value_return",
+		"boundary_value",
+		"logical_operator",
+		"negate_condition",
+		"assignment_operator",
+		"empty_body",
+		"zero_value_return_numeric",
+		"zero_value_return_string",
+		"zero_value_return_bool",
+		"zero_value_return_error",
+		"sign_toggle",
+		"binary_math",
+		"inc_dec_flip",
 		"switch_remove_default",
 		"swap_case_bodies",
 		"pointer_returns",
@@ -141,6 +178,17 @@ func TestOperatorDetection(tst *stdtesting.T) {
 		"map_returns",
 		"channel_returns",
 		"interface_returns",
+		"if_condition_true",
+		"if_condition_false",
+		"for_condition_true",
+		"for_condition_false",
+		"constant_replacement",
+		"variable_replacement",
+		"early_return_removal",
+		"loop_body_removal",
+		"loop_break_first",
+		"loop_break_removal",
+		"defer_removal",
 	}
 
 	for _, expected := range expectedOperators {
@@ -149,5 +197,3 @@ func TestOperatorDetection(tst *stdtesting.T) {
 		}
 	}
 }
-
-
