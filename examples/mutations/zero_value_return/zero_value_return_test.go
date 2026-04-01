@@ -29,3 +29,17 @@ func TestGetMap(t *testing.T) {
 		t.Errorf("GetMap() = %v, want map[string]int{a: 1}", got)
 	}
 }
+
+func TestGetError(t *testing.T) {
+	t.Parallel()
+	if got := GetError(); got == nil {
+		t.Errorf("GetError() = nil, want error")
+	}
+}
+
+func TestGetNil(t *testing.T) {
+	t.Parallel()
+	if got := GetNil(); got != nil {
+		t.Errorf("GetNil() = %v, want nil", got)
+	}
+}

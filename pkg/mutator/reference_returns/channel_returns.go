@@ -1,7 +1,9 @@
-package mutator
+package reference_returns
 
 import (
 	"go/ast"
+
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 type ChannelReturns struct{}
@@ -41,7 +43,7 @@ func (ChannelReturns) Mutate(n ast.Node) ast.Node {
 }
 
 func init() {
-	Register(ChannelReturns{})
+	mutator.Register(ChannelReturns{})
 }
 
-var _ Operator = ChannelReturns{}
+var _ mutator.Operator = ChannelReturns{}

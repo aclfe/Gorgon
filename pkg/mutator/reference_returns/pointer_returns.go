@@ -1,8 +1,10 @@
-package mutator
+package reference_returns
 
 import (
 	"go/ast"
 	"go/token"
+
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 type PointerReturns struct{}
@@ -36,7 +38,7 @@ func (PointerReturns) Mutate(n ast.Node) ast.Node {
 }
 
 func init() {
-	Register(PointerReturns{})
+	mutator.Register(PointerReturns{})
 }
 
-var _ Operator = PointerReturns{}
+var _ mutator.Operator = PointerReturns{}
