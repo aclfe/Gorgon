@@ -175,7 +175,7 @@ func BenchmarkSchemata_BinaryExprHandler(b *testing.B) {
 	})
 
 	mutants := []schemata_nodes.MutantForSite{
-		{ID: 1, Op: mutator.ArithmeticFlip{}, NodeType: "*ast.BinaryExpr"},
+		{ID: 1, Op: mutator.ArithmeticFlip{}},
 	}
 
 	b.ResetTimer()
@@ -210,7 +210,7 @@ func GetBool() bool { return true }
 	})
 
 	mutants := []schemata_nodes.MutantForSite{
-		{ID: 1, Op: zero_value_return.ZeroValueReturnNumeric{}, ReturnType: "int", NodeType: "*ast.ReturnStmt"},
+		{ID: 1, Op: zero_value_return.ZeroValueReturnNumeric{}, ReturnType: "int"},
 	}
 
 	b.ResetTimer()
@@ -250,7 +250,7 @@ func Test() {
 	})
 
 	mutants := []schemata_nodes.MutantForSite{
-		{ID: 1, Op: conditional_expression.IfConditionTrue{}, NodeType: "*ast.IfStmt"},
+		{ID: 1, Op: conditional_expression.IfConditionTrue{}},
 	}
 
 	b.ResetTimer()

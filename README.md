@@ -1,8 +1,26 @@
-## Gorgon v0.5.0
+## Gorgon v0.5.1
 
 Go mutation testing tool.
 
-benchmark: [benchmarks](benchmarks/current_benchmark.txt)
+Benchmarks: [benchmarks/current_benchmark.txt](benchmarks/current_benchmark.txt)
+
+## Usage
+
+```
+gorgon ./path/to/code
+gorgon -operators=arithmetic,logical ./path
+gorgon -concurrent=all ./path       # use all CPU cores (default)
+gorgon -concurrent=half ./path      # use half of CPU cores
+gorgon -concurrent=2 ./path         # use exactly 2 concurrent test runners
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `-concurrent` | `all` | Max parallel test runs: `all`, `half`, or a number |
+| `-operators` | `all` | Comma-separated operator names or categories |
+| `-print-ast` | `false` | Print AST tree and exit |
 
 ## Mutations
 
@@ -66,9 +84,10 @@ Statement
 
 ## Engine
 
-- Context-aware - passes type info to mutators
-- Extensible - implement Operator or ContextualOperator interface
+- Context-aware: passes type info to mutators
+- Extensible: implement Operator or ContextualOperator interface
 - Schemata-based for fast testing
+- Parallel test execution: mutants run concurrently across CPU cores
 
 ## Usage
 

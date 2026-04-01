@@ -1,16 +1,17 @@
-// Package engine provides Go AST traversal and visualization functionality.
-// Linter forcing these comments.
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -19,8 +20,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// Visitor is a function that visits AST nodes. Return true to continue traversal, false to stop.
-// Linter forcing these comments.
 type Visitor func(n ast.Node) bool
 
 type Engine struct {
@@ -38,37 +37,13 @@ func (e *Engine) SetOperators(ops []mutator.Operator) {
 	e.operators = ops
 }
 
-func getReturnType(node ast.Node, file *ast.File) string {
-	retStmt, ok := node.(*ast.ReturnStmt)
-	if !ok {
-		return ""
-	}
-
-	targetFunc := findEnclosingFunc(file, retStmt)
-	if targetFunc != nil && targetFunc.Type.Results != nil {
-		for _, field := range targetFunc.Type.Results.List {
-			return typeToString(field.Type, file)
+func findEnclosingFuncFast(node ast.Node, parents map[ast.Node]ast.Node) *ast.FuncDecl {
+	for p := parents[node]; p != nil; p = parents[p] {
+		if fn, ok := p.(*ast.FuncDecl); ok {
+			return fn
 		}
 	}
-	return ""
-}
-
-func findEnclosingFunc(file *ast.File, node ast.Node) *ast.FuncDecl {
-	var targetFunc *ast.FuncDecl
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil {
-			for _, stmt := range fn.Body.List {
-				if containsNode(stmt, node) {
-					targetFunc = fn
-					return false
-				}
-			}
-		}
-		return true
-	})
-
-	return targetFunc
+	return nil
 }
 
 func getPackageName(file *ast.File) string {
@@ -78,36 +53,24 @@ func getPackageName(file *ast.File) string {
 	return ""
 }
 
-func containsNode(parent, target ast.Node) bool {
-	found := false
-	ast.Inspect(parent, func(n ast.Node) bool {
-		if n == target {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
-}
-
-func typeToString(t ast.Expr, file *ast.File) string {
+func typeToString(t ast.Expr, file *ast.File, fset *token.FileSet) string {
 	if t == nil {
 		return ""
 	}
 	switch expr := t.(type) {
 	case *ast.Ident:
-		return resolveTypeName(expr.Name, file)
+		return resolveTypeName(expr.Name, file, fset)
 	case *ast.StarExpr:
-		return "*" + typeToString(expr.X, file)
+		return "*" + typeToString(expr.X, file, fset)
 	case *ast.ArrayType:
 		if expr.Len == nil {
-			return "[]" + typeToString(expr.Elt, file)
+			return "[]" + typeToString(expr.Elt, file, fset)
 		}
-		return "[" + expr.Len.(*ast.BasicLit).Value + "]" + typeToString(expr.Elt, file)
+		return "[" + exprToString(expr.Len, fset) + "]" + typeToString(expr.Elt, file, fset)
 	case *ast.MapType:
-		return "map[" + typeToString(expr.Key, file) + "]" + typeToString(expr.Value, file)
+		return "map[" + typeToString(expr.Key, file, fset) + "]" + typeToString(expr.Value, file, fset)
 	case *ast.ChanType:
-		return "chan " + typeToString(expr.Value, file)
+		return "chan " + typeToString(expr.Value, file, fset)
 	case *ast.InterfaceType:
 		return "interface{}"
 	case *ast.FuncType:
@@ -118,27 +81,47 @@ func typeToString(t ast.Expr, file *ast.File) string {
 		}
 		return expr.Sel.Name
 	case *ast.ParenExpr:
-		return typeToString(expr.X, file)
+		return typeToString(expr.X, file, fset)
 	case *ast.Ellipsis:
-		return "..." + typeToString(expr.Elt, file)
+		return "..." + typeToString(expr.Elt, file, fset)
 	default:
 		return ""
 	}
 }
 
-func resolveTypeName(typeName string, file *ast.File) string {
-	for _, decl := range file.Decls {
-		if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
-			for _, spec := range genDecl.Specs {
+func exprToString(expr ast.Expr, fset *token.FileSet) string {
+	if expr == nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, expr); err != nil {
+		return "?"
+	}
+	return buf.String()
+}
+
+func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet) string {
+	if file == nil {
+		return typeName
+	}
+	var resolved string
+	ast.Inspect(file, func(n ast.Node) bool {
+		if decl, ok := n.(*ast.GenDecl); ok && decl.Tok == token.TYPE {
+			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 					if typeSpec.Name.Name == typeName {
 						if typeSpec.Type != nil {
-							return typeToString(typeSpec.Type, file)
+							resolved = typeToString(typeSpec.Type, file, fset)
+							return false
 						}
 					}
 				}
 			}
 		}
+		return true
+	})
+	if resolved != "" {
+		return resolved
 	}
 	return typeName
 }
@@ -153,22 +136,160 @@ func getNodePosition(node ast.Node, fset *token.FileSet) token.Position {
 	return fset.Position(node.Pos())
 }
 
-func buildContext(node ast.Node, file *ast.File, fset *token.FileSet) mutator.Context {
+type contextCache struct {
+	contexts map[ast.Node]*mutator.Context
+}
+
+func newContextCache() *contextCache {
+	return &contextCache{
+		contexts: make(map[ast.Node]*mutator.Context),
+	}
+}
+
+func (c *contextCache) get(node ast.Node) (*mutator.Context, bool) {
+	ctx, ok := c.contexts[node]
+	return ctx, ok
+}
+
+func (c *contextCache) set(node ast.Node, ctx *mutator.Context) {
+	c.contexts[node] = ctx
+}
+
+func buildParentMap(file *ast.File) map[ast.Node]ast.Node {
+	parents := make(map[ast.Node]ast.Node)
+	var stack []ast.Node
+	stack = append(stack, nil)
+
+	ast.Inspect(file, func(node ast.Node) bool {
+		if node == nil {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+			return true
+		}
+		parent := stack[len(stack)-1]
+		parents[node] = parent
+		stack = append(stack, node)
+		return true
+	})
+
+	return parents
+}
+
+func getAncestorOfType(node ast.Node, targetType string, parents map[ast.Node]ast.Node) ast.Node {
+	for p := parents[node]; p != nil; p = parents[p] {
+		if typeOf(p) == targetType {
+			return p
+		}
+	}
+	return nil
+}
+
+func typeOf(n ast.Node) string {
+	switch n.(type) {
+	case *ast.BinaryExpr:
+		return "*ast.BinaryExpr"
+	case *ast.UnaryExpr:
+		return "*ast.UnaryExpr"
+	case *ast.CallExpr:
+		return "*ast.CallExpr"
+	case *ast.Ident:
+		return "*ast.Ident"
+	case *ast.CaseClause:
+		return "*ast.CaseClause"
+	case *ast.IfStmt:
+		return "*ast.IfStmt"
+	case *ast.ForStmt:
+		return "*ast.ForStmt"
+	case *ast.RangeStmt:
+		return "*ast.RangeStmt"
+	case *ast.AssignStmt:
+		return "*ast.AssignStmt"
+	case *ast.IncDecStmt:
+		return "*ast.IncDecStmt"
+	case *ast.DeferStmt:
+		return "*ast.DeferStmt"
+	case *ast.GoStmt:
+		return "*ast.GoStmt"
+	case *ast.SendStmt:
+		return "*ast.SendStmt"
+	case *ast.SwitchStmt:
+		return "*ast.SwitchStmt"
+	case *ast.TypeSwitchStmt:
+		return "*ast.TypeSwitchStmt"
+	case *ast.ReturnStmt:
+		return "*ast.ReturnStmt"
+	case *ast.BranchStmt:
+		return "*ast.BranchStmt"
+	case *ast.SelectStmt:
+		return "*ast.SelectStmt"
+	case *ast.CommClause:
+		return "*ast.CommClause"
+	case *ast.LabeledStmt:
+		return "*ast.LabeledStmt"
+	case *ast.ExprStmt:
+		return "*ast.ExprStmt"
+	case *ast.DeclStmt:
+		return "*ast.DeclStmt"
+	case *ast.EmptyStmt:
+		return "*ast.EmptyStmt"
+	case *ast.BlockStmt:
+		return "*ast.BlockStmt"
+	case *ast.FuncDecl:
+		return "*ast.FuncDecl"
+	case *ast.BasicLit:
+		return "*ast.BasicLit"
+	case *ast.File:
+		return "*ast.File"
+	case *ast.FuncType:
+		return "*ast.FuncType"
+	case *ast.Field:
+		return "*ast.Field"
+	case *ast.GenDecl:
+		return "*ast.GenDecl"
+	case *ast.ValueSpec:
+		return "*ast.ValueSpec"
+	case *ast.TypeSpec:
+		return "*ast.TypeSpec"
+	case *ast.CommentGroup:
+		return "*ast.CommentGroup"
+	case *ast.Comment:
+		return "*ast.Comment"
+	case *ast.ImportSpec:
+		return "*ast.ImportSpec"
+	default:
+		return fmt.Sprintf("%T", n)
+	}
+}
+
+func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache *contextCache, parents map[ast.Node]ast.Node, needReturnType bool) mutator.Context {
+	if cached, ok := cache.get(node); ok {
+		return *cached
+	}
+
 	ctx := mutator.Context{
 		FileName:    fset.File(file.Pos()).Name(),
 		PackageName: getPackageName(file),
 		File:        file,
+		Position:    getNodePosition(node, fset),
+		Parent:      parents[node],
 	}
 
-	if retStmt, ok := node.(*ast.ReturnStmt); ok {
-		ctx.ReturnType = getReturnType(retStmt, file)
-		ctx.EnclosingFunc = findEnclosingFunc(file, retStmt)
-		if ctx.EnclosingFunc != nil {
-			ctx.FunctionName = ctx.EnclosingFunc.Name.Name
+	if needReturnType {
+		fn := findEnclosingFuncFast(node, parents)
+		ctx.EnclosingFunc = fn
+		if fn != nil {
+			ctx.FunctionName = fn.Name.Name
+			if fn.Type.Results != nil {
+				for _, field := range fn.Type.Results.List {
+					ctx.ReturnType = typeToString(field.Type, file, fset)
+					break
+				}
+			}
 		}
 	}
 
-	ctx.Position = getNodePosition(node, fset)
+	cache.set(node, &ctx)
 
 	return ctx
 }
@@ -204,11 +325,149 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 		return nil
 	}
 
-	// Single module or no go.mod - use original behavior
+	// No go.mod found — treat each subdirectory with .go files as a separate
+	// standalone package. This handles cases like examples/ where each
+	// subdirectory is an independent package without its own go.mod.
+	if len(modFiles) == 0 {
+		pkgDirs, err := findGoPackages(path)
+		if err != nil {
+			return fmt.Errorf("failed to find Go packages: %w", err)
+		}
+		if len(pkgDirs) == 0 {
+			return nil
+		}
+		for _, pkgDir := range pkgDirs {
+			if err := e.traverseSinglePkgDir(pkgDir, visitor); err != nil {
+				return fmt.Errorf("failed to traverse package %s: %w", pkgDir, err)
+			}
+		}
+		return nil
+	}
+
+	// Single go.mod - use original behavior
 	return e.traverseModule(path, visitor)
 }
 
-// findGoModFiles finds all go.mod files in the given directory tree
+func findGoPackages(root string) ([]string, error) {
+	var pkgDirs []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		// Skip hidden dirs and vendor
+		if strings.HasPrefix(info.Name(), ".") || info.Name() == "vendor" {
+			return filepath.SkipDir
+		}
+		// Check if this directory has .go files
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		hasGo := false
+		for _, entry := range entries {
+			if strings.HasSuffix(entry.Name(), ".go") && !entry.IsDir() {
+				hasGo = true
+				break
+			}
+		}
+		if hasGo {
+			pkgDirs = append(pkgDirs, path)
+			// Don't recurse into subdirectories that are already packages
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	return pkgDirs, err
+}
+
+func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for %q: %w", dir, err)
+	}
+
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return fmt.Errorf("failed to read dir %q: %w", absDir, err)
+	}
+
+	var goFiles []string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".go") && !entry.IsDir() && !strings.HasSuffix(entry.Name(), "_test.go") {
+			goFiles = append(goFiles, filepath.Join(absDir, entry.Name()))
+		}
+	}
+	if len(goFiles) == 0 {
+		return nil
+	}
+
+	fset := token.NewFileSet()
+	files := make([]*ast.File, 0, len(goFiles))
+	for _, gf := range goFiles {
+		file, err := parser.ParseFile(fset, gf, nil, parser.ParseComments)
+		if err != nil {
+			continue
+		}
+		files = append(files, file)
+	}
+	if len(files) == 0 {
+		return nil
+	}
+
+	fileCache := newContextCache()
+
+	for _, file := range files {
+		tfile := fset.File(file.Pos())
+		parents := buildParentMap(file)
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			if node == nil {
+				return true
+			}
+
+			var mctx mutator.Context
+			contextBuilt := false
+			var localSites []Site
+
+			for _, op := range e.operators {
+				apply := false
+				if cop, ok := op.(mutator.ContextualOperator); ok {
+					if !contextBuilt {
+						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+						contextBuilt = true
+					}
+					apply = cop.CanApplyWithContext(node, mctx)
+				} else {
+					apply = op.CanApply(node)
+				}
+				if apply {
+					pos := getNodePosition(node, fset)
+					localSites = append(localSites, Site{
+						File:       tfile,
+						Line:       pos.Line,
+						Column:     pos.Column,
+						Node:       node,
+						ReturnType: mctx.ReturnType,
+					})
+				}
+			}
+			if len(localSites) > 0 {
+				e.mu.Lock()
+				e.sites = append(e.sites, localSites...)
+				e.mu.Unlock()
+			}
+			if visitor != nil {
+				return visitor(node)
+			}
+			return true
+		})
+	}
+	return nil
+}
+
 func findGoModFiles(root string) ([]string, error) {
 	var modFiles []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -223,7 +482,6 @@ func findGoModFiles(root string) ([]string, error) {
 	return modFiles, err
 }
 
-// traverseModule loads and traverses a single Go module
 func (e *Engine) traverseModule(path string, visitor Visitor) error {
 	cfg := &packages.Config{
 		Mode:  packages.NeedFiles | packages.NeedSyntax,
@@ -245,10 +503,16 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
+				// Create per-package context cache and parent map to avoid redundant AST walks
+				pkgCache := newContextCache()
+
 				for _, syntax := range pkg.Syntax {
 					tfile := pkg.Fset.File(syntax.Pos())
+					// Build parent map once per file for O(1) parent lookup
+					parents := buildParentMap(syntax)
+
 					if e.PrintAST {
-						PrintEnabled = true
+						PrintEnabled.Store(true)
 						fmt.Printf("\n=== AST for %s ===\n", tfile.Name())
 						if err := PrintTree(os.Stdout, pkg.Fset, syntax); err != nil {
 							return err
@@ -259,26 +523,37 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 						if node == nil {
 							return true
 						}
-						mctx := buildContext(node, syntax, pkg.Fset)
+
+						var mctx mutator.Context
+						contextBuilt := false
+						var localSites []Site
+
 						for _, op := range e.operators {
 							apply := false
 							if cop, ok := op.(mutator.ContextualOperator); ok {
+								if !contextBuilt {
+									mctx = buildContextLazy(node, syntax, pkg.Fset, pkgCache, parents, true)
+									contextBuilt = true
+								}
 								apply = cop.CanApplyWithContext(node, mctx)
 							} else {
 								apply = op.CanApply(node)
 							}
 							if apply {
 								pos := getNodePosition(node, pkg.Fset)
-								e.mu.Lock()
-								e.sites = append(e.sites, Site{
+								localSites = append(localSites, Site{
 									File:       tfile,
 									Line:       pos.Line,
 									Column:     pos.Column,
 									Node:       node,
 									ReturnType: mctx.ReturnType,
 								})
-								e.mu.Unlock()
 							}
+						}
+						if len(localSites) > 0 {
+							e.mu.Lock()
+							e.sites = append(e.sites, localSites...)
+							e.mu.Unlock()
 						}
 						if visitor != nil {
 							return visitor(node)
@@ -306,7 +581,7 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 
 	tfile := fset.File(file.Pos())
 	if e.PrintAST {
-		PrintEnabled = true
+		PrintEnabled.Store(true)
 		fmt.Printf("\n=== AST for %s ===\n", path)
 		if err := PrintTree(os.Stdout, fset, file); err != nil {
 			return err
@@ -314,30 +589,45 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 		fmt.Println("=====================================")
 	}
 
+	// Use context cache and parent map for single file traversal too
+	fileCache := newContextCache()
+	parents := buildParentMap(file)
+
 	ast.Inspect(file, func(node ast.Node) bool {
 		if node == nil {
 			return true
 		}
-		mctx := buildContext(node, file, fset)
+
+		var mctx mutator.Context
+		contextBuilt := false
+		var localSites []Site
+
 		for _, op := range e.operators {
 			apply := false
 			if cop, ok := op.(mutator.ContextualOperator); ok {
+				if !contextBuilt {
+					mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+					contextBuilt = true
+				}
 				apply = cop.CanApplyWithContext(node, mctx)
 			} else {
 				apply = op.CanApply(node)
 			}
 			if apply {
 				pos := getNodePosition(node, fset)
-				e.mu.Lock()
-				e.sites = append(e.sites, Site{
+				localSites = append(localSites, Site{
 					File:       tfile,
 					Line:       pos.Line,
 					Column:     pos.Column,
 					Node:       node,
 					ReturnType: mctx.ReturnType,
 				})
-				e.mu.Unlock()
 			}
+		}
+		if len(localSites) > 0 {
+			e.mu.Lock()
+			e.sites = append(e.sites, localSites...)
+			e.mu.Unlock()
 		}
 		if visitor != nil {
 			return visitor(node)

@@ -39,7 +39,7 @@ func BenchmarkPrintTreePerformance(b *testing.B) {
 		b.Fatalf("ParseFile failed: %v", err)
 	}
 
-	engine.PrintEnabled = true
+	engine.PrintEnabled.Store(true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -1,4 +1,3 @@
-// Package testing provides testing utilities and schema-based mutation logic.
 package testing
 
 import (
@@ -16,6 +15,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/ast/astutil"
@@ -29,13 +30,32 @@ const (
 	filePermissions = 0o600
 )
 
-// GenerateAndRunSchemata is the new blazing-fast mutation testing path using schemata.
-//
-//nolint:gocognit,gocyclo,cyclop,funlen
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int) ([]Mutant, error) {
 	sort.Slice(sites, func(i, j int) bool {
 		return sites[i].File.Name() < sites[j].File.Name()
 	})
+
+	type siteKey struct {
+		file string
+		line int
+		col  int
+		ntyp uint8
+	}
+	seen := make(map[siteKey]bool)
+	uniqueSites := make([]engine.Site, 0, len(sites))
+	for _, site := range sites {
+		key := siteKey{
+			file: site.File.Name(),
+			line: site.Line,
+			col:  site.Column,
+			ntyp: typeToUint8(site.Node),
+		}
+		if !seen[key] {
+			seen[key] = true
+			uniqueSites = append(uniqueSites, site)
+		}
+	}
+	sites = uniqueSites
 
 	var mutants []Mutant
 	mutantID := 1
@@ -63,15 +83,22 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	modPath := findGoMod(baseDir)
-	moduleRoot := baseDir
-	if modPath != "" {
-		moduleRoot = filepath.Dir(modPath)
+
+	baseDirAbs, _ := filepath.Abs(baseDir)
+	baseGoMod := filepath.Join(baseDirAbs, "go.mod")
+	hasOwnGoMod := fileExists(baseGoMod)
+
+	if !hasOwnGoMod {
+		return runSchemataStandalone(mutants, concurrent)
 	}
+
+	moduleRoot := filepath.Dir(modPath)
 
 	absModule, err := filepath.Abs(moduleRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for module root: %w", err)
 	}
+
 	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for base dir: %w", err)
@@ -90,18 +117,65 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	if err := CopyDir(moduleRoot, tempDir); err != nil {
-		return nil, fmt.Errorf("failed to copy module: %w", err)
+	affectedPkgDirs := make(map[string]bool)
+	for i := range mutants {
+		mutant := &mutants[i]
+		relFile, err := filepath.Rel(absModule, mutant.Site.File.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute rel path for %s: %w", mutant.Site.File.Name(), err)
+		}
+		pkgDir := filepath.Dir(relFile)
+		affectedPkgDirs[pkgDir] = true
+	}
+
+	goModSrc := filepath.Join(absModule, "go.mod")
+	goModDst := filepath.Join(tempDir, "go.mod")
+	if data, err := os.ReadFile(goModSrc); err == nil {
+		if err := os.WriteFile(goModDst, data, filePermissions); err != nil {
+			return nil, fmt.Errorf("failed to copy go.mod: %w", err)
+		}
+	}
+	goSumSrc := filepath.Join(absModule, "go.sum")
+	goSumDst := filepath.Join(tempDir, "go.sum")
+	if data, err := os.ReadFile(goSumSrc); err == nil {
+		_ = os.WriteFile(goSumDst, data, filePermissions)
+	}
+
+	for pkgRelDir := range affectedPkgDirs {
+		srcPkgDir := filepath.Join(absModule, pkgRelDir)
+		dstPkgDir := filepath.Join(tempDir, pkgRelDir)
+		if err := os.MkdirAll(dstPkgDir, 0o755); err != nil {
+			return nil, fmt.Errorf("failed to create pkg dir %s: %w", dstPkgDir, err)
+		}
+		entries, err := os.ReadDir(srcPkgDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read pkg dir %s: %w", srcPkgDir, err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			if !strings.HasSuffix(name, ".go") {
+				continue
+			}
+			src := filepath.Join(srcPkgDir, name)
+			dst := filepath.Join(dstPkgDir, name)
+			data, err := os.ReadFile(src)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read %s: %w", src, err)
+			}
+			if err := os.WriteFile(dst, data, filePermissions); err != nil {
+				return nil, fmt.Errorf("failed to write %s: %w", dst, err)
+			}
+		}
 	}
 
 	if err := RewriteImports(tempDir); err != nil {
 		return nil, fmt.Errorf("rewrite imports: %w", err)
 	}
 
-	if err := MakeSelfContained(tempDir); err != nil {
-		// Don't fail on mod tidy issues, just continue
-		fmt.Fprintf(os.Stderr, "Warning: MakeSelfContained had issues: %v\n", err)
-	}
+	_ = MakeSelfContained(tempDir)
 
 	fileToMutants := make(map[string][]*Mutant)
 	for i := range mutants {
@@ -114,6 +188,41 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		fileToMutants[tempFile] = append(fileToMutants[tempFile], mutant)
 	}
 
+	hasNonStdlib := false
+	for tempFile := range fileToMutants {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, tempFile, nil, parser.ImportsOnly)
+		if err != nil {
+			continue
+		}
+		for _, imp := range f.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			if !isStdlibPackage(path) {
+				hasNonStdlib = true
+				break
+			}
+		}
+		if hasNonStdlib {
+			break
+		}
+	}
+	if !hasNonStdlib {
+		goModPath := filepath.Join(tempDir, "go.mod")
+		modName := "gorgon-standalone"
+		if data, err := os.ReadFile(goModPath); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "module ") {
+					modName = strings.TrimPrefix(line, "module ")
+					break
+				}
+			}
+		}
+		minimalMod := fmt.Sprintf("module %s\n\ngo 1.21\n", modName)
+		_ = os.WriteFile(goModPath, []byte(minimalMod), filePermissions)
+		_ = os.Remove(filepath.Join(tempDir, "go.sum"))
+	}
+
 	for tempFile, fileMutants := range fileToMutants {
 		if err := ApplySchemataToFile(tempFile, fileMutants); err != nil {
 			return nil, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
@@ -123,50 +232,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	if err := InjectSchemataHelpers(tempDir, fileToMutants); err != nil {
 		return nil, err
 	}
-
-	pkgToBinary := make(map[string]string)
-	for tempFile := range fileToMutants {
-		pkgDir := filepath.Dir(tempFile)
-		if _, exists := pkgToBinary[pkgDir]; exists {
-			continue
-		}
-
-		relPkg, err := filepath.Rel(tempDir, pkgDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		if relPkg == "." {
-			relPkg = ""
-		} else {
-			relPkg = "./" + filepath.ToSlash(relPkg)
-		}
-
-		testBinary := filepath.Join(pkgDir, "package.test")
-
-		if strings.Contains(relPkg, "\n") || strings.Contains(relPkg, "\r") {
-			return nil, fmt.Errorf("invalid package path contains newline: %s", relPkg)
-		}
-
-		cmd := exec.Command("go", "test", "-c", "-o", testBinary, relPkg)
-		cmd.Dir = tempDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("test compilation failed for %s:\n%s", relPkg, out)
-		}
-
-		pkgToBinary[pkgDir] = testBinary
-	}
-
-	if concurrent == 0 {
-		concurrent = runtime.NumCPU()
-	}
-
-	type mutantResult struct {
-		id     int
-		status string
-		err    error
-	}
-
-	resultsChan := make(chan mutantResult, len(mutants))
 
 	pkgToMutantIDs := make(map[string][]int)
 	mutantIDToIndex := make(map[int]int)
@@ -181,55 +246,332 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		mutantIDToIndex[mutant.ID] = idx
 	}
 
-	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.SetLimit(concurrent)
-	for pkgDir, mutantIDs := range pkgToMutantIDs {
-		errGroup.Go(func(pkgDir string, mutantIDs []int) func() error {
-			return func() error {
-				testBinary := pkgToBinary[pkgDir]
-
-				for _, mutantID := range mutantIDs {
-					cmd := exec.CommandContext(ctx, testBinary, "-test.timeout=10s")
-					cmd.Dir = pkgDir
-					cmd.Env = append(os.Environ(), fmt.Sprintf("GORGON_MUTANT_ID=%d", mutantID))
-
-					out, err := cmd.CombinedOutput()
-					status := "survived"
-					var errMsg error
-					if err != nil {
-						status = "killed"
-						errMsg = fmt.Errorf("%s", out)
-					}
-
-					resultsChan <- mutantResult{id: mutantID, status: status, err: errMsg}
-				}
-				return nil
-			}
-		}(pkgDir, mutantIDs))
+	if concurrent == 0 {
+		concurrent = runtime.NumCPU()
 	}
 
-	go func() {
-		_ = errGroup.Wait()
-		close(resultsChan)
-	}()
+	type compileRequest struct {
+		pkgDir string
+		relPkg string
+	}
+	type compileResult struct {
+		pkgDir string
+		binary string
+		err    error
+	}
 
+	compileChan := make(chan compileRequest, len(pkgToMutantIDs))
+	compileResultChan := make(chan compileResult, len(pkgToMutantIDs))
+
+	var compileGroup errgroup.Group
+	compileGroup.SetLimit(concurrent)
+	for pkgDir := range pkgToMutantIDs {
+		relPkg, err := filepath.Rel(tempDir, pkgDir)
+		if err != nil {
+			close(compileChan)
+			return nil, fmt.Errorf("failed to compute relative path: %w", err)
+		}
+		if relPkg == "." {
+			relPkg = ""
+		} else {
+			relPkg = "./" + filepath.ToSlash(relPkg)
+		}
+
+		if strings.Contains(relPkg, "\n") || strings.Contains(relPkg, "\r") {
+			close(compileChan)
+			return nil, fmt.Errorf("invalid package path contains newline: %s", relPkg)
+		}
+
+		compileChan <- compileRequest{pkgDir: pkgDir, relPkg: relPkg}
+	}
+	close(compileChan)
+
+	for req := range compileChan {
+		req := req
+		compileGroup.Go(func() error {
+			testBinary := filepath.Join(req.pkgDir, "package.test")
+			cmd := exec.Command("go", "test", "-c", "-o", testBinary, req.relPkg)
+			cmd.Dir = tempDir
+			if out, err := cmd.CombinedOutput(); err != nil {
+				compileResultChan <- compileResult{pkgDir: req.pkgDir, err: fmt.Errorf("test compilation failed for %s:\n%s", req.relPkg, out)}
+				return nil
+			}
+			compileResultChan <- compileResult{pkgDir: req.pkgDir, binary: testBinary}
+			return nil
+		})
+	}
+
+	type mutantResult struct {
+		id     int
+		status string
+		err    error
+	}
+
+	resultsChan := make(chan mutantResult, len(mutants))
+	testGroup, testCtx := errgroup.WithContext(ctx)
+	testGroup.SetLimit(concurrent)
+
+	var compilationErrorsMu sync.Mutex
+	compilationErrors := make(map[string]error)
+
+	var compileResultProcessor errgroup.Group
+
+	compileResultProcessor.Go(func() error {
+		for result := range compileResultChan {
+			if result.err != nil {
+				compilationErrorsMu.Lock()
+				compilationErrors[result.pkgDir] = result.err
+				compilationErrorsMu.Unlock()
+				continue
+			}
+
+			if mutantIDs, ok := pkgToMutantIDs[result.pkgDir]; ok {
+				pkgDir := result.pkgDir
+				testBinary := result.binary
+				mutantIDs := mutantIDs
+
+				baselineDuration := 5 * time.Second
+				baselineCmd := exec.CommandContext(testCtx, testBinary, "-test.timeout=5s")
+				baselineCmd.Dir = pkgDir
+				baselineStart := time.Now()
+				_ = baselineCmd.Run()
+				baselineDuration = time.Since(baselineStart)
+				if baselineDuration < 100*time.Millisecond {
+					baselineDuration = 100 * time.Millisecond
+				}
+				timeout := time.Duration(float64(baselineDuration) * 3.0)
+				if timeout > 30*time.Second {
+					timeout = 30 * time.Second
+				}
+				timeoutStr := fmt.Sprintf("%.0fs", timeout.Seconds())
+
+				for _, mutantID := range mutantIDs {
+					mutantID := mutantID
+					testGroup.Go(func() error {
+						select {
+						case <-testCtx.Done():
+							return testCtx.Err()
+						default:
+						}
+
+						cmd := exec.CommandContext(testCtx, testBinary, "-test.timeout="+timeoutStr)
+						cmd.Dir = pkgDir
+						cmd.Env = append(os.Environ(), "GORGON_MUTANT_ID="+strconv.Itoa(mutantID))
+
+						out, err := cmd.CombinedOutput()
+						status := "survived"
+						var errMsg error
+						if err != nil {
+							status = "killed"
+							errMsg = fmt.Errorf("%s", out)
+						}
+
+						resultsChan <- mutantResult{id: mutantID, status: status, err: errMsg}
+						return nil
+					})
+				}
+			}
+		}
+		return nil
+	})
+
+	if err := compileGroup.Wait(); err != nil {
+		close(compileResultChan)
+		return nil, fmt.Errorf("compilation failed: %w", err)
+	}
+	close(compileResultChan)
+
+	if err := compileResultProcessor.Wait(); err != nil {
+		return nil, fmt.Errorf("compile result processing failed: %w", err)
+	}
+
+	if err := testGroup.Wait(); err != nil {
+		return nil, fmt.Errorf("test execution failed: %w", err)
+	}
+	close(resultsChan)
+
+	collected := 0
 	for result := range resultsChan {
 		idx := mutantIDToIndex[result.id]
 		mutants[idx].Status = result.status
 		mutants[idx].Error = result.err
 		mutants[idx].TempDir = tempDir
+		collected++
 	}
 
-	if err := errGroup.Wait(); err != nil {
-		return nil, fmt.Errorf("wait failed: %w", err)
+	compilationErrorsMu.Lock()
+	defer compilationErrorsMu.Unlock()
+	if len(compilationErrors) > 0 {
+		var errs []string
+		for pkgDir, err := range compilationErrors {
+			errs = append(errs, fmt.Sprintf("%s: %v", pkgDir, err))
+		}
+		return nil, fmt.Errorf("compilation failures: %s", strings.Join(errs, "; "))
 	}
 
 	return mutants, nil
 }
 
-func RewriteImports(tempDir string) error {
-	// No longer needed - we use replace directive instead of renaming module
-	// This preserves all transitive dependency paths
+func runSchemataStandalone(mutants []Mutant, concurrent int) ([]Mutant, error) {
+	if concurrent == 0 {
+		concurrent = runtime.NumCPU()
+	}
+
+	pkgToMutants := make(map[string][]*Mutant)
+	for i := range mutants {
+		mutant := &mutants[i]
+		pkgDir := filepath.Dir(mutant.Site.File.Name())
+		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], mutant)
+	}
+
+	g, ctx := errgroup.WithContext(context.Background())
+	g.SetLimit(concurrent)
+
+	for pkgDir, pkgMutants := range pkgToMutants {
+		pkgDir := pkgDir
+		pkgMutants := pkgMutants
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			return processStandalonePkg(pkgDir, pkgMutants, concurrent)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return mutants, nil
+}
+
+func processStandalonePkg(pkgDir string, pkgMutants []*Mutant, concurrent int) error {
+	entries, err := os.ReadDir(pkgDir)
+	if err != nil {
+		return fmt.Errorf("failed to read dir %s: %w", pkgDir, err)
+	}
+
+	tempDir, err := os.MkdirTemp("", "gorgon-standalone-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var pkgName string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".go") && !entry.IsDir() {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, filepath.Join(pkgDir, entry.Name()), nil, parser.PackageClauseOnly)
+			if err == nil && file.Name != nil {
+				pkgName = file.Name.Name
+			}
+			break
+		}
+	}
+	if pkgName == "" {
+		pkgName = filepath.Base(pkgDir)
+	}
+
+	goMod := fmt.Sprintf("module %s\n\ngo 1.21\n", pkgName)
+	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), filePermissions); err != nil {
+		return fmt.Errorf("failed to write go.mod: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".go") || entry.IsDir() {
+			continue
+		}
+		src := filepath.Join(pkgDir, entry.Name())
+		dst := filepath.Join(tempDir, entry.Name())
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", src, err)
+		}
+		if err := os.WriteFile(dst, data, filePermissions); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dst, err)
+		}
+	}
+
+	tempFileToMutants := make(map[string][]*Mutant)
+	for _, mutant := range pkgMutants {
+		srcFile := mutant.Site.File.Name()
+		baseName := filepath.Base(srcFile)
+		tempFile := filepath.Join(tempDir, baseName)
+		tempFileToMutants[tempFile] = append(tempFileToMutants[tempFile], mutant)
+	}
+
+	for tempFile, fileMutants := range tempFileToMutants {
+		if err := ApplySchemataToFile(tempFile, fileMutants); err != nil {
+			return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+		}
+	}
+
+	if err := InjectSchemataHelpers(tempDir, tempFileToMutants); err != nil {
+		return err
+	}
+
+	testBinary := filepath.Join(tempDir, "package.test")
+	cmd := exec.Command("go", "test", "-c", "-o", testBinary, ".")
+	cmd.Dir = tempDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		for _, mutant := range pkgMutants {
+			mutant.Status = "error"
+			mutant.Error = fmt.Errorf("compilation failed: %s", out)
+			mutant.TempDir = tempDir
+		}
+		return nil
+	}
+
+	baselineCmd := exec.Command(testBinary, "-test.timeout=5s")
+	baselineCmd.Dir = tempDir
+	baselineStart := time.Now()
+	_ = baselineCmd.Run()
+	baselineDuration := time.Since(baselineStart)
+	if baselineDuration < 100*time.Millisecond {
+		baselineDuration = 100 * time.Millisecond
+	}
+	timeout := time.Duration(float64(baselineDuration) * 3.0)
+	if timeout > 5*time.Second {
+		timeout = 5 * time.Second
+	}
+	timeoutStr := fmt.Sprintf("%.0fs", timeout.Seconds())
+
+	g, gCtx := errgroup.WithContext(context.Background())
+	g.SetLimit(concurrent)
+
+	for _, mutant := range pkgMutants {
+		mutant := mutant
+		g.Go(func() error {
+			select {
+			case <-gCtx.Done():
+				return gCtx.Err()
+			default:
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), timeout+2*time.Second)
+			defer cancel()
+
+			cmd := exec.CommandContext(ctx, testBinary, "-test.timeout="+timeoutStr)
+			cmd.Dir = tempDir
+			cmd.Env = append(os.Environ(), "GORGON_MUTANT_ID="+strconv.Itoa(mutant.ID))
+
+			if out, err := cmd.CombinedOutput(); err != nil {
+				mutant.Status = "killed"
+				mutant.Error = fmt.Errorf("%s", out)
+			} else {
+				mutant.Status = "survived"
+			}
+			mutant.TempDir = tempDir
+			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+func RewriteImports(_ string) error {
 	return nil
 }
 
@@ -244,8 +586,6 @@ func MakeSelfContained(tempDir string) error {
 	if os.IsNotExist(err) {
 		content = "module gorgon-bench\ngo 1.21\n"
 	} else {
-		// Keep original module name but add replace directive
-		// This avoids breaking transitive dependencies
 		if !strings.Contains(content, "replace github.com/aclfe/gorgon =>") {
 			content = strings.TrimSpace(content) + "\n\nreplace github.com/aclfe/gorgon => ./\n"
 		}
@@ -255,13 +595,32 @@ func MakeSelfContained(tempDir string) error {
 		return fmt.Errorf("write go.mod: %w", err)
 	}
 
-	// Don't remove go.sum - use existing resolved dependencies
-	// This avoids re-resolving deps that may have path conflicts
-
-	// Skip go mod tidy entirely - deps are already resolved
-	// The benchmark copy is temporary and isolated
-
 	return nil
+}
+
+func isStdlibPackage(path string) bool {
+	if path == "" {
+		return false
+	}
+	if path[0] == '.' {
+		return false
+	}
+	dot := strings.IndexByte(path, '.')
+	slash := strings.IndexByte(path, '/')
+	if dot < 0 || (slash >= 0 && slash < dot) {
+		return true
+	}
+	return false
+}
+
+func getNodePositionForMatching(node ast.Node, fset *token.FileSet) token.Position {
+	if be, ok := node.(*ast.BinaryExpr); ok {
+		return fset.Position(be.OpPos)
+	}
+	if ids, ok := node.(*ast.IncDecStmt); ok {
+		return fset.Position(ids.TokPos)
+	}
+	return fset.Position(node.Pos())
 }
 
 func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
@@ -277,137 +636,158 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	}
 
 	type posKey struct {
-		Line     int
-		Column   int
-		NodeType string
+		Line   int
+		Column int
+		Type   uint8
 	}
-	posToMutants := make(map[posKey][]schemata_nodes.MutantForSite)
+	posToMutants := make(map[posKey][]schemata_nodes.MutantForSite, len(fileMutants))
 	for _, mutant := range fileMutants {
-		nodeType := fmt.Sprintf("%T", mutant.Site.Node)
-		key := posKey{Line: mutant.Site.Line, Column: mutant.Site.Column, NodeType: nodeType}
+		key := posKey{
+			Line:   mutant.Site.Line,
+			Column: mutant.Site.Column,
+			Type:   typeToUint8(mutant.Site.Node),
+		}
 		posToMutants[key] = append(posToMutants[key], schemata_nodes.MutantForSite{
 			ID:         mutant.ID,
 			Op:         mutant.Operator,
 			ReturnType: mutant.Site.ReturnType,
-			NodeType:   nodeType,
 		})
 	}
 
-	recoveredErr := make(chan error, 1)
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				recoveredErr <- fmt.Errorf("panic during schemata application: %v", r)
-			}
-		}()
-
-		changesMade := 0
-		astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-			node := cursor.Node()
-			if node == nil {
-				return true
-			}
-
-			// Skip nodes inside import declarations
-			if cursor.Parent() != nil {
-				if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
-					return true
-				}
-			}
-
-			var nodePos token.Position
-			if be, ok := node.(*ast.BinaryExpr); ok {
-				nodePos = fset.Position(be.OpPos)
-			} else if cc, ok := node.(*ast.CaseClause); ok {
-				nodePos = fset.Position(cc.Case)
-			} else if ids, ok := node.(*ast.IncDecStmt); ok {
-				nodePos = fset.Position(ids.TokPos)
-			} else {
-				nodePos = fset.Position(node.Pos())
-			}
-			if !nodePos.IsValid() {
-				return true
-			}
-
-			nodeType := fmt.Sprintf("%T", node)
-			key := posKey{Line: nodePos.Line, Column: nodePos.Column, NodeType: nodeType}
-			if mutants, ok := posToMutants[key]; ok {
-				returnType := ""
-				if len(mutants) > 0 {
-					returnType = mutants[0].ReturnType
-				}
-				schemata := createSchemataExpr(node, mutants, returnType, file)
-				if schemata != nil && schemata != node {
-					if isValidReplacement(node, schemata) {
-						cursor.Replace(schemata)
-						changesMade++
-					}
-				}
-			}
+	constNodes := make(map[ast.Node]bool)
+	ast.Inspect(file, func(n ast.Node) bool {
+		gd, ok := n.(*ast.GenDecl)
+		if !ok || gd.Tok != token.CONST {
 			return true
-		})
-		_ = changesMade
-		recoveredErr <- nil
-	}()
+		}
+		for _, spec := range gd.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, val := range vs.Values {
+				ast.Inspect(val, func(child ast.Node) bool {
+					if child != nil {
+						constNodes[child] = true
+					}
+					return true
+				})
+			}
+		}
+		return true
+	})
 
-	if err := <-recoveredErr; err != nil {
-		return err
-	}
+	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
+		node := cursor.Node()
+		if node == nil {
+			return true
+		}
 
-	originalImports := make(map[string]*ast.ImportSpec)
-	for _, imp := range file.Imports {
-		path := strings.Trim(imp.Path.Value, "\"")
-		originalImports[path] = imp
-	}
+		if cursor.Parent() != nil {
+			if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
+				return true
+			}
+		}
+
+		if constNodes[node] {
+			return true
+		}
+
+		newPos := getNodePositionForMatching(node, fset)
+		key := posKey{Line: newPos.Line, Column: newPos.Column, Type: typeToUint8(node)}
+		if mutants, ok := posToMutants[key]; ok {
+			returnType := ""
+			if len(mutants) > 0 {
+				returnType = mutants[0].ReturnType
+			}
+			schemata := createSchemataExpr(node, mutants, returnType, file)
+			if schemata != nil && schemata != node {
+				if _, isExpr := node.(ast.Expr); isExpr {
+					if _, ok := schemata.(ast.Expr); ok {
+						safeReplace(cursor, schemata)
+					}
+				} else if isValidReplacement(node, schemata) {
+					safeReplace(cursor, schemata)
+				}
+			}
+		}
+		return true
+	})
 
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
-		// Format failed - write original source back to avoid compilation errors
 		_ = os.WriteFile(filePath, src, filePermissions)
-		return nil  // Don't fail, just skip this file
-	}
-
-	fset2 := token.NewFileSet()
-	file2, err := parser.ParseFile(fset2, filePath, buf.Bytes(), parser.ParseComments)
-	if err == nil {
-		// Check which identifiers are used in the mutated code
-		usedIdents := make(map[string]bool)
-		ast.Inspect(file2, func(n ast.Node) bool {
-			if ident, ok := n.(*ast.Ident); ok {
-				usedIdents[ident.Name] = true
-			}
-			return true
-		})
-
-		// For each original import, check if the package is still used
-		for path, origImp := range originalImports {
-			parts := strings.Split(path, "/")
-			pkgName := parts[len(parts)-1]
-			if origImp.Name != nil && origImp.Name.Name != "_" {
-				pkgName = origImp.Name.Name
-			}
-
-			// If package not used, change import to blank
-			if !usedIdents[pkgName] {
-				for _, existing := range file2.Imports {
-					if existing.Path.Value == "\""+path+"\"" {
-						existing.Name = &ast.Ident{Name: "_"}
-						break
-					}
-				}
-			}
-		}
-
-		buf.Reset()
-		if err := format.Node(&buf, fset2, file2); err != nil {
-			return fmt.Errorf("format after import fix failed: %w", err)
-		}
+		return nil
 	}
 
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
 		return fmt.Errorf("write failed: %w", err)
 	}
 	return nil
+}
+
+func safeReplace(cursor *astutil.Cursor, replacement ast.Node) {
+	defer func() { _ = recover() }()
+	cursor.Replace(replacement)
+}
+
+func typeToUint8(node ast.Node) uint8 {
+	switch node.(type) {
+	case *ast.BinaryExpr:
+		return 1
+	case *ast.UnaryExpr:
+		return 2
+	case *ast.CallExpr:
+		return 3
+	case *ast.Ident:
+		return 4
+	case *ast.CaseClause:
+		return 5
+	case *ast.IfStmt:
+		return 6
+	case *ast.ForStmt:
+		return 7
+	case *ast.RangeStmt:
+		return 8
+	case *ast.AssignStmt:
+		return 9
+	case *ast.IncDecStmt:
+		return 10
+	case *ast.DeferStmt:
+		return 11
+	case *ast.GoStmt:
+		return 12
+	case *ast.SendStmt:
+		return 13
+	case *ast.SwitchStmt:
+		return 14
+	case *ast.TypeSwitchStmt:
+		return 15
+	case *ast.ReturnStmt:
+		return 16
+	case *ast.BranchStmt:
+		return 17
+	case *ast.SelectStmt:
+		return 18
+	case *ast.CommClause:
+		return 19
+	case *ast.LabeledStmt:
+		return 20
+	case *ast.ExprStmt:
+		return 21
+	case *ast.DeclStmt:
+		return 22
+	case *ast.EmptyStmt:
+		return 23
+	case *ast.BlockStmt:
+		return 24
+	case *ast.FuncDecl:
+		return 25
+	case *ast.BasicLit:
+		return 26
+	default:
+		return 0
+	}
 }
 
 func createSchemataExpr(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
@@ -420,7 +800,6 @@ func createSchemataExpr(original ast.Node, mutants []schemata_nodes.MutantForSit
 		return handler(original, mutants, returnType, file)
 	}
 
-	// Don't use generic expression wrapping - rely on specific handlers
 	return original
 }
 
@@ -429,40 +808,40 @@ func isValidReplacement(original, replacement ast.Node) bool {
 		return false
 	}
 
-	typeOriginal := fmt.Sprintf("%T", original)
-	typeReplacement := fmt.Sprintf("%T", replacement)
+	typeOriginal := typeToUint8(original)
+	typeReplacement := typeToUint8(replacement)
 
 	if typeOriginal == typeReplacement {
 		return true
 	}
 
-	validReplacements := map[string][]string{
-		"*ast.BinaryExpr":   {"*ast.BinaryExpr", "*ast.CallExpr"},
-		"*ast.UnaryExpr":    {"*ast.UnaryExpr", "*ast.CallExpr"},
-		"*ast.CallExpr":     {"*ast.CallExpr"},
-		"*ast.Ident":        {"*ast.Ident", "*ast.CallExpr", "*ast.BasicLit"},
-		"*ast.BasicLit":     {"*ast.BasicLit", "*ast.Ident", "*ast.CallExpr"},
-		"*ast.IfStmt":       {"*ast.IfStmt", "*ast.BlockStmt"},
-		"*ast.ForStmt":      {"*ast.ForStmt", "*ast.BlockStmt"},
-		"*ast.RangeStmt":    {"*ast.RangeStmt", "*ast.BlockStmt"},
-		"*ast.AssignStmt":   {"*ast.AssignStmt", "*ast.BlockStmt", "*ast.ExprStmt"},
-		"*ast.ReturnStmt":   {"*ast.ReturnStmt", "*ast.BlockStmt", "*ast.EmptyStmt"},
-		"*ast.DeferStmt":    {"*ast.DeferStmt", "*ast.EmptyStmt", "*ast.ExprStmt", "*ast.BlockStmt"},
-		"*ast.BranchStmt":   {"*ast.BranchStmt", "*ast.EmptyStmt", "*ast.ExprStmt", "*ast.BlockStmt"},
-		"*ast.GoStmt":       {"*ast.GoStmt", "*ast.EmptyStmt", "*ast.ExprStmt", "*ast.BlockStmt"},
-		"*ast.ExprStmt":     {"*ast.ExprStmt", "*ast.BlockStmt", "*ast.EmptyStmt"},
-		"*ast.IncDecStmt":   {"*ast.IncDecStmt", "*ast.CallExpr"},
-		"*ast.SendStmt":     {"*ast.SendStmt", "*ast.CallExpr"},
-		"*ast.SwitchStmt":   {"*ast.SwitchStmt", "*ast.BlockStmt"},
-		"*ast.TypeSwitchStmt": {"*ast.TypeSwitchStmt", "*ast.BlockStmt"},
-		"*ast.SelectStmt":   {"*ast.SelectStmt", "*ast.BlockStmt"},
-		"*ast.CommClause":   {"*ast.CommClause", "*ast.BlockStmt"},
-		"*ast.LabeledStmt":  {"*ast.LabeledStmt", "*ast.BlockStmt"},
-		"*ast.DeclStmt":     {"*ast.DeclStmt", "*ast.BlockStmt"},
-		"*ast.EmptyStmt":    {"*ast.EmptyStmt", "*ast.BlockStmt"},
-		"*ast.BlockStmt":    {"*ast.BlockStmt"},
-		"*ast.CaseClause":   {"*ast.CaseClause"},
-		"*ast.FuncDecl":     {"*ast.FuncDecl"},
+	validReplacements := map[uint8][]uint8{
+		1:  {1, 3},
+		2:  {2, 3},
+		3:  {3},
+		4:  {4, 3, 26},
+		26: {26, 3, 4},
+		5:  {5},
+		6:  {6, 24},
+		7:  {7, 24},
+		8:  {8, 24},
+		9:  {9, 24, 21},
+		10: {10, 3},
+		11: {11, 21, 23, 24},
+		12: {12, 21, 23, 24},
+		13: {13, 3},
+		14: {14, 24},
+		15: {15, 24},
+		16: {16, 24, 23},
+		17: {17, 21, 23, 24},
+		18: {18, 24},
+		19: {19, 24},
+		20: {20, 24},
+		21: {21, 24, 23},
+		22: {22, 24},
+		23: {23, 24},
+		24: {24},
+		25: {25},
 	}
 
 	if validTypes, ok := validReplacements[typeOriginal]; ok {
@@ -473,97 +852,6 @@ func isValidReplacement(original, replacement ast.Node) bool {
 		}
 	}
 
-	return false
-}
-
-func handleExpression(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
-	if _, isExpr := original.(ast.Expr); !isExpr {
-		return original
-	}
-
-	resultType := returnType
-	if resultType == "" {
-		resultType = "interface{}"
-	}
-
-	stmts := make([]ast.Stmt, 0, len(mutants)+1)
-
-	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated == nil {
-			continue
-		}
-
-		mutatedExpr, ok := mutated.(ast.Expr)
-		if !ok {
-			continue
-		}
-
-		retStmt := &ast.ReturnStmt{Results: []ast.Expr{mutatedExpr}}
-
-		stmts = append(stmts, &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X:  &ast.Ident{Name: "activeMutantID"},
-				Op: token.EQL,
-				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
-			},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{retStmt},
-			},
-		})
-	}
-
-	var originalExpr ast.Expr
-	switch n := original.(type) {
-	case ast.Expr:
-		originalExpr = n
-	default:
-		originalExpr = &ast.Ident{Name: "nil"}
-	}
-	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{originalExpr}})
-
-	return &ast.CallExpr{
-		Fun: &ast.FuncLit{
-			Type: &ast.FuncType{
-				Results: &ast.FieldList{
-					List: []*ast.Field{
-						{Type: &ast.Ident{Name: resultType}},
-					},
-				},
-			},
-			Body: &ast.BlockStmt{List: stmts},
-		},
-	}
-}
-
-func inferResultType(node ast.Node) string {
-	switch node.(type) {
-	case *ast.BinaryExpr:
-		be := node.(*ast.BinaryExpr)
-		if isComparisonOp(be.Op) {
-			return "bool"
-		}
-		return "int"
-	case *ast.IncDecStmt:
-		return "int"
-	case *ast.ReturnStmt:
-		return "interface{}"
-	default:
-		return "interface{}"
-	}
-}
-
-func isComparisonOp(op token.Token) bool {
-	switch op {
-	case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
-		return true
-	}
 	return false
 }
 

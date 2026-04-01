@@ -7,13 +7,13 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 )
 
 const astPrefix = "*ast."
 
 // PrintEnabled controls whether AST trees are printed during traversal.
-// Linter forced again.
-var PrintEnabled bool
+var PrintEnabled atomic.Bool
 
 var (
 	nodeKindMap  = make(map[reflect.Type]string)
@@ -562,7 +562,7 @@ func registerNode[T ast.Node](prototype T, kind string, descFn func(T) string, c
 // PrintTree renders an AST node tree structure to a writer, displaying node types, positions, and relationships.
 // It respects the PrintEnabled flag and returns nil if PrintEnabled is false or node is nil.
 func PrintTree(writer io.Writer, fset *token.FileSet, node ast.Node) error {
-	if !PrintEnabled || node == nil {
+	if !PrintEnabled.Load() || node == nil {
 		return nil
 	}
 

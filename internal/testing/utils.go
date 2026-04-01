@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const copyBufferSize = 32 * 1024 // 32KB buffer for optimized copying
+
 // CopyDir copies a directory recursively.
 // If src is a single file, it copies that file to dst directory.
 //
@@ -66,7 +68,9 @@ func CopyDir(src, dst string) error {
 		defer func() {
 			_ = dstFile.Close() // ignore error from Close
 		}()
-		if _, err = io.Copy(dstFile, srcFile); err != nil {
+		// Use CopyBuffer for optimized bulk transfer instead of io.Copy byte-by-byte
+		buf := make([]byte, copyBufferSize)
+		if _, err = io.CopyBuffer(dstFile, srcFile, buf); err != nil {
 			return fmt.Errorf("failed to copy content to %s: %w", dstPath, err)
 		}
 		return nil
@@ -96,7 +100,9 @@ func copySingleFile(src, dst string) error {
 		_ = dstFile.Close() // ignore error from Close
 	}()
 
-	if _, err = io.Copy(dstFile, srcFile); err != nil {
+	// Use CopyBuffer for optimized bulk transfer
+	buf := make([]byte, copyBufferSize)
+	if _, err = io.CopyBuffer(dstFile, srcFile, buf); err != nil {
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
 	return nil

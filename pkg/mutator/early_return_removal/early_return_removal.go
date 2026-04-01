@@ -24,39 +24,12 @@ func (EarlyReturnRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) b
 	if ret.Results == nil || len(ret.Results) == 0 {
 		return false
 	}
-	return isInsideIfBlock(n, ctx.File)
+	return isInsideIfBlockFast(n, ctx.Parent)
 }
 
-func isInsideIfBlock(n ast.Node, file *ast.File) bool {
-	if file == nil {
-		return false
-	}
-	var parentIf *ast.IfStmt
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == n {
-			return false
-		}
-		if ifStmt, ok := node.(*ast.IfStmt); ok {
-			if containsNode(ifStmt.Body, n) {
-				parentIf = ifStmt
-				return false
-			}
-		}
-		return true
-	})
-	return parentIf != nil
-}
-
-func containsNode(container ast.Node, target ast.Node) bool {
-	found := false
-	ast.Inspect(container, func(n ast.Node) bool {
-		if n == target {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
+func isInsideIfBlockFast(n ast.Node, parent ast.Node) bool {
+	_, ok := parent.(*ast.IfStmt)
+	return ok
 }
 
 func (EarlyReturnRemoval) Mutate(n ast.Node) ast.Node {
