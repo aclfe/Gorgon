@@ -35,21 +35,23 @@ import (
 )
 
 func main() {
-	printAST := flag.Bool("print-ast", false, "Print AST during traversal")
-	pkgPath := flag.String("pkg", ".", "Package path to mutate")
-	operatorsFlag := flag.String("operators", "all",
+	fs := flag.NewFlagSet("gorgon", flag.ExitOnError)
+	printAST := fs.Bool("print-ast", false, "Print AST during traversal")
+	pkgPath := fs.String("pkg", ".", "Package path to mutate")
+	operatorsFlag := fs.String("operators", "all",
 		"Comma-separated operators (e.g. arithmetic_flip,condition_negation)")
-	concurrent := flag.Int("concurrent", 0, "Max concurrent mutant runners (default: CPU/2)")
 
-	flag.Parse()
+	concurrentFlag := fs.String("concurrent", "all", "Max concurrent mutant runners: 'all' (default), 'half', or a number")
 
-	if flag.NArg() == 0 && *pkgPath == "." {
+	fs.Parse(os.Args[1:])
+
+	targets := fs.Args()
+	if len(targets) == 0 && *pkgPath == "." {
 		printUsageAndExit()
 	}
 
-	target := *pkgPath
-	if flag.NArg() > 0 {
-		target = flag.Arg(0)
+	if len(targets) == 0 {
+		targets = []string{*pkgPath}
 	}
 
 	var ops []mutator.Operator

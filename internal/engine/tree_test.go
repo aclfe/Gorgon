@@ -20,7 +20,7 @@ func TestPrintTree(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	engine.PrintEnabled = true
+	engine.PrintEnabled.Store(true)
 	if err := engine.PrintTree(&buf, fset, f); err != nil {
 		t.Fatalf("PrintTree failed: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestPrintTree(t *testing.T) {
 
 //nolint:paralleltest // cannot run in parallel - modifies global PrintEnabled state
 func TestPrintTreeDisabled(t *testing.T) {
-	engine.PrintEnabled = false
+	engine.PrintEnabled.Store(false)
 	var buf bytes.Buffer
 	if err := engine.PrintTree(&buf, nil, nil); err != nil {
 		t.Fatalf("PrintTree failed: %v", err)

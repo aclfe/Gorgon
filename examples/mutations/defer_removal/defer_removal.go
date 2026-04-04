@@ -28,10 +28,8 @@ func (r *Resource) IsClosed() bool {
 	return r.closed
 }
 
-var resource Resource
-
 func OpenResource() *Resource {
-	return &resource
+	return &Resource{}
 }
 
 func ProcessWithCleanup() {

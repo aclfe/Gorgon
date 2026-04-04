@@ -248,7 +248,7 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 				for _, syntax := range pkg.Syntax {
 					tfile := pkg.Fset.File(syntax.Pos())
 					if e.PrintAST {
-						PrintEnabled = true
+						PrintEnabled.Store(true)
 						fmt.Printf("\n=== AST for %s ===\n", tfile.Name())
 						if err := PrintTree(os.Stdout, pkg.Fset, syntax); err != nil {
 							return err
@@ -306,7 +306,7 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 
 	tfile := fset.File(file.Pos())
 	if e.PrintAST {
-		PrintEnabled = true
+		PrintEnabled.Store(true)
 		fmt.Printf("\n=== AST for %s ===\n", path)
 		if err := PrintTree(os.Stdout, fset, file); err != nil {
 			return err

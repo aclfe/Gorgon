@@ -12,25 +12,25 @@ import (
 
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/pkg/mutator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
 	"github.com/aclfe/gorgon/pkg/mutator/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
+	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
 	"github.com/aclfe/gorgon/pkg/mutator/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
 	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
 	"github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
 	"github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
 	"github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
-	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
-	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
-	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
 	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
 	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
 	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
 	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
 	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
 	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
+	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 )
 
 const (
@@ -143,7 +143,7 @@ func BenchmarkEngine_PrintTreeSmall(b *testing.B) {
 		b.Fatalf("ParseFile failed: %v", err)
 	}
 
-	engine.PrintEnabled = true
+	engine.PrintEnabled.Store(true)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := engine.PrintTree(io.Discard, fset, f); err != nil {
@@ -157,7 +157,7 @@ func BenchmarkEngine_PrintTreeMedium(b *testing.B) {
 	fset := token.NewFileSet()
 	files := parseDirectory(b, fset, mediumExamplePath)
 
-	engine.PrintEnabled = true
+	engine.PrintEnabled.Store(true)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, f := range files {
