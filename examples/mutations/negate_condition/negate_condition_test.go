@@ -2,42 +2,20 @@ package negate_condition
 
 import "testing"
 
-func TestIsValid(t *testing.T) {
-	t.Parallel()
-	if !IsValid(20) {
-		t.Error("expected 20 to be valid")
+func TestGetStatus(t *testing.T) {
+	if got := GetStatus(80); got != "pass" {
+		t.Errorf("expected pass, got %s", got)
 	}
-	if IsValid(16) {
-		t.Error("expected 16 to be invalid")
-	}
-}
-
-func TestHasAccess(t *testing.T) {
-	t.Parallel()
-	if !HasAccess(true, false) {
-		t.Error("expected admin to have access")
-	}
-	if !HasAccess(false, true) {
-		t.Error("expected permission to have access")
-	}
-	if HasAccess(false, false) {
-		t.Error("expected no access without admin or permission")
+	if got := GetStatus(40); got != "fail" {
+		t.Errorf("expected fail, got %s", got)
 	}
 }
 
-func TestCheckBalance(t *testing.T) {
-	t.Parallel()
-	if !CheckBalance(50, 100) {
-		t.Error("expected 50 to be within limit")
+func TestCheckAccess(t *testing.T) {
+	if !CheckAccess(5, 3) {
+		t.Error("expected level 5 to meet requirement 3")
 	}
-	if CheckBalance(150, 100) {
-		t.Error("expected 150 to exceed limit")
-	}
-}
-
-func TestAlreadyNegated(t *testing.T) {
-	t.Parallel()
-	if alreadyNegated(true) {
-		t.Error("expected !true to be false")
+	if CheckAccess(2, 5) {
+		t.Error("expected level 2 to not meet requirement 5")
 	}
 }

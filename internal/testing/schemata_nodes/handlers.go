@@ -12,9 +12,10 @@ import (
 type SchemataHandler func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node
 
 type MutantForSite struct {
-	ID         int
-	Op         mutator.Operator
-	ReturnType string
+	ID            int
+	Op            mutator.Operator
+	ReturnType    string
+	EnclosingFunc *ast.FuncDecl
 }
 
 type NodeType uint8
@@ -197,7 +198,7 @@ func HandleIdent(original ast.Node, mutants []MutantForSite, returnType string, 
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		ctx := mutator.Context{File: file}
+		ctx := mutator.Context{File: file, EnclosingFunc: mutant.EnclosingFunc}
 		var mutated ast.Node
 		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
 			mutated = cop.MutateWithContext(original, ctx)
@@ -330,7 +331,7 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
 	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file}
+		ctx := mutator.Context{ReturnType: returnType, File: file, EnclosingFunc: mutant.EnclosingFunc}
 		var mutated ast.Node
 		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
 			mutated = cop.MutateWithContext(original, ctx)

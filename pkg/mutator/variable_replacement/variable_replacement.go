@@ -2,6 +2,7 @@ package variable_replacement
 
 import (
 	"go/ast"
+	"go/token"
 	"sync"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
@@ -30,7 +31,60 @@ func (VariableReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 	if ident.Name == "_" {
 		return false
 	}
-	return ctx.EnclosingFunc != nil
+	if ctx.EnclosingFunc == nil {
+		return false
+	}
+	switch p := ctx.Parent.(type) {
+	case *ast.FuncDecl:
+		return false
+	case *ast.File:
+		return false
+	case *ast.Field:
+		return false
+	case *ast.SelectorExpr:
+		if p.Sel == ident {
+			return false
+		}
+	case *ast.KeyValueExpr:
+		if p.Key == ident {
+			return false
+		}
+	case *ast.AssignStmt:
+		for _, lhs := range p.Lhs {
+			if lhs == ident {
+				return false
+			}
+		}
+	case *ast.IncDecStmt:
+		return false
+	case *ast.RangeStmt:
+		if p.Key == ident || p.Value == ident {
+			return false
+		}
+	case *ast.TypeAssertExpr:
+		if p.Type == ident {
+			return false
+		}
+	case *ast.StarExpr:
+		return false
+	case *ast.ArrayType:
+		return false
+	case *ast.MapType:
+		return false
+	case *ast.ChanType:
+		return false
+	case *ast.InterfaceType:
+		return false
+	case *ast.StructType:
+		return false
+	case *ast.FuncType:
+		return false
+	case *ast.CompositeLit:
+		if p.Type == ident {
+			return false
+		}
+	}
+	return true
 }
 
 func (VariableReplacement) Mutate(n ast.Node) ast.Node {
@@ -56,7 +110,7 @@ func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
 	cacheMu.RLock()
 	cached, ok := funcVarsCache[fn]
 	cacheMu.RUnlock()
-	
+
 	if ok {
 		for _, v := range cached {
 			if v != exclude {
@@ -67,12 +121,46 @@ func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
 	}
 
 	var candidates []string
+
+	if fn.Type.Params != nil {
+		for _, field := range fn.Type.Params.List {
+			for _, name := range field.Names {
+				if name.Name != "_" {
+					candidates = append(candidates, name.Name)
+				}
+			}
+		}
+	}
+
+	if fn.Type.Results != nil {
+		for _, field := range fn.Type.Results.List {
+			for _, name := range field.Names {
+				if name.Name != "_" {
+					candidates = append(candidates, name.Name)
+				}
+			}
+		}
+	}
+
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		if assign, ok := n.(*ast.AssignStmt); ok {
 			for _, lhs := range assign.Lhs {
 				if ident, ok := lhs.(*ast.Ident); ok {
-					if ident.Name != exclude && ident.Name != "_" {
+					if ident.Name != "_" {
 						candidates = append(candidates, ident.Name)
+					}
+				}
+			}
+		}
+		if decl, ok := n.(*ast.DeclStmt); ok {
+			if gen, ok := decl.Decl.(*ast.GenDecl); ok && gen.Tok == token.VAR {
+				for _, spec := range gen.Specs {
+					if vs, ok := spec.(*ast.ValueSpec); ok {
+						for _, name := range vs.Names {
+							if name.Name != "_" {
+								candidates = append(candidates, name.Name)
+							}
+						}
 					}
 				}
 			}
@@ -84,8 +172,10 @@ func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
 	funcVarsCache[fn] = candidates
 	cacheMu.Unlock()
 
-	if len(candidates) > 0 {
-		return candidates[0]
+	for _, v := range candidates {
+		if v != exclude {
+			return v
+		}
 	}
 	return ""
 }

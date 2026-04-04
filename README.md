@@ -1,4 +1,4 @@
-## Gorgon v0.5.1
+## Gorgon v0.5.2
 
 Go mutation testing tool.
 
@@ -12,15 +12,51 @@ gorgon -operators=arithmetic,logical ./path
 gorgon -concurrent=all ./path       # use all CPU cores (default)
 gorgon -concurrent=half ./path      # use half of CPU cores
 gorgon -concurrent=2 ./path         # use exactly 2 concurrent test runners
+gorgon -threshold=80 ./path         # fail if mutation score is below 80%
+gorgon -cache ./path                # cache results between runs
 ```
 
 ### Flags
 
 | Flag | Default | Description |
 |---|---|---|
+| `-config` | `""` | Path to YAML config file (disables all other flags) |
 | `-concurrent` | `all` | Max parallel test runs: `all`, `half`, or a number |
 | `-operators` | `all` | Comma-separated operator names or categories |
 | `-print-ast` | `false` | Print AST tree and exit |
+| `-threshold` | `0` | Fail if mutation score is below this percentage (0-100) |
+| `-cache` | `false` | Cache mutation results between runs |
+| `-dry-run` | `false` | Preview mutants without running tests |
+| `-exclude` | `""` | Comma-separated glob patterns for files to exclude |
+| `-include` | `""` | Comma-separated glob patterns for files to include |
+| `-skip` | `""` | Comma-separated relative file paths to skip entirely |
+| `-skip-func` | `""` | Comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc) |
+| `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
+
+## Config
+
+Use `-config` to load a YAML file. All flags must be omitted when using `-config`.
+
+```yaml
+operators:
+  - all
+concurrent: all
+threshold: 80
+cache: true
+dry_run: false
+exclude:
+  - "*_test.go"
+include: []
+skip:
+  - vendor/
+skip_func:
+  - foo/bar.go:MyFunc
+tests: []
+```
+
+```
+gorgon -config=gorgon.yml ./path
+```
 
 ## Mutations
 
@@ -88,11 +124,3 @@ Statement
 - Extensible: implement Operator or ContextualOperator interface
 - Schemata-based for fast testing
 - Parallel test execution: mutants run concurrently across CPU cores
-
-## Usage
-
-```
-gorgon ./path/to/code
-gorgon -operators=arithmetic,logical ./path
-gorgon -operators=binary ./path
-```

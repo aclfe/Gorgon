@@ -55,7 +55,7 @@ func BenchmarkPipeline_FullSmallCodebase(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -68,7 +68,7 @@ func BenchmarkPipeline_FullSmallCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants)
+		_ = reporter.Report(mutants, 0)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -82,7 +82,7 @@ func BenchmarkPipeline_FullMediumCodebase(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -91,7 +91,7 @@ func BenchmarkPipeline_FullMediumCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants)
+		_ = reporter.Report(mutants, 0)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -129,7 +129,7 @@ func BenchmarkPipeline_PhaseBreakdown(b *testing.B) {
 		// Phase 3: Schemata Application (full pipeline includes this)
 		start = time.Now()
 		ctx, cancel := context.WithCancel(context.Background())
-		runMutants, err := gtest.GenerateAndRunSchemata(ctx, detectedSites, ops, smallCodebase, 1)
+		runMutants, err := gtest.GenerateAndRunSchemata(ctx, detectedSites, ops, smallCodebase, 1, nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Schemata failed (dependency issue): %v", err)
@@ -144,7 +144,7 @@ func BenchmarkPipeline_PhaseBreakdown(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(runMutants)
+		_ = reporter.Report(runMutants, 0)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -177,7 +177,7 @@ func BenchmarkPipeline_ConcurrencyScaling(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				ctx, cancel := context.WithCancel(context.Background())
-				_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, conc)
+				_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, conc, nil, nil)
 				cancel()
 				if err != nil {
 					b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -202,7 +202,7 @@ func BenchmarkPipeline_MutationDetectionRate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -235,7 +235,7 @@ func BenchmarkPipeline_ArithmeticOperators(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -253,7 +253,7 @@ func BenchmarkPipeline_LogicalOperators(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -272,7 +272,7 @@ func BenchmarkPipeline_ZeroValueReturns(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -291,7 +291,7 @@ func BenchmarkPipeline_LoopMutations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -312,7 +312,7 @@ func BenchmarkPipeline_MemoryAllocations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -333,7 +333,7 @@ func BenchmarkPipeline_Throughput(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		start := time.Now()
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -356,7 +356,7 @@ func BenchmarkPipeline_ColdStart(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Each iteration is a cold start - new context, new temp dir
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -375,7 +375,7 @@ func BenchmarkPipeline_ErrorRecovery(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU())
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 
 		// Count errors for metrics
@@ -506,7 +506,7 @@ func BenchmarkPipeline_ConditionalExpressions(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU())
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)

@@ -12,7 +12,6 @@ permissions:
   contents: read
 
 jobs:
-
   check-new-go:
     name: Check for Newer Go Release
     runs-on: ubuntu-latest
@@ -31,15 +30,14 @@ jobs:
         run: |
           MATRIX_MAX="1.26"               # change on new version!! also the go matrix below!
           LATEST="${{ steps.fetch.outputs.latest }}"
-          
+
           # Extract major.minor reliably (e.g., 1.25.7 → 1.25, 1.26.0 → 1.26)
           MATRIX_MM=$(echo "$MATRIX_MAX" | cut -d. -f1-2)
           LATEST_MM=$(echo "$LATEST" | cut -d. -f1-2)
-          
+
           if [[ "$LATEST_MM" > "$MATRIX_MM" ]]; then
-            echo "::error::Newer Go major/minor $LATEST detected (matrix max major/minor is $MATRIX_MM)"
-            echo "should_test=false" >> "$GITHUB_OUTPUT"
-            exit 1
+            echo "::warning::Newer Go major/minor $LATEST detected (matrix max major/minor is $MATRIX_MM). Consider updating the matrix."
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
           else
             echo "Go version OK (latest $LATEST has same or lower major/minor than matrix max $MATRIX_MM)"
             echo "should_test=true" >> "$GITHUB_OUTPUT"
@@ -65,30 +63,9 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
-          cache: false
-          cache-dependency-path: go.sum
 
       - name: Download modules
         run: go mod download
 
       - name: Run tests
         run: go test -v -race ./...
-
-  regression-test:
-    name: Regression Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          cache-dependency-path: go.sum
-
-      - name: Download modules
-        run: go mod download
-
-      - name: Run regression tests
-        run: go test -v -race ./internal/testing/... -run "TestMutationCounts|TestAllOperatorsCombined|TestOperatorDetection"
