@@ -42,6 +42,7 @@ func main() {
 	pkgPath := fs.String("pkg", ".", "Package path to mutate")
 	operatorsFlag := fs.String("operators", "all",
 		"Comma-separated operators (e.g. arithmetic_flip,condition_negation)")
+
 	concurrentFlag := fs.String("concurrent", "all", "Max concurrent mutant runners: 'all' (default), 'half', or a number")
 
 	fs.Parse(os.Args[1:])
@@ -50,6 +51,7 @@ func main() {
 	if len(targets) == 0 && *pkgPath == "." {
 		printUsageAndExit()
 	}
+
 	if len(targets) == 0 {
 		targets = []string{*pkgPath}
 	}
