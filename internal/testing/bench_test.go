@@ -457,7 +457,7 @@ func BenchmarkSchemata_ConcurrentExecution(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				_, err := gtest.GenerateAndRunSchemata(ctx, sites, operators, smallCodebase, conc)
+				_, err := gtest.GenerateAndRunSchemata(ctx, sites, operators, smallCodebase, conc, nil, nil)
 				cancel()
 				if err != nil {
 					b.Skipf("Schemata failed (dependency issue): %v", err)

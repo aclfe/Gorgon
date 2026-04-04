@@ -3,58 +3,35 @@ package config
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Mutations  MutationsConfig  `yaml:"mutations"`
-	Testing    TestingConfig    `yaml:"testing"`
-	Engine     EngineConfig     `yaml:"engine"`
-	Output     OutputConfig     `yaml:"output"`
-}
-
-type MutationsConfig struct {
-	Operators []string `yaml:"operators"`
-	Exclude   []string `yaml:"exclude"`
-}
-
-type TestingConfig struct {
-	Timeout     time.Duration `yaml:"timeout"`
-	Concurrent  int           `yaml:"concurrent"`
-	FailFast    bool          `yaml:"fail_fast"`
-}
-
-type EngineConfig struct {
-	PrintAST    bool     `yaml:"print_ast"`
-	Parallel    int      `yaml:"parallel"`
-}
-
-type OutputConfig struct {
-	Format      string   `yaml:"format"`
-	ShowSkipped bool     `yaml:"show_skipped"`
+	Operators  []string `yaml:"operators"`
+	Concurrent string   `yaml:"concurrent"`
+	Threshold  float64  `yaml:"threshold"`
+	Cache      bool     `yaml:"cache"`
+	DryRun     bool     `yaml:"dry_run"`
+	Exclude    []string `yaml:"exclude"`
+	Include    []string `yaml:"include"`
+	Skip       []string `yaml:"skip"`
+	SkipFunc   []string `yaml:"skip_func"`
+	Tests      []string `yaml:"tests"`
 }
 
 func Default() *Config {
 	return &Config{
-		Mutations: MutationsConfig{
-			Operators: []string{"all"},
-			Exclude:   []string{},
-		},
-		Testing: TestingConfig{
-			Timeout:    10 * time.Second,
-			Concurrent: 0,
-			FailFast:   false,
-		},
-		Engine: EngineConfig{
-			PrintAST: false,
-			Parallel: 0,
-		},
-		Output: OutputConfig{
-			Format:      "text",
-			ShowSkipped: false,
-		},
+		Operators:  []string{"all"},
+		Concurrent: "all",
+		Threshold:  0,
+		Cache:      false,
+		DryRun:     false,
+		Exclude:    []string{},
+		Include:    []string{},
+		Skip:       []string{},
+		SkipFunc:   []string{},
+		Tests:      []string{},
 	}
 }
 
@@ -77,18 +54,8 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Testing.Timeout <= 0 {
-		c.Testing.Timeout = 10 * time.Second
+	if c.Concurrent == "" {
+		c.Concurrent = "all"
 	}
-
-	if c.Testing.Concurrent <= 0 {
-		c.Testing.Concurrent = 0
-	}
-
-	validFormats := map[string]bool{"text": true, "json": true, "html": true}
-	if !validFormats[c.Output.Format] {
-		c.Output.Format = "text"
-	}
-
 	return nil
 }

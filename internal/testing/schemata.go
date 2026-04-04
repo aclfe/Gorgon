@@ -3,6 +3,8 @@ package testing
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -21,6 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/ast/astutil"
 
+	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/mutator"
@@ -30,7 +33,16 @@ const (
 	filePermissions = 0o600
 )
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int) ([]Mutant, error) {
+func hashFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:]), nil
+}
+
+func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant {
 	sort.Slice(sites, func(i, j int) bool {
 		return sites[i].File.Name() < sites[j].File.Name()
 	})
@@ -48,7 +60,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 			file: site.File.Name(),
 			line: site.Line,
 			col:  site.Column,
-			ntyp: typeToUint8(site.Node),
+			ntyp: TypeToUint8(site.Node),
 		}
 		if !seen[key] {
 			seen[key] = true
@@ -63,7 +75,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		for _, op := range operators {
 			apply := false
 			if cop, ok := op.(mutator.ContextualOperator); ok {
-				ctx := mutator.Context{ReturnType: site.ReturnType}
+				ctx := mutator.Context{ReturnType: site.ReturnType, EnclosingFunc: site.EnclosingFunc}
 				apply = cop.CanApplyWithContext(site.Node, ctx)
 			} else {
 				apply = op.CanApply(site.Node)
@@ -78,9 +90,51 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 			}
 		}
 	}
+	return mutants
+}
+
+func testArgs(timeout string, tests []string) []string {
+	args := []string{"-test.timeout=" + timeout}
+	if len(tests) > 0 {
+		pattern := strings.Join(tests, "|")
+		args = append(args, "-test.run="+pattern)
+	}
+	return args
+}
+
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string) ([]Mutant, error) {
+	mutants := GenerateMutants(sites, operators)
 	if len(mutants) == 0 {
 		return nil, nil
 	}
+
+	if cache != nil {
+		for i := range mutants {
+			mutant := &mutants[i]
+			fileHash, err := hashFile(mutant.Site.File.Name())
+			if err != nil {
+				continue
+			}
+			key := cache.Key(mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column, TypeToUint8(mutant.Site.Node), mutant.Operator.Name(), fileHash)
+			if entry, ok := cache.Get(key); ok {
+				mutant.Status = entry.Status
+			}
+		}
+	}
+
+	var toRun []Mutant
+	for _, m := range mutants {
+		if m.Status == "" {
+			toRun = append(toRun, m)
+		}
+	}
+	if len(toRun) == 0 {
+		if cache != nil {
+			_ = cache.Save(baseDir)
+		}
+		return mutants, nil
+	}
+	mutants = toRun
 
 	modPath := findGoMod(baseDir)
 
@@ -89,7 +143,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	hasOwnGoMod := fileExists(baseGoMod)
 
 	if !hasOwnGoMod {
-		return runSchemataStandalone(mutants, concurrent)
+		return runSchemataStandalone(mutants, concurrent, cache, baseDir, tests)
 	}
 
 	moduleRoot := filepath.Dir(modPath)
@@ -331,7 +385,8 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				mutantIDs := mutantIDs
 
 				baselineDuration := 5 * time.Second
-				baselineCmd := exec.CommandContext(testCtx, testBinary, "-test.timeout=5s")
+				baselineArgs := testArgs("5s", tests)
+				baselineCmd := exec.CommandContext(testCtx, testBinary, baselineArgs...)
 				baselineCmd.Dir = pkgDir
 				baselineStart := time.Now()
 				_ = baselineCmd.Run()
@@ -354,7 +409,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 						default:
 						}
 
-						cmd := exec.CommandContext(testCtx, testBinary, "-test.timeout="+timeoutStr)
+						cmd := exec.CommandContext(testCtx, testBinary, testArgs(timeoutStr, tests)...)
 						cmd.Dir = pkgDir
 						cmd.Env = append(os.Environ(), "GORGON_MUTANT_ID="+strconv.Itoa(mutantID))
 
@@ -409,10 +464,26 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return nil, fmt.Errorf("compilation failures: %s", strings.Join(errs, "; "))
 	}
 
+	if cache != nil {
+		for i := range mutants {
+			mutant := &mutants[i]
+			if mutant.Status == "" {
+				continue
+			}
+			fileHash, err := hashFile(mutant.Site.File.Name())
+			if err != nil {
+				continue
+			}
+			key := cache.Key(mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column, TypeToUint8(mutant.Site.Node), mutant.Operator.Name(), fileHash)
+			cache.Set(key, mutant.Status)
+		}
+		_ = cache.Save(baseDir)
+	}
+
 	return mutants, nil
 }
 
-func runSchemataStandalone(mutants []Mutant, concurrent int) ([]Mutant, error) {
+func runSchemataStandalone(mutants []Mutant, concurrent int, cache *cache.Cache, baseDir string, tests []string) ([]Mutant, error) {
 	if concurrent == 0 {
 		concurrent = runtime.NumCPU()
 	}
@@ -436,7 +507,7 @@ func runSchemataStandalone(mutants []Mutant, concurrent int) ([]Mutant, error) {
 				return ctx.Err()
 			default:
 			}
-			return processStandalonePkg(pkgDir, pkgMutants, concurrent)
+			return processStandalonePkg(pkgDir, pkgMutants, concurrent, tests)
 		})
 	}
 
@@ -444,10 +515,26 @@ func runSchemataStandalone(mutants []Mutant, concurrent int) ([]Mutant, error) {
 		return nil, err
 	}
 
+	if cache != nil {
+		for i := range mutants {
+			mutant := &mutants[i]
+			if mutant.Status == "" {
+				continue
+			}
+			fileHash, err := hashFile(mutant.Site.File.Name())
+			if err != nil {
+				continue
+			}
+			key := cache.Key(mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column, TypeToUint8(mutant.Site.Node), mutant.Operator.Name(), fileHash)
+			cache.Set(key, mutant.Status)
+		}
+		_ = cache.Save(baseDir)
+	}
+
 	return mutants, nil
 }
 
-func processStandalonePkg(pkgDir string, pkgMutants []*Mutant, concurrent int) error {
+func processStandalonePkg(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string) error {
 	entries, err := os.ReadDir(pkgDir)
 	if err != nil {
 		return fmt.Errorf("failed to read dir %s: %w", pkgDir, err)
@@ -524,7 +611,7 @@ func processStandalonePkg(pkgDir string, pkgMutants []*Mutant, concurrent int) e
 		return nil
 	}
 
-	baselineCmd := exec.Command(testBinary, "-test.timeout=5s")
+	baselineCmd := exec.Command(testBinary, testArgs("5s", tests)...)
 	baselineCmd.Dir = tempDir
 	baselineStart := time.Now()
 	_ = baselineCmd.Run()
@@ -553,7 +640,7 @@ func processStandalonePkg(pkgDir string, pkgMutants []*Mutant, concurrent int) e
 			ctx, cancel := context.WithTimeout(context.Background(), timeout+2*time.Second)
 			defer cancel()
 
-			cmd := exec.CommandContext(ctx, testBinary, "-test.timeout="+timeoutStr)
+			cmd := exec.CommandContext(ctx, testBinary, testArgs(timeoutStr, tests)...)
 			cmd.Dir = tempDir
 			cmd.Env = append(os.Environ(), "GORGON_MUTANT_ID="+strconv.Itoa(mutant.ID))
 
@@ -645,12 +732,13 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		key := posKey{
 			Line:   mutant.Site.Line,
 			Column: mutant.Site.Column,
-			Type:   typeToUint8(mutant.Site.Node),
+			Type:   TypeToUint8(mutant.Site.Node),
 		}
 		posToMutants[key] = append(posToMutants[key], schemata_nodes.MutantForSite{
-			ID:         mutant.ID,
-			Op:         mutant.Operator,
-			ReturnType: mutant.Site.ReturnType,
+			ID:            mutant.ID,
+			Op:            mutant.Operator,
+			ReturnType:    mutant.Site.ReturnType,
+			EnclosingFunc: mutant.Site.EnclosingFunc,
 		})
 	}
 
@@ -694,7 +782,7 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		}
 
 		newPos := getNodePositionForMatching(node, fset)
-		key := posKey{Line: newPos.Line, Column: newPos.Column, Type: typeToUint8(node)}
+		key := posKey{Line: newPos.Line, Column: newPos.Column, Type: TypeToUint8(node)}
 		if mutants, ok := posToMutants[key]; ok {
 			returnType := ""
 			if len(mutants) > 0 {
@@ -731,7 +819,7 @@ func safeReplace(cursor *astutil.Cursor, replacement ast.Node) {
 	cursor.Replace(replacement)
 }
 
-func typeToUint8(node ast.Node) uint8 {
+func TypeToUint8(node ast.Node) uint8 {
 	switch node.(type) {
 	case *ast.BinaryExpr:
 		return 1
@@ -808,8 +896,8 @@ func isValidReplacement(original, replacement ast.Node) bool {
 		return false
 	}
 
-	typeOriginal := typeToUint8(original)
-	typeReplacement := typeToUint8(replacement)
+	typeOriginal := TypeToUint8(original)
+	typeReplacement := TypeToUint8(replacement)
 
 	if typeOriginal == typeReplacement {
 		return true
@@ -826,10 +914,10 @@ func isValidReplacement(original, replacement ast.Node) bool {
 		7:  {7, 24},
 		8:  {8, 24},
 		9:  {9, 24, 21},
-		10: {10, 3},
+		10: {10, 3, 24},
 		11: {11, 21, 23, 24},
 		12: {12, 21, 23, 24},
-		13: {13, 3},
+		13: {13, 3, 24},
 		14: {14, 24},
 		15: {15, 24},
 		16: {16, 24, 23},

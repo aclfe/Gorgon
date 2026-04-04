@@ -55,5 +55,5 @@ coverage.out
 Thumbs.db
 
 settings.json
-repos
-info.txt
+internal_notes
+scripts/external-regression.sh

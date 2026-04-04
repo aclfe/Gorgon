@@ -6,9 +6,11 @@ import (
 )
 
 type Site struct {
-	File       *token.File
-	Line       int
-	Column     int
-	Node       ast.Node
-	ReturnType string
+	File          *token.File
+	Line          int
+	Column        int
+	Node          ast.Node
+	ReturnType    string
+	FunctionName  string
+	EnclosingFunc *ast.FuncDecl
 }

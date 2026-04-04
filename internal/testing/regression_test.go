@@ -42,11 +42,17 @@ type expectedMutations struct {
 
 var expectedResults = []expectedMutations{
 	{folder: "arithmetic_flip", operator: "arithmetic_flip", total: 6, killed: 3, survived: 3},
+	{folder: "negate_condition", operator: "negate_condition", total: 2, killed: 2, survived: 0},
+	{folder: "assignment_operator", operator: "assignment_operator", total: 4, killed: 4, survived: 0},
+	{folder: "empty_body", operator: "empty_body", total: 4, killed: 0, survived: 4},
+	{folder: "logical_operator", operator: "logical_operator", total: 4, killed: 4, survived: 0},
 	{folder: "condition_negation", operator: "condition_negation", total: 4, killed: 2, survived: 2},
 	{folder: "boundary_value", operator: "boundary_value", total: 6, killed: 5, survived: 1},
 	{folder: "zero_value_return", operator: "zero_value_return_numeric", total: 1, killed: 1, survived: 0},
 	{folder: "zero_value_return", operator: "zero_value_return_string", total: 1, killed: 1, survived: 0},
 	{folder: "sign_toggle", operator: "sign_toggle", total: 4, killed: 4, survived: 0},
+	{folder: "constant_replacement", operator: "constant_replacement", total: 6, killed: 5, survived: 1},
+	{folder: "variable_replacement", operator: "variable_replacement", total: 18, killed: 15, survived: 3},
 	{folder: "binary_math", operator: "binary_math", total: 5, killed: 5, survived: 0},
 	{folder: "inc_dec_flip", operator: "inc_dec_flip", total: 2, killed: 2, survived: 0},
 	{folder: "switch_mutations/switch_remove_default", operator: "switch_remove_default", total: 3, killed: 2, survived: 1},
@@ -57,15 +63,15 @@ var expectedResults = []expectedMutations{
 	{folder: "reference_returns/interface_returns", operator: "interface_returns", total: 2, killed: 2, survived: 0},
 	{folder: "reference_returns/channel_returns", operator: "channel_returns", total: 2, killed: 1, survived: 1},
 	{folder: "conditional_expression/if_condition_true", operator: "if_condition_true", total: 3, killed: 1, survived: 2},
-	{folder: "conditional_expression/if_condition_false", operator: "if_condition_false", total: 3, killed: 1, survived: 2},
-	{folder: "conditional_expression/for_condition_true", operator: "for_condition_true", total: 3, killed: 3, survived: 0},
-	{folder: "conditional_expression/for_condition_false", operator: "for_condition_false", total: 2, killed: 0, survived: 2},
+	{folder: "conditional_expression/if_condition_false", operator: "if_condition_false", total: 3, killed: 2, survived: 1},
+	{folder: "conditional_expression/for_condition_true", operator: "for_condition_true", total: 3, killed: 2, survived: 1},
+	{folder: "conditional_expression/for_condition_false", operator: "for_condition_false", total: 2, killed: 2, survived: 0},
 }
 
 func TestMutationCounts(tst *stdtesting.T) {
 	// Skip this slow test - run explicitly with: go test -run TestMutationCounts
-	tst.Skip("Slow integration test - run explicitly if needed")
-	
+	// tst.Skip("Slow integration test - run explicitly if needed")
+
 	for _, expected := range expectedResults {
 		tst.Run(expected.folder+"/"+expected.operator, func(t *stdtesting.T) {
 			absPath, err := filepath.Abs("../../examples/mutations/" + expected.folder)
@@ -87,7 +93,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil)
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}
@@ -135,7 +141,7 @@ func TestAllOperatorsCombined(tst *stdtesting.T) {
 
 	sites := eng.Sites()
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil)
 	if err != nil {
 		tst.Fatalf("GenerateAndRunSchemata failed: %v", err)
 	}

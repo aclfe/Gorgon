@@ -444,13 +444,19 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 					apply = op.CanApply(node)
 				}
 				if apply {
+					if !contextBuilt {
+						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+						contextBuilt = true
+					}
 					pos := getNodePosition(node, fset)
 					localSites = append(localSites, Site{
-						File:       tfile,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Node:       node,
-						ReturnType: mctx.ReturnType,
+						File:          tfile,
+						Line:          pos.Line,
+						Column:        pos.Column,
+						Node:          node,
+						ReturnType:    mctx.ReturnType,
+						FunctionName:  mctx.FunctionName,
+						EnclosingFunc: mctx.EnclosingFunc,
 					})
 				}
 			}
@@ -540,13 +546,19 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 								apply = op.CanApply(node)
 							}
 							if apply {
+								if !contextBuilt {
+									mctx = buildContextLazy(node, syntax, pkg.Fset, pkgCache, parents, true)
+									contextBuilt = true
+								}
 								pos := getNodePosition(node, pkg.Fset)
 								localSites = append(localSites, Site{
-									File:       tfile,
-									Line:       pos.Line,
-									Column:     pos.Column,
-									Node:       node,
-									ReturnType: mctx.ReturnType,
+									File:          tfile,
+									Line:          pos.Line,
+									Column:        pos.Column,
+									Node:          node,
+									ReturnType:    mctx.ReturnType,
+									FunctionName:  mctx.FunctionName,
+									EnclosingFunc: mctx.EnclosingFunc,
 								})
 							}
 						}
@@ -614,13 +626,19 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 				apply = op.CanApply(node)
 			}
 			if apply {
+				if !contextBuilt {
+					mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+					contextBuilt = true
+				}
 				pos := getNodePosition(node, fset)
 				localSites = append(localSites, Site{
-					File:       tfile,
-					Line:       pos.Line,
-					Column:     pos.Column,
-					Node:       node,
-					ReturnType: mctx.ReturnType,
+					File:          tfile,
+					Line:          pos.Line,
+					Column:        pos.Column,
+					Node:          node,
+					ReturnType:    mctx.ReturnType,
+					FunctionName:  mctx.FunctionName,
+					EnclosingFunc: mctx.EnclosingFunc,
 				})
 			}
 		}

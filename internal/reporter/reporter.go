@@ -14,7 +14,7 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant) error {
+func Report(mutants []testing.Mutant, threshold float64) error {
 	total := len(mutants)
 	killed := 0
 	survived := 0
@@ -60,6 +60,10 @@ func Report(mutants []testing.Mutant) error {
 				col,
 				mutant.Operator.Name())
 		}
+	}
+
+	if threshold > 0 && score < threshold {
+		return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
 	}
 
 	// WILL MAKE: HTML output with flag

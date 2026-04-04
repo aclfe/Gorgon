@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  # ── Lint ────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          args: --timeout=5m
+
+  # ── Tidy & Vet ──────────────────────────────────────────────────────────
+  tidy:
+    name: Tidy & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Run tidy check
+        run: ./scripts/ci-check.sh --mode tidy
+
+  # ── Build Check ─────────────────────────────────────────────────────────
+  build-check:
+    name: Build Check — Go ${{ matrix.go }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['oldstable', 'stable']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+      - name: Download modules
+        run: go mod download
+      - name: Run build check
+        run: ./scripts/ci-check.sh --mode build
+
+  # ── CLI Contract Tests ──────────────────────────────────────────────────
+  contract-tests:
+    name: CLI Contract — Go ${{ matrix.go }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['oldstable', 'stable']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+      - name: Download modules
+        run: go mod download
+      - name: Run CLI contract tests
+        run: ./scripts/cli-contract.sh
+
+  # ── Internal Regression ─────────────────────────────────────────────────
+  internal-regression:
+    name: Internal Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Download modules
+        run: go mod download
+      - name: Run internal regression check
+        run: ./scripts/internal-regression.sh
+
+  # ── Mutation Count Regression ───────────────────────────────────────────
+  mutation-count-regression:
+    name: Mutation Count Regression — ${{ matrix.go }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24', 'oldstable', 'stable']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+      - name: Download modules
+        run: go mod download
+      - name: Run mutation count regression
+        run: go test -v -count=1 ./internal/testing -run TestMutationCounts
+
+  # ── Coverage & Dead Code ────────────────────────────────────────────────
+  coverage-and-deadcode:
+    name: Coverage & Dead Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up latest Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Filter coverage to exclude cmd/gorgon
+        run: |
+          grep -v "github.com/aclfe/gorgon/cmd/gorgon" coverage.out > filtered_coverage.out
+          mv filtered_coverage.out coverage.out
+
+      - name: Generate HTML coverage report
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Check coverage threshold
+        run: |
+          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: $coverage%"
+          coverage_int=${coverage%%.*}
+          if [[ "$coverage_int" -lt 70 ]]; then
+            echo "Coverage is below 70%. Failing the build."
+            exit 1
+          fi
+
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.html
+          retention-days: 7
+
+      - name: Install deadcode tool
+        run: go install golang.org/x/tools/cmd/deadcode@latest
+
+      - name: Check for dead code
+        run: |
+          deadcode -test ./... || exit 1
+
+  # ── Static Analysis (CodeQL) ────────────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up latest Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/go-static-analysis"
+
+      - name: Upload SARIF artifact (for manual review if needed)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: '*.sarif'
+          retention-days: 14
+
+  # ── Octocov ─────────────────────────────────────────────────────────────
+  octocov:
+    name: Octocov Coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run tests with coverage report output
+        run: go test ./... -coverprofile=coverage.out
+      - uses: k1LoW/octocov-action@v1

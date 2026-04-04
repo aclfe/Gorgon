@@ -1,61 +1,56 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# test.sh — Run all Go unit tests with race detector
+#
+# Usage:
+#   ./scripts/test.sh              # run all tests
+#   ./scripts/test.sh --count 3    # run N times (catch flaky tests)
+#   ./scripts/test.sh --verbose    # verbose output
 
-GORGON="./bin/gorgon"
-EXAMPLES="examples"
-PASS=0
-FAIL=0
+set -euo pipefail
 
-red='\033[0;31m'
-green='\033[0;32m'
-yellow='\033[1;33m'
-nc='\033[0m'
+COUNT=1
+VERBOSE=false
 
-run_test() {
-    local name="$1"
-    local cmd="$2"
-    local expected_fail="${3:-false}"
-    echo -e "${yellow}Testing: $name${nc}"
-    echo "Command: $cmd"
-    if eval "$cmd" > /tmp/gorgon_test.log 2>&1; then
-        echo -e "${green}✓ PASS${nc}"
-        ((PASS++))
-    elif [ "$expected_fail" = "true" ]; then
-        echo -e "${yellow}✓ EXPECTED FAIL${nc}"
-        ((PASS++))
-    else
-        echo -e "${red}✗ FAIL${nc}"
-        cat /tmp/gorgon_test.log
-        ((FAIL++))
-    fi
-    echo "---"
-    return 0
-}
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --count) COUNT="$2"; shift 2 ;;
+        --verbose|-v) VERBOSE=true; shift ;;
+        --help|-h)
+            echo "Usage: $0 [--count N] [--verbose]"
+            exit 0
+            ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
 
-echo "=== Gorgon Test Suite ==="
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+info() { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()   { echo -e "${GREEN}[PASS]${NC} $*"; }
+fail() { echo -e "${RED}[FAIL]${NC} $*"; }
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}  Gorgon — Unit Tests${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-run_test "Single file (no go.mod)" "$GORGON $EXAMPLES/mutations/arithmetic_flip/arithmetic_flip.go" "true"
-run_test "Single directory" "$GORGON $EXAMPLES/mutations/arithmetic_flip"
-run_test "All examples" "$GORGON $EXAMPLES"
+FLAGS="-race -count=$COUNT"
+if $VERBOSE; then
+    FLAGS="$FLAGS -v"
+fi
 
-run_test "arithmetic_flip" "$GORGON -operators arithmetic_flip $EXAMPLES"
-run_test "condition_negation" "$GORGON -operators condition_negation $EXAMPLES"
-run_test "zero_value_return" "$GORGON -operators zero_value_return $EXAMPLES"
-run_test "pointer_returns" "$GORGON -operators pointer_returns $EXAMPLES"
-run_test "slice_returns" "$GORGON -operators slice_returns $EXAMPLES"
-run_test "map_returns" "$GORGON -operators map_returns $EXAMPLES"
-run_test "channel_returns" "$GORGON -operators channel_returns $EXAMPLES"
-run_test "interface_returns" "$GORGON -operators interface_returns $EXAMPLES"
-
-run_test "all operators" "$GORGON -operators all $EXAMPLES"
-run_test "combo operators" "$GORGON -operators arithmetic_flip,condition_negation $EXAMPLES"
-run_test "print AST" "$GORGON -print-ast $EXAMPLES/mutations/arithmetic_flip"
-
+info "Running tests ($COUNT run(s), race detector enabled)…"
 echo ""
-echo "=== Summary ==="
-echo -e "Passed: ${green}$PASS${nc}"
-echo -e "Failed: ${red}$FAIL${nc}"
 
-echo ""
-echo "=== Survivors ==="
-$GORGON $EXAMPLES 2>&1 | grep -A20 "Survived"
+if go test $FLAGS ./...; then
+    echo ""
+    ok "All tests passed"
+    exit 0
+else
+    echo ""
+    fail "Tests failed"
+    exit 1
+fi
