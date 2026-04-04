@@ -64,7 +64,7 @@ jobs:
           mkdir -p bin
           GOOS=linux GOARCH=amd64 go build -o bin/gorgon-linux-amd64 ./cmd/gorgon
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gorgon-linux-amd64
           path: bin/gorgon-linux-amd64
@@ -82,7 +82,7 @@ jobs:
           mkdir -p bin
           GOOS=windows GOARCH=amd64 go build -o bin/gorgon-windows-amd64.exe ./cmd/gorgon
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gorgon-windows-amd64
           path: bin/gorgon-windows-amd64.exe
@@ -101,7 +101,7 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -o bin/gorgon-darwin-amd64 ./cmd/gorgon
           GOOS=darwin GOARCH=arm64 go build -o bin/gorgon-darwin-arm64 ./cmd/gorgon
       - name: Upload Mac artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gorgon-mac
           path: |
