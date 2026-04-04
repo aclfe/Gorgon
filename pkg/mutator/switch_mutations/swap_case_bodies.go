@@ -13,6 +13,10 @@ func (SwapCaseBodies) Name() string {
 }
 
 func (SwapCaseBodies) CanApply(n ast.Node) bool {
+	return false
+}
+
+func (SwapCaseBodies) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	cc, ok := n.(*ast.CaseClause)
 	if !ok {
 		return false
@@ -27,10 +31,6 @@ func (SwapCaseBodies) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
-func (SwapCaseBodies) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	return SwapCaseBodies{}.CanApply(n)
-}
-
 func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	cc, ok := n.(*ast.CaseClause)
 	if !ok || cc.List == nil || len(cc.Body) == 0 {
@@ -41,7 +41,7 @@ func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 		return nil
 	}
 
-	siblings := findSiblingCasesInSameSwitch(cc, ctx.File)
+	siblings := findSiblingCasesInSameSwitch(cc, ctx.File, ctx.Parent)
 	if len(siblings) < 2 {
 		return nil
 	}
@@ -78,65 +78,15 @@ func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 	}
 }
 
-func findCasesInFile(cc *ast.CaseClause, file *ast.File) []*ast.CaseClause {
+func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File, parent ast.Node) []*ast.CaseClause {
 	var siblings []*ast.CaseClause
 
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch stmt := n.(type) {
-		case *ast.SwitchStmt:
-			for _, s := range stmt.Body.List {
-				if c, ok := s.(*ast.CaseClause); ok {
-					siblings = append(siblings, c)
-				}
-			}
-			return false
-		case *ast.TypeSwitchStmt:
-			for _, s := range stmt.Body.List {
-				if c, ok := s.(*ast.CaseClause); ok {
-					siblings = append(siblings, c)
-				}
-			}
-			return false
-		}
-		return true
-	})
-
-	return siblings
-}
-
-func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File) []*ast.CaseClause {
-	var siblings []*ast.CaseClause
-	var targetSwitch ast.Node
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch stmt := n.(type) {
-		case *ast.SwitchStmt:
-			for _, s := range stmt.Body.List {
-				if c, ok := s.(*ast.CaseClause); ok {
-					if c == cc {
-						targetSwitch = stmt
-						return false
-					}
-				}
-			}
-		case *ast.TypeSwitchStmt:
-			for _, s := range stmt.Body.List {
-				if c, ok := s.(*ast.CaseClause); ok {
-					if c == cc {
-						targetSwitch = stmt
-						return false
-					}
-				}
-			}
-		}
-		return true
-	})
-
-	if targetSwitch == nil {
+	switchStmt := getSwitchStmt(cc, file)
+	if switchStmt == nil {
 		return nil
 	}
 
-	switch stmt := targetSwitch.(type) {
+	switch stmt := switchStmt.(type) {
 	case *ast.SwitchStmt:
 		for _, s := range stmt.Body.List {
 			if c, ok := s.(*ast.CaseClause); ok {
@@ -152,6 +102,36 @@ func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File) []*ast.Cas
 	}
 
 	return siblings
+}
+
+func getSwitchStmt(cc *ast.CaseClause, file *ast.File) ast.Node {
+	var result ast.Node
+	ast.Inspect(file, func(n ast.Node) bool {
+		if result != nil {
+			return false
+		}
+		switch stmt := n.(type) {
+		case *ast.SwitchStmt, *ast.TypeSwitchStmt:
+			if containsCaseClause(stmt, cc) {
+				result = stmt
+				return false
+			}
+		}
+		return true
+	})
+	return result
+}
+
+func containsCaseClause(n ast.Node, target *ast.CaseClause) bool {
+	found := false
+	ast.Inspect(n, func(node ast.Node) bool {
+		if node == target {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 func init() {

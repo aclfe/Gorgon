@@ -2,11 +2,17 @@ package variable_replacement
 
 import (
 	"go/ast"
+	"sync"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 type VariableReplacement struct{}
+
+var (
+	funcVarsCache = make(map[*ast.FuncDecl][]string)
+	cacheMu       sync.RWMutex
+)
 
 func (VariableReplacement) Name() string {
 	return "variable_replacement"
@@ -40,13 +46,26 @@ func (VariableReplacement) MutateWithContext(n ast.Node, ctx mutator.Context) as
 		return nil
 	}
 	replacement := findReplacementVar(ctx.EnclosingFunc, ident.Name)
-	if replacement == "" {
+	if replacement == "" || replacement == ident.Name {
 		return nil
 	}
 	return &ast.Ident{NamePos: ident.NamePos, Name: replacement}
 }
 
 func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
+	cacheMu.RLock()
+	cached, ok := funcVarsCache[fn]
+	cacheMu.RUnlock()
+	
+	if ok {
+		for _, v := range cached {
+			if v != exclude {
+				return v
+			}
+		}
+		return ""
+	}
+
 	var candidates []string
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		if assign, ok := n.(*ast.AssignStmt); ok {
@@ -60,6 +79,11 @@ func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
 		}
 		return true
 	})
+
+	cacheMu.Lock()
+	funcVarsCache[fn] = candidates
+	cacheMu.Unlock()
+
 	if len(candidates) > 0 {
 		return candidates[0]
 	}

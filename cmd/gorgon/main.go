@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/aclfe/gorgon/internal/engine"
@@ -74,12 +76,16 @@ func main() {
 		}
 	}
 
+	concurrent := parseConcurrent(*concurrentFlag)
+
 	eng := engine.NewEngine(*printAST)
 	eng.SetOperators(ops)
-	if err := eng.Traverse(target, nil); err != nil {
-		//nolint:errcheck
-		_, _ = os.Stderr.WriteString(err.Error() + "\n")
-		os.Exit(1)
+	for _, target := range targets {
+		if err := eng.Traverse(target, nil); err != nil {
+			//nolint:errcheck
+			_, _ = os.Stderr.WriteString(err.Error() + "\n")
+			os.Exit(1)
+		}
 	}
 
 	if *printAST {
@@ -88,9 +94,9 @@ func main() {
 
 	sites := eng.Sites()
 
-	baseDir := target
-	if info, err := os.Stat(target); err == nil && !info.IsDir() {
-		baseDir = filepath.Dir(target)
+	baseDir := targets[0]
+	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
+		baseDir = filepath.Dir(targets[0])
 	}
 
 	ctx := context.Background()
@@ -98,7 +104,7 @@ func main() {
 	var mutants []testing.Mutant
 	var err error
 
-	mutants, err = testing.RunMutants(ctx, sites, ops, baseDir, *concurrent)
+	mutants, err = testing.RunMutants(ctx, sites, ops, baseDir, concurrent)
 	if err != nil {
 		//nolint:errcheck
 		_, _ = os.Stderr.WriteString(err.Error() + "\n")
@@ -111,20 +117,39 @@ func main() {
 	}
 }
 
+func parseConcurrent(flag string) int {
+	switch flag {
+	case "all":
+		return runtime.NumCPU()
+	case "half":
+		n := runtime.NumCPU() / 2
+		if n < 1 {
+			n = 1
+		}
+		return n
+	default:
+		n, err := strconv.Atoi(flag)
+		if err != nil || n < 1 {
+			return runtime.NumCPU()
+		}
+		return n
+	}
+}
+
 func printUsageAndExit() {
 	fmt.Fprintln(os.Stderr, "Usage: gorgon [flags] <path>")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "  <path>   File or directory to mutate (e.g. examples/mutations)")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Flags:")
-	fmt.Fprintln(os.Stderr, "  -mode string          schemata (default, fast) or classic")
+	fmt.Fprintln(os.Stderr, "  -concurrent string    max parallel test runs: 'all' (default), 'half', or a number")
 	fmt.Fprintln(os.Stderr, "  -operators string     all (default) or comma-separated list")
-	fmt.Fprintln(os.Stderr, "  -concurrent int       max parallel test runs")
 	fmt.Fprintln(os.Stderr, "  -print-ast            only print AST")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon -mode=classic examples/mutations/arithmetic_flip")
+	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=2 examples/mutations/arithmetic_flip")
 	fmt.Fprintln(os.Stderr, "  gorgon -print-ast main.go")
 	os.Exit(1)
 }
