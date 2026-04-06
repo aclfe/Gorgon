@@ -11,12 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
 
+	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
@@ -27,14 +29,99 @@ type Engine struct {
 	sites     []Site
 	operators []mutator.Operator
 	mu        sync.Mutex
+	// ignoreDirectives maps filepath → line → operator → column → true.
+	// Empty operator key means "all operators on this line".
+	// Zero column means "all columns for this operator on this line".
+	ignoreDirectives map[string]map[int]map[string]map[int]bool
 }
 
 func NewEngine(printAST bool) *Engine {
-	return &Engine{PrintAST: printAST}
+	return &Engine{
+		PrintAST:       printAST,
+		ignoreDirectives: make(map[string]map[int]map[string]map[int]bool),
+	}
 }
 
 func (e *Engine) SetOperators(ops []mutator.Operator) {
 	e.operators = ops
+}
+
+// SetSuppressEntries loads suppression entries from the YAML config.
+// Each entry has a Location like "path/to/file.go:6" and an optional
+// Operators list. Empty operators = suppress all on that line.
+// Operator names can include an optional column suffix: "arithmetic_flip:12".
+// The baseDir parameter is used to resolve relative paths in the config.
+func (e *Engine) SetSuppressEntries(baseDir string, entries []config.SuppressEntry) {
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		absBaseDir = baseDir
+	}
+
+	for _, entry := range entries {
+		loc := strings.TrimSpace(entry.Location)
+		if loc == "" {
+			continue
+		}
+		// Parse "path/to/file.go:6" — split on last colon to handle Windows paths
+		lastColon := strings.LastIndex(loc, ":")
+		if lastColon < 0 {
+			continue
+		}
+		filePath := loc[:lastColon]
+		line, err := strconv.Atoi(loc[lastColon+1:])
+		if err != nil {
+			continue
+		}
+
+		// Resolve relative paths against baseDir, not CWD
+		if !filepath.IsAbs(filePath) {
+			filePath = filepath.Join(absBaseDir, filePath)
+			if abs, err := filepath.Abs(filePath); err == nil {
+				filePath = abs
+			}
+		}
+
+		if e.ignoreDirectives[filePath] == nil {
+			e.ignoreDirectives[filePath] = make(map[int]map[string]map[int]bool)
+		}
+		if e.ignoreDirectives[filePath][line] == nil {
+			e.ignoreDirectives[filePath][line] = make(map[string]map[int]bool)
+		}
+
+		// Empty operators list = suppress all on this line
+		if len(entry.Operators) == 0 {
+			if e.ignoreDirectives[filePath][line][""] == nil {
+				e.ignoreDirectives[filePath][line][""] = make(map[int]bool)
+			}
+			e.ignoreDirectives[filePath][line][""][0] = true
+			continue
+		}
+
+		for _, op := range entry.Operators {
+			op = strings.TrimSpace(op)
+			if op == "" {
+				continue
+			}
+			// Check for operator:column suffix
+			parts := strings.SplitN(op, ":", 2)
+			operator := parts[0]
+			column := 0
+			if len(parts) == 2 {
+				col, err := strconv.Atoi(parts[1])
+				if err == nil {
+					column = col
+				}
+			}
+			if e.ignoreDirectives[filePath][line][operator] == nil {
+				e.ignoreDirectives[filePath][line][operator] = make(map[int]bool)
+			}
+			if column == 0 {
+				e.ignoreDirectives[filePath][line][operator][0] = true
+			} else {
+				e.ignoreDirectives[filePath][line][operator][column] = true
+			}
+		}
+	}
 }
 
 func findEnclosingFuncFast(node ast.Node, parents map[ast.Node]ast.Node) *ast.FuncDecl {
@@ -134,6 +221,104 @@ func getNodePosition(node ast.Node, fset *token.FileSet) token.Position {
 		return fset.Position(ids.TokPos)
 	}
 	return fset.Position(node.Pos())
+}
+
+// parseIgnoreComments scans a file's comment groups for //gorgon:ignore directives.
+// Returns a map: line → operator → column → true.
+// Empty operator means "all operators on this line". Zero column means "all columns".
+func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string]map[int]bool {
+	directives := make(map[int]map[string]map[int]bool)
+
+	for _, cg := range file.Comments {
+		for _, c := range cg.List {
+			text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
+			if !strings.HasPrefix(text, "gorgon:ignore") {
+				continue
+		}
+
+			rest := strings.TrimSpace(strings.TrimPrefix(text, "gorgon:ignore"))
+			pos := fset.Position(c.Pos())
+			// The directive applies to the line *below* the comment.
+			targetLine := pos.Line + 1
+
+			if rest == "" {
+				// //gorgon:ignore — all operators, all columns
+				if directives[targetLine] == nil {
+					directives[targetLine] = make(map[string]map[int]bool)
+				}
+				directives[targetLine][""] = make(map[int]bool)
+				directives[targetLine][""][0] = true
+				continue
+			}
+
+			// Parse operator and optional column: "operator" or "operator:col"
+			parts := strings.SplitN(rest, ":", 2)
+			operator := strings.TrimSpace(parts[0])
+			if operator == "" {
+				continue
+			}
+
+			if directives[targetLine] == nil {
+				directives[targetLine] = make(map[string]map[int]bool)
+			}
+
+			if len(parts) == 2 {
+				// operator:column
+				col, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+				if err != nil {
+					// Invalid column number, treat as operator-only (all columns)
+					directives[targetLine][operator] = make(map[int]bool)
+					directives[targetLine][operator][0] = true
+					continue
+				}
+				directives[targetLine][operator] = make(map[int]bool)
+				directives[targetLine][operator][col] = true
+			} else {
+				// operator only — all columns
+				directives[targetLine][operator] = make(map[int]bool)
+				directives[targetLine][operator][0] = true
+			}
+		}
+	}
+
+	return directives
+}
+
+// isIgnored checks if a mutation site should be suppressed by an inline directive.
+// Returns true if the site should be skipped.
+func isIgnored(directives map[int]map[string]map[int]bool, line int, operator string, column int) bool {
+	lineMap, ok := directives[line]
+	if !ok {
+		return false
+	}
+
+	// Check for blanket ignore: //gorgon:ignore (all operators)
+	if colMap, ok := lineMap[""]; ok {
+		if colMap[0] {
+			return true
+		}
+	}
+
+	// Check for operator-specific ignore: //gorgon:ignore operator
+	if colMap, ok := lineMap[operator]; ok {
+		// All columns ignored for this operator
+		if colMap[0] {
+			return true
+		}
+		// Specific column ignored
+		if colMap[column] {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IgnoreDirectives returns all collected inline ignore directives, keyed by
+// absolute file path → line → operator → column. This is used by the CLI
+// to sync inline comments back to the YAML config.
+func (e *Engine) IgnoreDirectives() map[string]map[int]map[string]map[int]bool {
+	return e.ignoreDirectives
 }
 
 type contextCache struct {
@@ -422,6 +607,27 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 	for _, file := range files {
 		tfile := fset.File(file.Pos())
 		parents := buildParentMap(file)
+		ignoreMap := parseIgnoreComments(file, fset)
+
+		absPath, _ := filepath.Abs(tfile.Name())
+		e.mu.Lock()
+		if e.ignoreDirectives[absPath] == nil {
+			e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
+		}
+		for line, opMap := range ignoreMap {
+			if e.ignoreDirectives[absPath][line] == nil {
+				e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
+			}
+			for op, colMap := range opMap {
+				if e.ignoreDirectives[absPath][line][op] == nil {
+					e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
+				}
+				for col, val := range colMap {
+					e.ignoreDirectives[absPath][line][op][col] = val
+				}
+			}
+		}
+		e.mu.Unlock()
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			if node == nil {
@@ -449,6 +655,9 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 						contextBuilt = true
 					}
 					pos := getNodePosition(node, fset)
+					if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
+						continue
+					}
 					localSites = append(localSites, Site{
 						File:          tfile,
 						Line:          pos.Line,
@@ -516,6 +725,27 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 					tfile := pkg.Fset.File(syntax.Pos())
 					// Build parent map once per file for O(1) parent lookup
 					parents := buildParentMap(syntax)
+					ignoreMap := parseIgnoreComments(syntax, pkg.Fset)
+
+					absPath, _ := filepath.Abs(tfile.Name())
+					e.mu.Lock()
+					if e.ignoreDirectives[absPath] == nil {
+						e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
+					}
+					for line, opMap := range ignoreMap {
+						if e.ignoreDirectives[absPath][line] == nil {
+							e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
+						}
+						for op, colMap := range opMap {
+							if e.ignoreDirectives[absPath][line][op] == nil {
+								e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
+							}
+							for col, val := range colMap {
+								e.ignoreDirectives[absPath][line][op][col] = val
+							}
+						}
+					}
+					e.mu.Unlock()
 
 					if e.PrintAST {
 						PrintEnabled.Store(true)
@@ -551,6 +781,9 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 									contextBuilt = true
 								}
 								pos := getNodePosition(node, pkg.Fset)
+								if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
+									continue
+								}
 								localSites = append(localSites, Site{
 									File:          tfile,
 									Line:          pos.Line,
@@ -604,6 +837,27 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 	// Use context cache and parent map for single file traversal too
 	fileCache := newContextCache()
 	parents := buildParentMap(file)
+	ignoreMap := parseIgnoreComments(file, fset)
+
+	absPath, _ := filepath.Abs(tfile.Name())
+	e.mu.Lock()
+	if e.ignoreDirectives[absPath] == nil {
+		e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
+	}
+	for line, opMap := range ignoreMap {
+		if e.ignoreDirectives[absPath][line] == nil {
+			e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
+		}
+		for op, colMap := range opMap {
+			if e.ignoreDirectives[absPath][line][op] == nil {
+				e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
+			}
+			for col, val := range colMap {
+				e.ignoreDirectives[absPath][line][op][col] = val
+			}
+		}
+	}
+	e.mu.Unlock()
 
 	ast.Inspect(file, func(node ast.Node) bool {
 		if node == nil {
@@ -631,6 +885,9 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 					contextBuilt = true
 				}
 				pos := getNodePosition(node, fset)
+				if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
+					continue
+				}
 				localSites = append(localSites, Site{
 					File:          tfile,
 					Line:          pos.Line,

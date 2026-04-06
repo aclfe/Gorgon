@@ -58,6 +58,55 @@ tests: []
 gorgon -config=gorgon.yml ./path
 ```
 
+## Suppressions
+
+Suppress mutations using inline comments or config file entries.
+
+### Inline Comments
+
+Add `//gorgon:ignore` above code to suppress mutations on the next line:
+
+```go
+//gorgon:ignore
+return "pass"
+
+//gorgon:ignore panic_removal
+panic("error")
+
+//gorgon:ignore arithmetic_flip:9
+x = a + b
+```
+
+### Config File
+
+Add suppressions to your YAML config:
+
+```yaml
+suppress:
+  - location: path/to/file.go:5
+    operators:
+      - arithmetic_flip
+      - panic_removal
+  
+  # Omit operators to suppress ALL operators on that line
+  - location: path/to/file.go:10
+```
+
+Relative paths are resolved from the target directory.
+
+### Auto Syncing
+
+When running with `-config`, inline `//gorgon:ignore` comments are automatically added to the config file's `suppress:` section. Each comment becomes a YAML entry with the relative file path, line number, and suppressed operators:
+
+```yaml
+suppress:
+  - location: pkg/file.go:12
+    operators:
+      - panic_removal
+```
+
+Existing config suppressions are preserved and merged with inline comments.
+
 ## Mutations
 
 Arithmetic

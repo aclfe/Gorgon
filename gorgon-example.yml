@@ -1,15 +1,23 @@
 operators:
-  - all
+    - all
 concurrent: all
 threshold: 80
 cache: false
 dry_run: false
 exclude:
-  - "*_test.go"
+    - '*_test.go'
 include: []
 skip:
-  - vendor/
+    - vendor/
 skip_func:
-  - foo/bar.go:MyFunc
-  - examples/mutations/variable_replacement/variable_replacement.go:FindMax
+    - foo/bar.go:MyFunc
+    - examples/mutations/variable_replacement/variable_replacement.go:FindMax
 tests: []
+suppress:
+    - location: panic_removal/panic_removal.go:6
+      operators:
+        - panic_removal:9
+    - location: panic_removal/panic_removal.go:13
+      operators:
+        - panic_removal
+    - location: negate_condition/negate_condition.go:6

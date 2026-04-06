@@ -13,5 +13,6 @@ Alpha version right now I'd say.
 - more mutations
 
 
+╰─$ go test ./internal/testing -run TestMutationCounts -v
 
 - integration tests do work now.

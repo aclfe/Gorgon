@@ -175,6 +175,7 @@ func main() {
 				fmt.Printf("\nCache stored at: %s\n", path)
 			}
 		}
+		syncSuppressions("", eng, baseDir)
 		_, _ = fmt.Fprintf(os.Stderr, "Report failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -185,6 +186,8 @@ func main() {
 			fmt.Printf("\nCache stored at: %s\n", path)
 		}
 	}
+
+	syncSuppressions("", eng, baseDir)
 }
 
 func runWithConfig(configPath string, targets []string) {
@@ -227,6 +230,14 @@ func runWithConfig(configPath string, targets []string) {
 
 	eng := engine.NewEngine(false)
 	eng.SetOperators(ops)
+
+	// Determine baseDir for relative path resolution in suppressions
+	targetBaseDir := targets[0]
+	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
+		targetBaseDir = filepath.Dir(targets[0])
+	}
+
+	eng.SetSuppressEntries(targetBaseDir, cfg.Suppress)
 	for _, target := range targets {
 		if err := eng.Traverse(target, nil); err != nil {
 			_, _ = os.Stderr.WriteString(err.Error() + "\n")
@@ -242,10 +253,7 @@ func runWithConfig(configPath string, targets []string) {
 	skipFunc := strings.Join(cfg.SkipFunc, ",")
 	sites = filterSites(sites, targets, exclude, include, skip, skipFunc)
 
-	baseDir := targets[0]
-	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
-		baseDir = filepath.Dir(targets[0])
-	}
+	baseDir := targetBaseDir
 
 	if cfg.DryRun {
 		mutants := testing.GenerateMutants(sites, ops)
@@ -297,6 +305,7 @@ func runWithConfig(configPath string, targets []string) {
 				fmt.Printf("\nCache stored at: %s\n", path)
 			}
 		}
+		syncSuppressions(configPath, eng, targets[0])
 		_, _ = fmt.Fprintf(os.Stderr, "Report failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -307,6 +316,8 @@ func runWithConfig(configPath string, targets []string) {
 			fmt.Printf("\nCache stored at: %s\n", path)
 		}
 	}
+
+	syncSuppressions(configPath, eng, baseDir)
 }
 
 func extractTestNames(path string) ([]string, error) {
@@ -401,6 +412,115 @@ func printUsageAndExit() {
 	fmt.Fprintln(os.Stderr, "  gorgon -exclude=\"*_test.go,vendor/*\" ./path")
 	fmt.Fprintln(os.Stderr, "  gorgon -config=gorgon.yml ./path")
 	os.Exit(1)
+}
+
+func syncSuppressions(configPath string, eng *engine.Engine, baseDir string) {
+	directives := eng.IgnoreDirectives()
+	if len(directives) == 0 {
+		return
+	}
+	if configPath == "" {
+		// No config file was provided, don't create/modify YAML
+		return
+	}
+
+	_, err := os.Stat(configPath)
+	fileExists := err == nil
+
+	// Load existing config or create default
+	var cfg *config.Config
+	if fileExists {
+		cfg, err = config.Load(configPath)
+		if err != nil {
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("warning: failed to load config for suppress sync: %v\n", err))
+			return
+		}
+	} else {
+		cfg = config.Default()
+	}
+
+	// Build a map of existing config suppressions for merging
+	existingConfigSuppress := make(map[string]map[string]bool)
+	for _, entry := range cfg.Suppress {
+		if existingConfigSuppress[entry.Location] == nil {
+			existingConfigSuppress[entry.Location] = make(map[string]bool)
+		}
+		for _, op := range entry.Operators {
+			existingConfigSuppress[entry.Location][op] = true
+		}
+	}
+
+	// Merge inline directives into config suppressions
+	absBaseDir, _ := filepath.Abs(baseDir)
+
+	// Track which locations have inline directives
+	inlineLocations := make(map[string]bool)
+
+	for absPath, lineMap := range directives {
+		// Compute relative path from base dir
+		relPath := absPath
+		if r, err := filepath.Rel(absBaseDir, absPath); err == nil {
+			relPath = r
+		}
+
+		for line, opMap := range lineMap {
+			location := fmt.Sprintf("%s:%d", relPath, line)
+			inlineLocations[location] = true
+
+			// Initialize location in config if needed
+			if existingConfigSuppress[location] == nil {
+				existingConfigSuppress[location] = make(map[string]bool)
+			}
+
+			for op, colMap := range opMap {
+				if op == "" {
+					// Empty operator = all operators on this line
+					// Mark with special key to indicate "all"
+					existingConfigSuppress[location][""] = true
+					continue
+				}
+				for col := range colMap {
+					if col == 0 {
+						// All columns for this operator
+						existingConfigSuppress[location][op] = true
+					} else {
+						// Specific column
+						existingConfigSuppress[location][fmt.Sprintf("%s:%d", op, col)] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Build final suppress entries
+	var suppressEntries []config.SuppressEntry
+	for location, ops := range existingConfigSuppress {
+		// Check if this location has a blanket "all operators" suppression
+		hasAllOps := ops[""]
+		delete(ops, "") // Remove the special key
+
+		var operators []string
+		for op := range ops {
+			operators = append(operators, op)
+		}
+
+		// If hasAllOps is true and operators list is empty or has items,
+		// we should keep it as "all operators" (empty operators list)
+		if hasAllOps {
+			operators = nil // Empty list means "all operators" in config
+		}
+
+		suppressEntries = append(suppressEntries, config.SuppressEntry{
+			Location:  location,
+			Operators: operators,
+		})
+	}
+
+	cfg.Suppress = suppressEntries
+
+	if err := cfg.Save(configPath); err != nil {
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("warning: failed to save config: %v\n", err))
+	}
 }
 
 func filterSites(sites []engine.Site, targets []string, excludePatterns, includePatterns, skipFiles, skipFuncs string) []engine.Site {

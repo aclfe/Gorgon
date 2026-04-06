@@ -2,6 +2,7 @@ package negate_condition
 
 func GetStatus(score int) string {
 	if score >= 60 {
+		//gorgon:ignore
 		return "pass"
 	}
 	return "fail"
