@@ -2,9 +2,9 @@ package inc_dec_flip
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type IncDecFlip struct{}
@@ -18,7 +18,8 @@ func (IncDecFlip) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	return ids.Tok == token.INC || ids.Tok == token.DEC
+	_, ok = common.IncDecTokens[ids.Tok]
+	return ok
 }
 
 func (IncDecFlip) Mutate(n ast.Node) ast.Node {
@@ -26,13 +27,8 @@ func (IncDecFlip) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newTok token.Token
-	switch ids.Tok {
-	case token.INC:
-		newTok = token.DEC
-	case token.DEC:
-		newTok = token.INC
-	default:
+	newTok, ok := common.SwapBinaryToken(ids.Tok, common.IncDecPairs)
+	if !ok {
 		return nil
 	}
 	return &ast.IncDecStmt{

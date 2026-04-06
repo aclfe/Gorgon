@@ -13,8 +13,7 @@ func (GoroutineRemoval) Name() string {
 }
 
 func (GoroutineRemoval) CanApply(n ast.Node) bool {
-	_, ok := n.(*ast.GoStmt)
-	return ok
+	return GoroutineRemoval{}.CanApplyWithContext(n, mutator.Context{})
 }
 
 func (GoroutineRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
@@ -23,11 +22,7 @@ func (GoroutineRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) boo
 }
 
 func (GoroutineRemoval) Mutate(n ast.Node) ast.Node {
-	goStmt, ok := n.(*ast.GoStmt)
-	if !ok {
-		return nil
-	}
-	return &ast.ExprStmt{X: goStmt.Call}
+	return GoroutineRemoval{}.MutateWithContext(n, mutator.Context{})
 }
 
 func (GoroutineRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {

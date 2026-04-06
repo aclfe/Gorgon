@@ -2,9 +2,9 @@ package sign_toggle
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type SignToggle struct{}
@@ -18,7 +18,8 @@ func (SignToggle) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	return ue.Op == token.SUB || ue.Op == token.ADD
+	_, ok = common.SignToggleTokens[ue.Op]
+	return ok
 }
 
 func (SignToggle) Mutate(n ast.Node) ast.Node {
@@ -26,13 +27,8 @@ func (SignToggle) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newOp token.Token
-	switch ue.Op {
-	case token.SUB:
-		newOp = token.ADD
-	case token.ADD:
-		newOp = token.SUB
-	default:
+	newOp, ok := common.SwapBinaryToken(ue.Op, common.SignTogglePairs)
+	if !ok {
 		return nil
 	}
 	return &ast.UnaryExpr{

@@ -4,6 +4,7 @@ import (
 	"go/ast"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type LoopBreakRemoval struct{}
@@ -24,51 +25,7 @@ func (LoopBreakRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) boo
 	if branch.Tok != 0 {
 		return false
 	}
-	return isInsideLoop(n, ctx.File)
-}
-
-func isInsideLoop(n ast.Node, file *ast.File) bool {
-	if file == nil {
-		return false
-	}
-	found := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == n {
-			found = true
-			return false
-		}
-		return true
-	})
-	if !found {
-		return false
-	}
-	var parentLoop ast.Node
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == n {
-			return false
-		}
-		switch node.(type) {
-		case *ast.ForStmt, *ast.RangeStmt:
-			if containsNode(node, n) {
-				parentLoop = node
-				return false
-			}
-		}
-		return true
-	})
-	return parentLoop != nil
-}
-
-func containsNode(container ast.Node, target ast.Node) bool {
-	found := false
-	ast.Inspect(container, func(n ast.Node) bool {
-		if n == target {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
+	return common.IsInsideLoop(n, ctx.File)
 }
 
 func (LoopBreakRemoval) Mutate(n ast.Node) ast.Node {
@@ -76,7 +33,11 @@ func (LoopBreakRemoval) Mutate(n ast.Node) ast.Node {
 }
 
 func (LoopBreakRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&LoopBreakRemoval{}).CanApplyWithContext(n, ctx) {
+	branch, ok := n.(*ast.BranchStmt)
+	if !ok || branch.Tok != 0 {
+		return nil
+	}
+	if !common.IsInsideLoop(n, ctx.File) {
 		return nil
 	}
 	return &ast.EmptyStmt{}

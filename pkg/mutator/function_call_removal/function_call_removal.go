@@ -13,15 +13,11 @@ func (FunctionCallRemoval) Name() string {
 }
 
 func (FunctionCallRemoval) CanApply(n ast.Node) bool {
-	_, ok := n.(*ast.ExprStmt)
+	exprStmt, ok := n.(*ast.ExprStmt)
 	if !ok {
 		return false
 	}
-	call, ok := n.(*ast.ExprStmt)
-	if !ok {
-		return false
-	}
-	_, ok = call.X.(*ast.CallExpr)
+	_, ok = exprStmt.X.(*ast.CallExpr)
 	return ok
 }
 
@@ -35,14 +31,24 @@ func (FunctionCallRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 }
 
 func (FunctionCallRemoval) Mutate(n ast.Node) ast.Node {
-	if !(&FunctionCallRemoval{}).CanApply(n) {
+	exprStmt, ok := n.(*ast.ExprStmt)
+	if !ok {
+		return nil
+	}
+	_, ok = exprStmt.X.(*ast.CallExpr)
+	if !ok {
 		return nil
 	}
 	return &ast.EmptyStmt{}
 }
 
-func (FunctionCallRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&FunctionCallRemoval{}).CanApplyWithContext(n, ctx) {
+func (FunctionCallRemoval) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
+	exprStmt, ok := n.(*ast.ExprStmt)
+	if !ok {
+		return nil
+	}
+	_, ok = exprStmt.X.(*ast.CallExpr)
+	if !ok {
 		return nil
 	}
 	return &ast.EmptyStmt{}

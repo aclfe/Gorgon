@@ -18,17 +18,25 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
 
+	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
+// bufPool provides reusable bytes.Buffer instances for AST formatting operations,
+// reducing GC pressure during repeated format.Node calls.
+var bufPool = sync.Pool{
+	New: func() any { return new(bytes.Buffer) },
+}
+
 type Visitor func(n ast.Node) bool
 
 type Engine struct {
-	PrintAST  bool
-	sites     []Site
-	operators []mutator.Operator
-	mu        sync.Mutex
+	PrintAST    bool
+	sites       []Site
+	operators   []mutator.Operator
+	mu          sync.Mutex
+	projectRoot string
 	// ignoreDirectives maps filepath → line → operator → column → true.
 	// Empty operator key means "all operators on this line".
 	// Zero column means "all columns for this operator on this line".
@@ -37,7 +45,7 @@ type Engine struct {
 
 func NewEngine(printAST bool) *Engine {
 	return &Engine{
-		PrintAST:       printAST,
+		PrintAST:         printAST,
 		ignoreDirectives: make(map[string]map[int]map[string]map[int]bool),
 	}
 }
@@ -46,15 +54,31 @@ func (e *Engine) SetOperators(ops []mutator.Operator) {
 	e.operators = ops
 }
 
+// SetProjectRoot sets the project root directory used for resolving
+// relative paths in suppression entries. This should be the directory
+// containing go.mod (or a user-specified base directory).
+func (e *Engine) SetProjectRoot(root string) {
+	if root != "" {
+		if abs, err := filepath.Abs(root); err == nil {
+			e.projectRoot = abs
+		} else {
+			e.projectRoot = root
+		}
+	}
+}
+
 // SetSuppressEntries loads suppression entries from the YAML config.
 // Each entry has a Location like "path/to/file.go:6" and an optional
 // Operators list. Empty operators = suppress all on that line.
 // Operator names can include an optional column suffix: "arithmetic_flip:12".
-// The baseDir parameter is used to resolve relative paths in the config.
-func (e *Engine) SetSuppressEntries(baseDir string, entries []config.SuppressEntry) {
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		absBaseDir = baseDir
+// Relative paths are resolved against e.projectRoot.
+func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
+	root := e.projectRoot
+	if root == "" {
+		// Fallback: try to resolve from CWD if no project root set
+		if cwd, err := os.Getwd(); err == nil {
+			root = cwd
+		}
 	}
 
 	for _, entry := range entries {
@@ -73,9 +97,9 @@ func (e *Engine) SetSuppressEntries(baseDir string, entries []config.SuppressEnt
 			continue
 		}
 
-		// Resolve relative paths against baseDir, not CWD
+		// Resolve relative paths against project root
 		if !filepath.IsAbs(filePath) {
-			filePath = filepath.Join(absBaseDir, filePath)
+			filePath = filepath.Join(root, filePath)
 			if abs, err := filepath.Abs(filePath); err == nil {
 				filePath = abs
 			}
@@ -140,24 +164,61 @@ func getPackageName(file *ast.File) string {
 	return ""
 }
 
-func typeToString(t ast.Expr, file *ast.File, fset *token.FileSet) string {
+// typeDeclCache stores resolved type names for a single file, built once.
+type typeDeclCache struct {
+	resolved map[string]string
+	built    bool
+}
+
+func (c *typeDeclCache) buildOnce(file *ast.File, fset *token.FileSet) {
+	if c.built {
+		return
+	}
+	c.resolved = make(map[string]string)
+	c.built = true
+
+	for _, decl := range file.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok || ts.Type == nil {
+				continue
+			}
+			// Avoid infinite recursion for self-referential types
+			if _, exists := c.resolved[ts.Name.Name]; exists {
+				continue
+			}
+			c.resolved[ts.Name.Name] = typeToString(ts.Type, file, fset, c)
+		}
+	}
+}
+
+func typeToString(t ast.Expr, file *ast.File, fset *token.FileSet, typeCache *typeDeclCache) string {
 	if t == nil {
 		return ""
 	}
 	switch expr := t.(type) {
 	case *ast.Ident:
-		return resolveTypeName(expr.Name, file, fset)
+		if typeCache != nil {
+			if resolved, ok := typeCache.resolved[expr.Name]; ok {
+				return resolved
+			}
+		}
+		return resolveTypeName(expr.Name, file, fset, typeCache)
 	case *ast.StarExpr:
-		return "*" + typeToString(expr.X, file, fset)
+		return "*" + typeToString(expr.X, file, fset, typeCache)
 	case *ast.ArrayType:
 		if expr.Len == nil {
-			return "[]" + typeToString(expr.Elt, file, fset)
+			return "[]" + typeToString(expr.Elt, file, fset, typeCache)
 		}
-		return "[" + exprToString(expr.Len, fset) + "]" + typeToString(expr.Elt, file, fset)
+		return "[" + exprToString(expr.Len, fset) + "]" + typeToString(expr.Elt, file, fset, typeCache)
 	case *ast.MapType:
-		return "map[" + typeToString(expr.Key, file, fset) + "]" + typeToString(expr.Value, file, fset)
+		return "map[" + typeToString(expr.Key, file, fset, typeCache) + "]" + typeToString(expr.Value, file, fset, typeCache)
 	case *ast.ChanType:
-		return "chan " + typeToString(expr.Value, file, fset)
+		return "chan " + typeToString(expr.Value, file, fset, typeCache)
 	case *ast.InterfaceType:
 		return "interface{}"
 	case *ast.FuncType:
@@ -168,59 +229,58 @@ func typeToString(t ast.Expr, file *ast.File, fset *token.FileSet) string {
 		}
 		return expr.Sel.Name
 	case *ast.ParenExpr:
-		return typeToString(expr.X, file, fset)
+		return typeToString(expr.X, file, fset, typeCache)
 	case *ast.Ellipsis:
-		return "..." + typeToString(expr.Elt, file, fset)
+		return "..." + typeToString(expr.Elt, file, fset, typeCache)
 	default:
 		return ""
 	}
 }
 
-func exprToString(expr ast.Expr, fset *token.FileSet) string {
-	if expr == nil {
-		return ""
-	}
-	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, expr); err != nil {
-		return "?"
-	}
-	return buf.String()
-}
-
-func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet) string {
+func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet, typeCache *typeDeclCache) string {
 	if file == nil {
 		return typeName
 	}
-	var resolved string
-	ast.Inspect(file, func(n ast.Node) bool {
-		if decl, ok := n.(*ast.GenDecl); ok && decl.Tok == token.TYPE {
-			for _, spec := range decl.Specs {
-				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					if typeSpec.Name.Name == typeName {
-						if typeSpec.Type != nil {
-							resolved = typeToString(typeSpec.Type, file, fset)
-							return false
-						}
-					}
-				}
-			}
+	// Use the pre-built cache if available
+	if typeCache != nil {
+		if resolved, ok := typeCache.resolved[typeName]; ok {
+			return resolved
 		}
-		return true
-	})
+	}
+	// Fallback: scan the file once for this type name
+	resolved := ""
+	for _, decl := range file.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok || ts.Type == nil || ts.Name.Name != typeName {
+				continue
+			}
+			resolved = typeToString(ts.Type, file, fset, typeCache)
+			return resolved
+		}
+	}
 	if resolved != "" {
 		return resolved
 	}
 	return typeName
 }
 
-func getNodePosition(node ast.Node, fset *token.FileSet) token.Position {
-	if be, ok := node.(*ast.BinaryExpr); ok {
-		return fset.Position(be.OpPos)
+func exprToString(expr ast.Expr, fset *token.FileSet) string {
+	if expr == nil {
+		return ""
 	}
-	if ids, ok := node.(*ast.IncDecStmt); ok {
-		return fset.Position(ids.TokPos)
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	if err := format.Node(buf, fset, expr); err != nil {
+		return "?"
 	}
-	return fset.Position(node.Pos())
+	return buf.String()
 }
 
 // parseIgnoreComments scans a file's comment groups for //gorgon:ignore directives.
@@ -234,7 +294,7 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 			text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
 			if !strings.HasPrefix(text, "gorgon:ignore") {
 				continue
-		}
+			}
 
 			rest := strings.TrimSpace(strings.TrimPrefix(text, "gorgon:ignore"))
 			pos := fset.Position(c.Pos())
@@ -321,23 +381,21 @@ func (e *Engine) IgnoreDirectives() map[string]map[int]map[string]map[int]bool {
 	return e.ignoreDirectives
 }
 
+// ProjectRoot returns the project root directory used for path resolution.
+func (e *Engine) ProjectRoot() string {
+	return e.projectRoot
+}
+
 type contextCache struct {
-	contexts map[ast.Node]*mutator.Context
+	contexts   map[ast.Node]*mutator.Context
+	typeCache  typeDeclCache
 }
 
 func newContextCache() *contextCache {
 	return &contextCache{
-		contexts: make(map[ast.Node]*mutator.Context),
+		contexts:  make(map[ast.Node]*mutator.Context),
+		typeCache: typeDeclCache{},
 	}
-}
-
-func (c *contextCache) get(node ast.Node) (*mutator.Context, bool) {
-	ctx, ok := c.contexts[node]
-	return ctx, ok
-}
-
-func (c *contextCache) set(node ast.Node, ctx *mutator.Context) {
-	c.contexts[node] = ctx
 }
 
 func buildParentMap(file *ast.File) map[ast.Node]ast.Node {
@@ -361,94 +419,8 @@ func buildParentMap(file *ast.File) map[ast.Node]ast.Node {
 	return parents
 }
 
-func getAncestorOfType(node ast.Node, targetType string, parents map[ast.Node]ast.Node) ast.Node {
-	for p := parents[node]; p != nil; p = parents[p] {
-		if typeOf(p) == targetType {
-			return p
-		}
-	}
-	return nil
-}
-
-func typeOf(n ast.Node) string {
-	switch n.(type) {
-	case *ast.BinaryExpr:
-		return "*ast.BinaryExpr"
-	case *ast.UnaryExpr:
-		return "*ast.UnaryExpr"
-	case *ast.CallExpr:
-		return "*ast.CallExpr"
-	case *ast.Ident:
-		return "*ast.Ident"
-	case *ast.CaseClause:
-		return "*ast.CaseClause"
-	case *ast.IfStmt:
-		return "*ast.IfStmt"
-	case *ast.ForStmt:
-		return "*ast.ForStmt"
-	case *ast.RangeStmt:
-		return "*ast.RangeStmt"
-	case *ast.AssignStmt:
-		return "*ast.AssignStmt"
-	case *ast.IncDecStmt:
-		return "*ast.IncDecStmt"
-	case *ast.DeferStmt:
-		return "*ast.DeferStmt"
-	case *ast.GoStmt:
-		return "*ast.GoStmt"
-	case *ast.SendStmt:
-		return "*ast.SendStmt"
-	case *ast.SwitchStmt:
-		return "*ast.SwitchStmt"
-	case *ast.TypeSwitchStmt:
-		return "*ast.TypeSwitchStmt"
-	case *ast.ReturnStmt:
-		return "*ast.ReturnStmt"
-	case *ast.BranchStmt:
-		return "*ast.BranchStmt"
-	case *ast.SelectStmt:
-		return "*ast.SelectStmt"
-	case *ast.CommClause:
-		return "*ast.CommClause"
-	case *ast.LabeledStmt:
-		return "*ast.LabeledStmt"
-	case *ast.ExprStmt:
-		return "*ast.ExprStmt"
-	case *ast.DeclStmt:
-		return "*ast.DeclStmt"
-	case *ast.EmptyStmt:
-		return "*ast.EmptyStmt"
-	case *ast.BlockStmt:
-		return "*ast.BlockStmt"
-	case *ast.FuncDecl:
-		return "*ast.FuncDecl"
-	case *ast.BasicLit:
-		return "*ast.BasicLit"
-	case *ast.File:
-		return "*ast.File"
-	case *ast.FuncType:
-		return "*ast.FuncType"
-	case *ast.Field:
-		return "*ast.Field"
-	case *ast.GenDecl:
-		return "*ast.GenDecl"
-	case *ast.ValueSpec:
-		return "*ast.ValueSpec"
-	case *ast.TypeSpec:
-		return "*ast.TypeSpec"
-	case *ast.CommentGroup:
-		return "*ast.CommentGroup"
-	case *ast.Comment:
-		return "*ast.Comment"
-	case *ast.ImportSpec:
-		return "*ast.ImportSpec"
-	default:
-		return fmt.Sprintf("%T", n)
-	}
-}
-
 func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache *contextCache, parents map[ast.Node]ast.Node, needReturnType bool) mutator.Context {
-	if cached, ok := cache.get(node); ok {
+	if cached, ok := cache.contexts[node]; ok {
 		return *cached
 	}
 
@@ -456,7 +428,7 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 		FileName:    fset.File(file.Pos()).Name(),
 		PackageName: getPackageName(file),
 		File:        file,
-		Position:    getNodePosition(node, fset),
+		Position:    schemata_nodes.GetNodePosition(node, fset),
 		Parent:      parents[node],
 	}
 
@@ -467,14 +439,14 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 			ctx.FunctionName = fn.Name.Name
 			if fn.Type.Results != nil {
 				for _, field := range fn.Type.Results.List {
-					ctx.ReturnType = typeToString(field.Type, file, fset)
+					ctx.ReturnType = typeToString(field.Type, file, fset, &cache.typeCache)
 					break
 				}
 			}
 		}
 	}
 
-	cache.set(node, &ctx)
+	cache.contexts[node] = &ctx
 
 	return ctx
 }
@@ -568,6 +540,112 @@ func findGoPackages(root string) ([]string, error) {
 	return pkgDirs, err
 }
 
+func (e *Engine) mergeIgnoreDirectives(absPath string, ignoreMap map[int]map[string]map[int]bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.ignoreDirectives[absPath] == nil {
+		e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
+	}
+	for line, opMap := range ignoreMap {
+		if e.ignoreDirectives[absPath][line] == nil {
+			e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
+		}
+		for op, colMap := range opMap {
+			if e.ignoreDirectives[absPath][line][op] == nil {
+				e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
+			}
+			for col, val := range colMap {
+				e.ignoreDirectives[absPath][line][op][col] = val
+			}
+		}
+	}
+}
+
+func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Visitor, printAST bool) error {
+	fileCache := newContextCache()
+
+	for _, file := range files {
+		tfile := fset.File(file.Pos())
+		parents := buildParentMap(file)
+		ignoreMap := parseIgnoreComments(file, fset)
+
+		// Build type declaration cache once per file
+		fileCache.typeCache.buildOnce(file, fset)
+
+		absPath, _ := filepath.Abs(tfile.Name())
+		e.mergeIgnoreDirectives(absPath, ignoreMap)
+
+		if printAST {
+			PrintEnabled.Store(true)
+			fmt.Printf("\n=== AST for %s ===\n", tfile.Name())
+			if err := PrintTree(os.Stdout, fset, file); err != nil {
+				return err
+			}
+			fmt.Println("=====================================")
+		}
+
+		// Collect sites locally, then batch-append once after inspection
+		var fileSites []Site
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			if node == nil {
+				return true
+			}
+
+			var mctx mutator.Context
+			contextBuilt := false
+			var localSites []Site
+
+			for _, op := range e.operators {
+				apply := false
+				if cop, ok := op.(mutator.ContextualOperator); ok {
+					if !contextBuilt {
+						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+						contextBuilt = true
+					}
+					apply = cop.CanApplyWithContext(node, mctx)
+				} else {
+					apply = op.CanApply(node)
+				}
+				if apply {
+					if !contextBuilt {
+						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
+						contextBuilt = true
+					}
+					pos := schemata_nodes.GetNodePosition(node, fset)
+					if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
+						continue
+					}
+					localSites = append(localSites, Site{
+						File:          tfile,
+						Line:          pos.Line,
+						Column:        pos.Column,
+						Node:          node,
+						ReturnType:    mctx.ReturnType,
+						FunctionName:  mctx.FunctionName,
+						EnclosingFunc: mctx.EnclosingFunc,
+					})
+				}
+			}
+			if len(localSites) > 0 {
+				fileSites = append(fileSites, localSites...)
+			}
+			if visitor != nil {
+				return visitor(node)
+			}
+			return true
+		})
+
+		// Batch-append all sites for this file under a single lock
+		if len(fileSites) > 0 {
+			e.mu.Lock()
+			e.sites = append(e.sites, fileSites...)
+			e.mu.Unlock()
+		}
+	}
+	return nil
+}
+
 func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -602,85 +680,7 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 		return nil
 	}
 
-	fileCache := newContextCache()
-
-	for _, file := range files {
-		tfile := fset.File(file.Pos())
-		parents := buildParentMap(file)
-		ignoreMap := parseIgnoreComments(file, fset)
-
-		absPath, _ := filepath.Abs(tfile.Name())
-		e.mu.Lock()
-		if e.ignoreDirectives[absPath] == nil {
-			e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
-		}
-		for line, opMap := range ignoreMap {
-			if e.ignoreDirectives[absPath][line] == nil {
-				e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
-			}
-			for op, colMap := range opMap {
-				if e.ignoreDirectives[absPath][line][op] == nil {
-					e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
-				}
-				for col, val := range colMap {
-					e.ignoreDirectives[absPath][line][op][col] = val
-				}
-			}
-		}
-		e.mu.Unlock()
-
-		ast.Inspect(file, func(node ast.Node) bool {
-			if node == nil {
-				return true
-			}
-
-			var mctx mutator.Context
-			contextBuilt := false
-			var localSites []Site
-
-			for _, op := range e.operators {
-				apply := false
-				if cop, ok := op.(mutator.ContextualOperator); ok {
-					if !contextBuilt {
-						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
-						contextBuilt = true
-					}
-					apply = cop.CanApplyWithContext(node, mctx)
-				} else {
-					apply = op.CanApply(node)
-				}
-				if apply {
-					if !contextBuilt {
-						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
-						contextBuilt = true
-					}
-					pos := getNodePosition(node, fset)
-					if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
-						continue
-					}
-					localSites = append(localSites, Site{
-						File:          tfile,
-						Line:          pos.Line,
-						Column:        pos.Column,
-						Node:          node,
-						ReturnType:    mctx.ReturnType,
-						FunctionName:  mctx.FunctionName,
-						EnclosingFunc: mctx.EnclosingFunc,
-					})
-				}
-			}
-			if len(localSites) > 0 {
-				e.mu.Lock()
-				e.sites = append(e.sites, localSites...)
-				e.mu.Unlock()
-			}
-			if visitor != nil {
-				return visitor(node)
-			}
-			return true
-		})
-	}
-	return nil
+	return e.processFiles(files, fset, visitor, false)
 }
 
 func findGoModFiles(root string) ([]string, error) {
@@ -710,7 +710,7 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 	}
 
 	grp, ctx := errgroup.WithContext(context.Background())
-	grp.SetLimit(runtime.NumCPU() - 1)
+	grp.SetLimit(runtime.NumCPU())
 
 	for _, pkg := range pkgs {
 		grp.Go(func() error {
@@ -718,96 +718,9 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				// Create per-package context cache and parent map to avoid redundant AST walks
-				pkgCache := newContextCache()
-
-				for _, syntax := range pkg.Syntax {
-					tfile := pkg.Fset.File(syntax.Pos())
-					// Build parent map once per file for O(1) parent lookup
-					parents := buildParentMap(syntax)
-					ignoreMap := parseIgnoreComments(syntax, pkg.Fset)
-
-					absPath, _ := filepath.Abs(tfile.Name())
-					e.mu.Lock()
-					if e.ignoreDirectives[absPath] == nil {
-						e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
-					}
-					for line, opMap := range ignoreMap {
-						if e.ignoreDirectives[absPath][line] == nil {
-							e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
-						}
-						for op, colMap := range opMap {
-							if e.ignoreDirectives[absPath][line][op] == nil {
-								e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
-							}
-							for col, val := range colMap {
-								e.ignoreDirectives[absPath][line][op][col] = val
-							}
-						}
-					}
-					e.mu.Unlock()
-
-					if e.PrintAST {
-						PrintEnabled.Store(true)
-						fmt.Printf("\n=== AST for %s ===\n", tfile.Name())
-						if err := PrintTree(os.Stdout, pkg.Fset, syntax); err != nil {
-							return err
-						}
-						fmt.Println("=====================================")
-					}
-					ast.Inspect(syntax, func(node ast.Node) bool {
-						if node == nil {
-							return true
-						}
-
-						var mctx mutator.Context
-						contextBuilt := false
-						var localSites []Site
-
-						for _, op := range e.operators {
-							apply := false
-							if cop, ok := op.(mutator.ContextualOperator); ok {
-								if !contextBuilt {
-									mctx = buildContextLazy(node, syntax, pkg.Fset, pkgCache, parents, true)
-									contextBuilt = true
-								}
-								apply = cop.CanApplyWithContext(node, mctx)
-							} else {
-								apply = op.CanApply(node)
-							}
-							if apply {
-								if !contextBuilt {
-									mctx = buildContextLazy(node, syntax, pkg.Fset, pkgCache, parents, true)
-									contextBuilt = true
-								}
-								pos := getNodePosition(node, pkg.Fset)
-								if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
-									continue
-								}
-								localSites = append(localSites, Site{
-									File:          tfile,
-									Line:          pos.Line,
-									Column:        pos.Column,
-									Node:          node,
-									ReturnType:    mctx.ReturnType,
-									FunctionName:  mctx.FunctionName,
-									EnclosingFunc: mctx.EnclosingFunc,
-								})
-							}
-						}
-						if len(localSites) > 0 {
-							e.mu.Lock()
-							e.sites = append(e.sites, localSites...)
-							e.mu.Unlock()
-						}
-						if visitor != nil {
-							return visitor(node)
-						}
-						return true
-					})
-				}
-				return nil
 			}
+
+			return e.processFiles(pkg.Syntax, pkg.Fset, visitor, e.PrintAST)
 		})
 	}
 
@@ -824,92 +737,7 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 		return fmt.Errorf("failed to parse file %q: %w", path, err)
 	}
 
-	tfile := fset.File(file.Pos())
-	if e.PrintAST {
-		PrintEnabled.Store(true)
-		fmt.Printf("\n=== AST for %s ===\n", path)
-		if err := PrintTree(os.Stdout, fset, file); err != nil {
-			return err
-		}
-		fmt.Println("=====================================")
-	}
-
-	// Use context cache and parent map for single file traversal too
-	fileCache := newContextCache()
-	parents := buildParentMap(file)
-	ignoreMap := parseIgnoreComments(file, fset)
-
-	absPath, _ := filepath.Abs(tfile.Name())
-	e.mu.Lock()
-	if e.ignoreDirectives[absPath] == nil {
-		e.ignoreDirectives[absPath] = make(map[int]map[string]map[int]bool)
-	}
-	for line, opMap := range ignoreMap {
-		if e.ignoreDirectives[absPath][line] == nil {
-			e.ignoreDirectives[absPath][line] = make(map[string]map[int]bool)
-		}
-		for op, colMap := range opMap {
-			if e.ignoreDirectives[absPath][line][op] == nil {
-				e.ignoreDirectives[absPath][line][op] = make(map[int]bool)
-			}
-			for col, val := range colMap {
-				e.ignoreDirectives[absPath][line][op][col] = val
-			}
-		}
-	}
-	e.mu.Unlock()
-
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == nil {
-			return true
-		}
-
-		var mctx mutator.Context
-		contextBuilt := false
-		var localSites []Site
-
-		for _, op := range e.operators {
-			apply := false
-			if cop, ok := op.(mutator.ContextualOperator); ok {
-				if !contextBuilt {
-					mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
-					contextBuilt = true
-				}
-				apply = cop.CanApplyWithContext(node, mctx)
-			} else {
-				apply = op.CanApply(node)
-			}
-			if apply {
-				if !contextBuilt {
-					mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
-					contextBuilt = true
-				}
-				pos := getNodePosition(node, fset)
-				if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
-					continue
-				}
-				localSites = append(localSites, Site{
-					File:          tfile,
-					Line:          pos.Line,
-					Column:        pos.Column,
-					Node:          node,
-					ReturnType:    mctx.ReturnType,
-					FunctionName:  mctx.FunctionName,
-					EnclosingFunc: mctx.EnclosingFunc,
-				})
-			}
-		}
-		if len(localSites) > 0 {
-			e.mu.Lock()
-			e.sites = append(e.sites, localSites...)
-			e.mu.Unlock()
-		}
-		if visitor != nil {
-			return visitor(node)
-		}
-		return true
-	})
-	return nil
+	return e.processFiles([]*ast.File{file}, fset, visitor, e.PrintAST)
 }
 
 func (e *Engine) Sites() []Site {

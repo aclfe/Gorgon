@@ -120,7 +120,21 @@ func findReplacementVar(fn *ast.FuncDecl, exclude string) string {
 		return ""
 	}
 
-	var candidates []string
+	// Estimate capacity from function signature (params + results)
+	cap := 0
+	if fn.Type.Params != nil {
+		for _, f := range fn.Type.Params.List {
+			cap += len(f.Names)
+		}
+	}
+	if fn.Type.Results != nil {
+		for _, f := range fn.Type.Results.List {
+			cap += len(f.Names)
+		}
+	}
+	// Add generous estimate for body declarations (typical function has 2-10)
+	cap += 8
+	candidates := make([]string, 0, cap)
 
 	if fn.Type.Params != nil {
 		for _, field := range fn.Type.Params.List {

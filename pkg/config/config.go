@@ -26,6 +26,8 @@ type Config struct {
 	Skip       []string        `yaml:"skip"`
 	SkipFunc   []string        `yaml:"skip_func"`
 	Tests      []string        `yaml:"tests"`
+	Base       string          `yaml:"base"`
+	Debug      bool            `yaml:"debug"`
 	Suppress   []SuppressEntry `yaml:"suppress"`
 }
 

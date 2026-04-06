@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 type Entry struct {
@@ -92,8 +93,26 @@ func (c *Cache) Save(projectDir string) error {
 }
 
 func (c *Cache) Key(filePath string, line, col int, nodeType uint8, operator string, fileHash string) string {
+	// Build key string efficiently without fmt.Sprintf allocations.
+	// Format: "filePath:line:col:nodeType:operator:fileHash"
+	const colon = byte(':')
+	// Estimate capacity: filePath + fileHash + operator + ~20 bytes for ints + colons
+	cap := len(filePath) + len(operator) + len(fileHash) + 30
+	buf := make([]byte, 0, cap)
+	buf = append(buf, filePath...)
+	buf = append(buf, colon)
+	buf = strconv.AppendInt(buf, int64(line), 10)
+	buf = append(buf, colon)
+	buf = strconv.AppendInt(buf, int64(col), 10)
+	buf = append(buf, colon)
+	buf = strconv.AppendUint(buf, uint64(nodeType), 10)
+	buf = append(buf, colon)
+	buf = append(buf, operator...)
+	buf = append(buf, colon)
+	buf = append(buf, fileHash...)
+
 	h := sha256.New()
-	h.Write([]byte(fmt.Sprintf("%s:%d:%d:%d:%s:%s", filePath, line, col, nodeType, operator, fileHash)))
+	h.Write(buf)
 	return hex.EncodeToString(h.Sum(nil))
 }
 

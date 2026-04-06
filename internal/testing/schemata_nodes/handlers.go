@@ -53,33 +53,66 @@ const (
 
 var Handlers = make([]SchemataHandler, NTMax)
 
+// Generic handler factories to eliminate repetitive code
+
+// makeExprHandler creates a handler for expression-like nodes that use wrapWithSchemataMulti
+func makeExprHandler() SchemataHandler {
+	return func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
+		if len(mutants) == 0 {
+			return original
+		}
+		if len(mutants) == 1 {
+			return applyMutant(original, mutants[0], returnType, file)
+		}
+		return wrapWithSchemataMulti(original, mutants, returnType, file)
+	}
+}
+
+// makeStmtHandler creates a handler for statement-like nodes that use WrapStatement
+func makeStmtHandler() SchemataHandler {
+	return func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
+		if len(mutants) == 0 {
+			return original
+		}
+		if len(mutants) == 1 {
+			return applyMutant(original, mutants[0], returnType, file)
+		}
+		return WrapStatement(original, mutants, returnType, file)
+	}
+}
+
 func init() {
-	Handlers[NTBinaryExpr] = HandleBinaryExpr
-	Handlers[NTUnaryExpr] = HandleUnaryExpr
-	Handlers[NTCallExpr] = HandleCallExpr
-	Handlers[NTIdent] = HandleIdent
+	// Expression handlers - use wrapWithSchemataMulti for multiple mutants
+	Handlers[NTBinaryExpr] = makeExprHandler()
+	Handlers[NTUnaryExpr] = makeExprHandler()
+	Handlers[NTCallExpr] = makeExprHandler()
+	Handlers[NTIdent] = makeExprHandler()
+	Handlers[NTBasicLit] = makeExprHandler()
+
+	// Statement handlers - use WrapStatement for multiple mutants
+	Handlers[NTIfStmt] = makeStmtHandler()
+	Handlers[NTForStmt] = makeStmtHandler()
+	Handlers[NTBlockStmt] = makeStmtHandler()
+	Handlers[NTBranchStmt] = makeStmtHandler()
+	Handlers[NTIncDecStmt] = makeStmtHandler()
+	Handlers[NTGoStmt] = makeStmtHandler()
+	Handlers[NTSendStmt] = makeStmtHandler()
+	Handlers[NTSwitchStmt] = makeStmtHandler()
+	Handlers[NTTypeSwitchStmt] = makeStmtHandler()
+	Handlers[NTSelectStmt] = makeStmtHandler()
+	Handlers[NTCommClause] = makeStmtHandler()
+	Handlers[NTLabeledStmt] = makeStmtHandler()
+	Handlers[NTExprStmt] = makeStmtHandler()
+	Handlers[NTDeclStmt] = makeStmtHandler()
+	Handlers[NTErrStmt] = makeStmtHandler()
+	Handlers[NTFuncDecl] = makeStmtHandler()
+
+	// Special handlers with custom logic
 	Handlers[NTCaseClause] = HandleCaseClause
-	Handlers[NTIfStmt] = HandleIfStmt
-	Handlers[NTForStmt] = HandleForStmt
 	Handlers[NTRangeStmt] = HandleRangeStmt
 	Handlers[NTAssignStmt] = HandleAssignStmt
-	Handlers[NTIncDecStmt] = HandleIncDecStmt
 	Handlers[NTDeferStmt] = HandleDeferStmt
-	Handlers[NTGoStmt] = HandleGoStmt
-	Handlers[NTSendStmt] = HandleSendStmt
-	Handlers[NTSwitchStmt] = HandleSwitchStmt
-	Handlers[NTTypeSwitchStmt] = HandleTypeSwitchStmt
 	Handlers[NTReturnStmt] = HandleReturnStmt
-	Handlers[NTBranchStmt] = HandleBranchStmt
-	Handlers[NTSelectStmt] = HandleSelectStmt
-	Handlers[NTCommClause] = HandleCommClause
-	Handlers[NTLabeledStmt] = HandleLabeledStmt
-	Handlers[NTExprStmt] = HandleExprStmt
-	Handlers[NTDeclStmt] = HandleDeclStmt
-	Handlers[NTErrStmt] = HandleEmptyStmt
-	Handlers[NTBlockStmt] = HandleBlockStmt
-	Handlers[NTFuncDecl] = HandleFuncDecl
-	Handlers[NTBasicLit] = HandleBasicLit
 }
 
 func GetHandler(node ast.Node) SchemataHandler {
@@ -145,96 +178,41 @@ func NodeTypeOf(node ast.Node) NodeType {
 	}
 }
 
-func HandleUnaryExpr(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return wrapWithSchemataMulti(original, mutants, returnType, file)
+func (nt NodeType) ToUint8() uint8 {
+	return uint8(nt)
 }
 
-func HandleCallExpr(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return wrapWithSchemataMulti(original, mutants, returnType, file)
+func NodeTypeToUint8(node ast.Node) uint8 {
+	return NodeTypeOf(node).ToUint8()
 }
 
-func HandleIdent(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
+func buildTypeExpr(resultType string) ast.Expr {
+	if resultType == "" {
+		return &ast.Ident{Name: "interface{}"}
 	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{File: file, EnclosingFunc: mutant.EnclosingFunc}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
+	if strings.HasPrefix(resultType, "*") {
+		baseType := strings.TrimPrefix(resultType, "*")
+		if baseType != "" {
+			return &ast.StarExpr{X: &ast.Ident{Name: baseType}}
 		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
 	}
-
-	return wrapWithSchemataMulti(original, mutants, returnType, file)
+	return &ast.Ident{Name: resultType}
 }
 
-func HandleBinaryExpr(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
+func createMutantIDCondition(mutantID int) *ast.BinaryExpr {
+	return &ast.BinaryExpr{
+		X:  &ast.Ident{Name: "activeMutantID"},
+		Op: token.EQL,
+		Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutantID)},
 	}
+}
 
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
+func applyMutant(original ast.Node, mutant MutantForSite, returnType string, file *ast.File) ast.Node {
+	mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
+	if mutated != nil {
+		return wrapWithSchemata(original, mutated, mutant.ID, returnType)
 	}
-
-	return wrapWithSchemataMulti(original, mutants, returnType, file)
+	return original
 }
 
 func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType string) ast.Node {
@@ -245,19 +223,10 @@ func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType strin
 			return original
 		}
 		resultType := inferExprType(orig, returnType)
-		if resultType == "" || resultType == "interface{}" {
-			resultType = returnType
-		}
 		if resultType == "" {
-			resultType = "interface{}"
+			return mutExpr
 		}
-		var typeExpr ast.Expr = &ast.Ident{Name: resultType}
-		if strings.HasPrefix(resultType, "*") {
-			baseType := strings.TrimPrefix(resultType, "*")
-			if baseType != "" {
-				typeExpr = &ast.StarExpr{X: &ast.Ident{Name: baseType}}
-			}
-		}
+		typeExpr := buildTypeExpr(resultType)
 		return &ast.CallExpr{
 			Fun: &ast.FuncLit{
 				Type: &ast.FuncType{
@@ -268,11 +237,7 @@ func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType strin
 				Body: &ast.BlockStmt{
 					List: []ast.Stmt{
 						&ast.IfStmt{
-							Cond: &ast.BinaryExpr{
-								X:  &ast.Ident{Name: "activeMutantID"},
-								Op: token.EQL,
-								Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutantID)},
-							},
+							Cond: createMutantIDCondition(mutantID),
 							Body: &ast.BlockStmt{
 								List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mutExpr}}},
 							},
@@ -290,11 +255,7 @@ func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType strin
 		return &ast.BlockStmt{
 			List: []ast.Stmt{
 				&ast.IfStmt{
-					Cond: &ast.BinaryExpr{
-						X:  &ast.Ident{Name: "activeMutantID"},
-						Op: token.EQL,
-						Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutantID)},
-					},
+					Cond: createMutantIDCondition(mutantID),
 					Body: &ast.BlockStmt{List: []ast.Stmt{mutStmt}},
 					Else: &ast.BlockStmt{List: []ast.Stmt{orig}},
 				},
@@ -317,7 +278,7 @@ func wrapWithSchemataMulti(original ast.Node, mutants []MutantForSite, returnTyp
 }
 
 func wrapExpression(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) != 1 {
+	if len(mutants) == 0 {
 		return original
 	}
 
@@ -331,13 +292,7 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
 	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file, EnclosingFunc: mutant.EnclosingFunc}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
 		if mutated == nil {
 			continue
 		}
@@ -350,26 +305,21 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 		retStmt := &ast.ReturnStmt{Results: []ast.Expr{mutatedExpr}}
 
 		stmts = append(stmts, &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X:  &ast.Ident{Name: "activeMutantID"},
-				Op: token.EQL,
-				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
-			},
+			Cond: createMutantIDCondition(mutant.ID),
 			Body: &ast.BlockStmt{
 				List: []ast.Stmt{retStmt},
 			},
 		})
 	}
 
+	// If no mutants produced valid mutations, return original
+	if len(stmts) == 0 {
+		return original
+	}
+
 	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{originalExpr}})
 
-	var typeExpr ast.Expr = &ast.Ident{Name: resultType}
-	if strings.HasPrefix(resultType, "*") {
-		baseType := strings.TrimPrefix(resultType, "*")
-		if baseType != "" {
-			typeExpr = &ast.StarExpr{X: &ast.Ident{Name: baseType}}
-		}
-	}
+	typeExpr := buildTypeExpr(resultType)
 
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
@@ -393,6 +343,14 @@ func isComparisonOp(op token.Token) bool {
 	return false
 }
 
+func isLogicalOp(op token.Token) bool {
+	switch op {
+	case token.LAND, token.LOR:
+		return true
+	}
+	return false
+}
+
 func HandleCaseClause(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	cc, ok := original.(*ast.CaseClause)
 	if !ok {
@@ -411,13 +369,7 @@ func HandleCaseClause(original ast.Node, mutants []MutantForSite, returnType str
 	newBody := make([]ast.Stmt, 0, len(cc.Body)+len(mutants))
 
 	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(cc, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(cc)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, cc, returnType, file, nil)
 		if mutated == nil {
 			continue
 		}
@@ -429,11 +381,7 @@ func HandleCaseClause(original ast.Node, mutants []MutantForSite, returnType str
 
 		if len(mutatedCC.Body) == 0 {
 			newBody = append(newBody, &ast.IfStmt{
-				Cond: &ast.BinaryExpr{
-					X:  &ast.Ident{Name: "activeMutantID"},
-					Op: token.EQL,
-					Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
-				},
+				Cond: createMutantIDCondition(mutant.ID),
 				Body: &ast.BlockStmt{
 					List: []ast.Stmt{
 						&ast.ReturnStmt{Results: []ast.Expr{zeroVal}},
@@ -442,11 +390,7 @@ func HandleCaseClause(original ast.Node, mutants []MutantForSite, returnType str
 			})
 		} else {
 			newBody = append(newBody, &ast.IfStmt{
-				Cond: &ast.BinaryExpr{
-					X:  &ast.Ident{Name: "activeMutantID"},
-					Op: token.EQL,
-					Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutant.ID)},
-				},
+				Cond: createMutantIDCondition(mutant.ID),
 				Body: &ast.BlockStmt{
 					List: mutatedCC.Body,
 				},
@@ -479,52 +423,6 @@ func GetZeroValueForType(returnType string) ast.Expr {
 	}
 }
 
-func HandleIfStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleForStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
 func HandleRangeStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	if len(mutants) == 0 {
 		return original
@@ -532,59 +430,7 @@ func HandleRangeStmt(original ast.Node, mutants []MutantForSite, returnType stri
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleBlockStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleBranchStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
 		if mutated != nil {
 			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
 		}
@@ -612,36 +458,7 @@ func HandleAssignStmt(original ast.Node, mutants []MutantForSite, returnType str
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleIncDecStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
 		if mutated != nil {
 			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
 		}
@@ -662,157 +479,21 @@ func HandleDeferStmt(original ast.Node, mutants []MutantForSite, returnType stri
 	}
 
 	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
+		return applyMutant(original, mutants[0], returnType, file)
 	}
 
 	return wrapDeferWithMutants(deferStmt, mutants, returnType, file)
 }
 
 func wrapDeferWithMutants(deferStmt *ast.DeferStmt, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	type mutPair struct {
-		id   int
-		stmt ast.Stmt
-	}
-	var pairs []mutPair
-	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(deferStmt, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(deferStmt)
-		}
+	return buildIfElseChain(deferStmt, mutants, file, func(mutant MutantForSite) (ast.Stmt, bool) {
+		mutated := mutator.ApplyOperator(mutant.Op, deferStmt, returnType, file, nil)
 		if mutated == nil {
-			continue
+			return nil, false
 		}
-
 		mutatedStmt, ok := mutated.(ast.Stmt)
-		if !ok {
-			continue
-		}
-		pairs = append(pairs, mutPair{mutant.ID, mutatedStmt})
-	}
-	if len(pairs) == 0 {
-		return deferStmt
-	}
-
-	var chain ast.Stmt = &ast.BlockStmt{List: []ast.Stmt{deferStmt}}
-	for i := len(pairs) - 1; i >= 0; i-- {
-		chain = &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X:  &ast.Ident{Name: "activeMutantID"},
-				Op: token.EQL,
-				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(pairs[i].id)},
-			},
-			Body: &ast.BlockStmt{List: []ast.Stmt{pairs[i].stmt}},
-			Else: chain,
-		}
-	}
-
-	return &ast.BlockStmt{List: []ast.Stmt{chain}}
-}
-
-func HandleGoStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleSendStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleSwitchStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleTypeSwitchStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
+		return mutatedStmt, ok
+	})
 }
 
 func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
@@ -831,13 +512,7 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
 		if mutated != nil {
 			if retStmt, ok := mutated.(*ast.ReturnStmt); ok && len(retStmt.Results) > 0 {
 				return wrapReturnWithSchemata(originalRet, retStmt.Results[0], mutant.ID, returnType)
@@ -858,13 +533,7 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		if mutReturnType == "" {
 			mutReturnType = returnType
 		}
-		ctx := mutator.Context{ReturnType: mutReturnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+		mutated := mutator.ApplyOperator(mutant.Op, original, mutReturnType, file, nil)
 		if mutated == nil {
 			continue
 		}
@@ -892,22 +561,12 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		resultType = inferExprType(origExpr, returnType)
 	}
 
-	var typeExpr ast.Expr = &ast.Ident{Name: resultType}
-	if strings.HasPrefix(resultType, "*") {
-		baseType := strings.TrimPrefix(resultType, "*")
-		if baseType != "" {
-			typeExpr = &ast.StarExpr{X: &ast.Ident{Name: baseType}}
-		}
-	}
+	typeExpr := buildTypeExpr(resultType)
 
 	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
 	for _, mr := range mutResults {
 		stmts = append(stmts, &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X:  &ast.Ident{Name: "activeMutantID"},
-				Op: token.EQL,
-				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mr.id)},
-			},
+			Cond: createMutantIDCondition(mr.id),
 			Body: &ast.BlockStmt{
 				List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mr.expr}}},
 			},
@@ -938,13 +597,7 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 	if resultType == "" || resultType == "interface{}" {
 		resultType = inferExprType(mutatedExpr, returnType)
 	}
-	var typeExpr ast.Expr = &ast.Ident{Name: resultType}
-	if strings.HasPrefix(resultType, "*") {
-		baseType := strings.TrimPrefix(resultType, "*")
-		if baseType != "" {
-			typeExpr = &ast.StarExpr{X: &ast.Ident{Name: baseType}}
-		}
-	}
+	typeExpr := buildTypeExpr(resultType)
 	return &ast.ReturnStmt{
 		Results: []ast.Expr{
 			&ast.CallExpr{
@@ -957,11 +610,7 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 					Body: &ast.BlockStmt{
 						List: []ast.Stmt{
 							&ast.IfStmt{
-								Cond: &ast.BinaryExpr{
-									X:  &ast.Ident{Name: "activeMutantID"},
-									Op: token.EQL,
-									Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutantID)},
-								},
+								Cond: createMutantIDCondition(mutantID),
 								Body: &ast.BlockStmt{
 									List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mutatedExpr}}},
 								},
@@ -1104,198 +753,40 @@ func formatNode(expr ast.Expr) string {
 	}
 }
 
-func isLogicalOp(op token.Token) bool {
-	switch op {
-	case token.LAND, token.LOR:
-		return true
+// buildIfElseChain creates a chained if-else statement from mutants
+// originalStmt is the unmutated statement used as the final else clause
+// extractMutated extracts the mutated statement from a mutant, returns (stmt, ok)
+func buildIfElseChain(originalStmt ast.Stmt, mutants []MutantForSite, file *ast.File,
+	extractMutated func(mutant MutantForSite) (ast.Stmt, bool)) ast.Node {
+	type mutPair struct {
+		id   int
+		stmt ast.Stmt
 	}
-	return false
+	var pairs []mutPair
+	for _, mutant := range mutants {
+		mutatedStmt, ok := extractMutated(mutant)
+		if !ok {
+			continue
+		}
+		pairs = append(pairs, mutPair{mutant.ID, mutatedStmt})
+	}
+	if len(pairs) == 0 {
+		return originalStmt
+	}
+
+	var chain ast.Stmt = &ast.BlockStmt{List: []ast.Stmt{originalStmt}}
+	for i := len(pairs) - 1; i >= 0; i-- {
+		chain = &ast.IfStmt{
+			Cond: createMutantIDCondition(pairs[i].id),
+			Body: &ast.BlockStmt{List: []ast.Stmt{pairs[i].stmt}},
+			Else: chain,
+		}
+	}
+
+	return &ast.BlockStmt{List: []ast.Stmt{chain}}
 }
 
-func HandleSelectStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleCommClause(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleLabeledStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleExprStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleDeclStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleEmptyStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleFuncDecl(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return WrapStatement(original, mutants, returnType, file)
-}
-
-func HandleBasicLit(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	if len(mutants) == 1 {
-		mutant := mutants[0]
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
-		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
-		}
-		return original
-	}
-
-	return wrapWithSchemataMulti(original, mutants, returnType, file)
-}
-
+// WrapStatement wraps a statement node with mutation logic for multiple mutants
 func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	if len(mutants) == 0 {
 		return original
@@ -1306,45 +797,12 @@ func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string
 		return original
 	}
 
-	type mutPair struct {
-		id   int
-		stmt ast.Stmt
-	}
-	var pairs []mutPair
-	for _, mutant := range mutants {
-		ctx := mutator.Context{ReturnType: returnType, File: file}
-		var mutated ast.Node
-		if cop, ok := mutant.Op.(mutator.ContextualOperator); ok {
-			mutated = cop.MutateWithContext(original, ctx)
-		} else {
-			mutated = mutant.Op.Mutate(original)
-		}
+	return buildIfElseChain(originalStmt, mutants, file, func(mutant MutantForSite) (ast.Stmt, bool) {
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
 		if mutated == nil {
-			continue
+			return nil, false
 		}
-
 		mutatedStmt, ok := mutated.(ast.Stmt)
-		if !ok {
-			continue
-		}
-		pairs = append(pairs, mutPair{mutant.ID, mutatedStmt})
-	}
-	if len(pairs) == 0 {
-		return original
-	}
-
-	var chain ast.Stmt = &ast.BlockStmt{List: []ast.Stmt{originalStmt}}
-	for i := len(pairs) - 1; i >= 0; i-- {
-		chain = &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X:  &ast.Ident{Name: "activeMutantID"},
-				Op: token.EQL,
-				Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(pairs[i].id)},
-			},
-			Body: &ast.BlockStmt{List: []ast.Stmt{pairs[i].stmt}},
-			Else: chain,
-		}
-	}
-
-	return &ast.BlockStmt{List: []ast.Stmt{chain}}
+		return mutatedStmt, ok
+	})
 }

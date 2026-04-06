@@ -37,10 +37,13 @@ func (EarlyReturnRemoval) Mutate(n ast.Node) ast.Node {
 }
 
 func (EarlyReturnRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&EarlyReturnRemoval{}).CanApplyWithContext(n, ctx) {
+	ret, ok := n.(*ast.ReturnStmt)
+	if !ok || ret.Results == nil || len(ret.Results) == 0 {
 		return nil
 	}
-	ret := n.(*ast.ReturnStmt)
+	if !isInsideIfBlockFast(n, ctx.Parent) {
+		return nil
+	}
 	return &ast.ReturnStmt{
 		Return:  ret.Return,
 		Results: nil,

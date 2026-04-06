@@ -34,21 +34,11 @@ func (SwitchRemoveDefault) Mutate(n ast.Node) ast.Node {
 }
 
 func (SwitchRemoveDefault) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	return SwitchRemoveDefault{}.CanApply(n)
+	return (SwitchRemoveDefault{}).CanApply(n)
 }
 
 func (SwitchRemoveDefault) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	cc, ok := n.(*ast.CaseClause)
-	if !ok {
-		return nil
-	}
-
-	return &ast.CaseClause{
-		Case:  cc.Case,
-		List:  cc.List,
-		Colon: cc.Colon,
-		Body:  []ast.Stmt{},
-	}
+	return (SwitchRemoveDefault{}).Mutate(n)
 }
 
 func init() {

@@ -29,6 +29,22 @@ type ContextualOperator interface {
 	MutateWithContext(node ast.Node, ctx Context) ast.Node
 }
 
+// ApplyOperator applies an operator to a node, handling both regular and contextual operators.
+// For contextual operators, it creates a context with the provided parameters and calls MutateWithContext.
+// For regular operators, it calls Mutate directly.
+// Returns the mutated node, or nil if the operator cannot be applied.
+func ApplyOperator(op Operator, node ast.Node, returnType string, file *ast.File, enclosingFunc *ast.FuncDecl) ast.Node {
+	ctx := Context{
+		ReturnType:    returnType,
+		File:          file,
+		EnclosingFunc: enclosingFunc,
+	}
+	if cop, ok := op.(ContextualOperator); ok {
+		return cop.MutateWithContext(node, ctx)
+	}
+	return op.Mutate(node)
+}
+
 type OperatorInitializer func() Operator
 
 type OperatorRegistry struct {

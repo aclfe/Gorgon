@@ -3,7 +3,8 @@ package mutator
 
 import (
 	"go/ast"
-	"go/token"
+
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type ArithmeticFlip struct{}
@@ -17,12 +18,8 @@ func (ArithmeticFlip) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	//nolint:exhaustive
-	switch be.Op {
-	case token.ADD, token.SUB, token.MUL, token.QUO:
-		return true
-	}
-	return false
+	_, ok = common.ArithmeticFlipTokens[be.Op]
+	return ok
 }
 
 func (ArithmeticFlip) Mutate(n ast.Node) ast.Node {
@@ -30,18 +27,8 @@ func (ArithmeticFlip) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newOp token.Token
-	//nolint:exhaustive
-	switch be.Op {
-	case token.ADD:
-		newOp = token.SUB
-	case token.SUB:
-		newOp = token.ADD
-	case token.MUL:
-		newOp = token.QUO
-	case token.QUO:
-		newOp = token.MUL
-	default:
+	newOp, ok := common.SwapBinaryToken(be.Op, common.ArithmeticFlipPairs)
+	if !ok {
 		return nil
 	}
 	return &ast.BinaryExpr{

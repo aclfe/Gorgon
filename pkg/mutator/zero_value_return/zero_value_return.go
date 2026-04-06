@@ -5,113 +5,85 @@ import (
 	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
-type ZeroValueReturnNumeric struct{}
-
-func (ZeroValueReturnNumeric) Name() string {
-	return "zero_value_return_numeric"
+// zeroValueReturnBase provides shared functionality for all zero-value return mutations.
+type zeroValueReturnBase struct {
+	name        string
+	checkExpr   func(ast.Expr) bool
+	zeroValueFn func(ast.Expr) ast.Expr
 }
 
-func (ZeroValueReturnNumeric) CanApply(n ast.Node) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
+func (b zeroValueReturnBase) Name() string {
+	return b.name
+}
+
+func (b zeroValueReturnBase) CanApply(n ast.Node) bool {
+	ret, ok := common.IsReturnStmtWithResults(n, 1)
+	if !ok {
 		return false
 	}
-	return isNumericLiteral(ret.Results[0])
+	return b.checkExpr(ret.Results[0])
 }
 
-func isNumericLiteral(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		return e.Kind == token.INT || e.Kind == token.FLOAT || e.Kind == token.IMAG
-	case *ast.ParenExpr:
-		return isNumericLiteral(e.X)
-	default:
+func (b zeroValueReturnBase) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
+	ret, ok := common.IsReturnStmtWithResults(n, 1)
+	if !ok {
 		return false
 	}
+	if ctx.File != nil && common.IsInsideCaseClause(ret, ctx.File) {
+		return false
+	}
+	return b.checkExpr(ret.Results[0])
 }
 
-func isInsideCaseClause(ret *ast.ReturnStmt, file *ast.File) bool {
-	var result bool
-	ast.Inspect(file, func(n ast.Node) bool {
-		if n == ret {
-			return true
-		}
-
-		if cc, ok := n.(*ast.CaseClause); ok {
-			for _, stmt := range cc.Body {
-				if findNode(stmt, ret) {
-					result = true
-					return false
-				}
-			}
-		}
-
-		return true
-	})
-
-	return result
-}
-
-func findNode(node, target ast.Node) bool {
-	found := false
-	ast.Inspect(node, func(n ast.Node) bool {
-		if n == target {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
-}
-
-func (ZeroValueReturnNumeric) Mutate(n ast.Node) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
+func (b zeroValueReturnBase) Mutate(n ast.Node) ast.Node {
+	ret, ok := common.IsReturnStmtWithResults(n, 1)
+	if !ok {
 		return nil
 	}
-
-	firstResult := ret.Results[0]
-	if !isNumericLiteral(firstResult) {
+	if !b.checkExpr(ret.Results[0]) {
 		return nil
 	}
-
 	return &ast.ReturnStmt{
-		Results: []ast.Expr{numericZeroValue(firstResult)},
+		Results: []ast.Expr{b.zeroValueFn(ret.Results[0])},
 	}
 }
 
-func (ZeroValueReturnNumeric) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return false
-	}
-	return isNumericLiteral(ret.Results[0])
-}
-
-func (ZeroValueReturnNumeric) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
+func (b zeroValueReturnBase) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
+	ret, ok := common.IsReturnStmtWithResults(n, 1)
+	if !ok {
 		return nil
 	}
-
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
+	if ctx.File != nil && common.IsInsideCaseClause(ret, ctx.File) {
 		return nil
 	}
-
-	firstResult := ret.Results[0]
-	if !isNumericLiteral(firstResult) {
+	if !b.checkExpr(ret.Results[0]) {
 		return nil
 	}
-
 	return &ast.ReturnStmt{
-		Results: []ast.Expr{numericZeroValue(firstResult)},
+		Results: []ast.Expr{b.zeroValueFn(ret.Results[0])},
 	}
 }
+
+// ZeroValueReturnNumeric mutates numeric literals to their zero value.
+type ZeroValueReturnNumeric struct {
+	zeroValueReturnBase
+}
+
+func init() {
+	mutator.Register(ZeroValueReturnNumeric{
+		zeroValueReturnBase: zeroValueReturnBase{
+			name:        "zero_value_return_numeric",
+			checkExpr:   common.IsNumericLiteral,
+			zeroValueFn: numericZeroValue,
+		},
+	})
+}
+
+var _ mutator.Operator = ZeroValueReturnNumeric{}
+var _ mutator.ContextualOperator = ZeroValueReturnNumeric{}
 
 func numericZeroValue(expr ast.Expr) ast.Expr {
 	switch e := expr.(type) {
@@ -130,263 +102,62 @@ func numericZeroValue(expr ast.Expr) ast.Expr {
 	}
 }
 
-func init() {
-	mutator.Register(ZeroValueReturnNumeric{})
-}
-
-var _ mutator.Operator = ZeroValueReturnNumeric{}
-var _ mutator.ContextualOperator = ZeroValueReturnNumeric{}
-
-type ZeroValueReturnString struct{}
-
-func (ZeroValueReturnString) Name() string {
-	return "zero_value_return_string"
-}
-
-func (ZeroValueReturnString) CanApply(n ast.Node) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	return isStringLiteral(ret.Results[0])
-}
-
-func isStringLiteral(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		return e.Kind == token.STRING
-	case *ast.ParenExpr:
-		return isStringLiteral(e.X)
-	default:
-		return false
-	}
-}
-
-func (ZeroValueReturnString) Mutate(n ast.Node) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isStringLiteral(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: "\"\""}},
-	}
-}
-
-func (ZeroValueReturnString) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return false
-	}
-	return isStringLiteral(ret.Results[0])
-}
-
-func (ZeroValueReturnString) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isStringLiteral(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: "\"\""}},
-	}
+// ZeroValueReturnString mutates string literals to empty string.
+type ZeroValueReturnString struct {
+	zeroValueReturnBase
 }
 
 func init() {
-	mutator.Register(ZeroValueReturnString{})
+	mutator.Register(ZeroValueReturnString{
+		zeroValueReturnBase: zeroValueReturnBase{
+			name:      "zero_value_return_string",
+			checkExpr: common.IsStringLiteral,
+			zeroValueFn: func(ast.Expr) ast.Expr {
+				return &ast.BasicLit{Kind: token.STRING, Value: "\"\""}
+			},
+		},
+	})
 }
 
 var _ mutator.Operator = ZeroValueReturnString{}
 var _ mutator.ContextualOperator = ZeroValueReturnString{}
 
-type ZeroValueReturnBool struct{}
-
-func (ZeroValueReturnBool) Name() string {
-	return "zero_value_return_bool"
-}
-
-func (ZeroValueReturnBool) CanApply(n ast.Node) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	return isBoolLiteral(ret.Results[0])
-}
-
-func isBoolLiteral(expr ast.Expr) bool {
-	ident, ok := expr.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	return ident.Name == "true" || ident.Name == "false"
-}
-
-func (ZeroValueReturnBool) Mutate(n ast.Node) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isBoolLiteral(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "false"}},
-	}
-}
-
-func (ZeroValueReturnBool) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return false
-	}
-	return isBoolLiteral(ret.Results[0])
-}
-
-func (ZeroValueReturnBool) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isBoolLiteral(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "false"}},
-	}
+// ZeroValueReturnBool mutates boolean literals to false.
+type ZeroValueReturnBool struct {
+	zeroValueReturnBase
 }
 
 func init() {
-	mutator.Register(ZeroValueReturnBool{})
+	mutator.Register(ZeroValueReturnBool{
+		zeroValueReturnBase: zeroValueReturnBase{
+			name:      "zero_value_return_bool",
+			checkExpr: common.IsBoolLiteral,
+			zeroValueFn: func(ast.Expr) ast.Expr {
+				return &ast.Ident{Name: "false"}
+			},
+		},
+	})
 }
 
 var _ mutator.Operator = ZeroValueReturnBool{}
 var _ mutator.ContextualOperator = ZeroValueReturnBool{}
 
-type ZeroValueReturnError struct{}
-
-func (ZeroValueReturnError) Name() string {
-	return "zero_value_return_error"
-}
-
-func (ZeroValueReturnError) CanApply(n ast.Node) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	return isErrorCall(ret.Results[0])
-}
-
-func isErrorExpr(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.CallExpr:
-		if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
-			if ident, ok := sel.X.(*ast.Ident); ok {
-				return ident.Name == "fmt" && sel.Sel.Name == "Errorf"
-			}
-		}
-		return false
-	case *ast.Ident:
-		return e.Name == "nil"
-	default:
-		return false
-	}
-}
-
-func isErrorCall(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.CallExpr:
-		if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
-			if ident, ok := sel.X.(*ast.Ident); ok {
-				return ident.Name == "fmt" && sel.Sel.Name == "Errorf"
-			}
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-func (ZeroValueReturnError) Mutate(n ast.Node) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isErrorCall(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "nil"}},
-	}
-}
-
-func (ZeroValueReturnError) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return false
-	}
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return false
-	}
-	return isErrorCall(ret.Results[0])
-}
-
-func (ZeroValueReturnError) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || len(ret.Results) == 0 {
-		return nil
-	}
-
-	if ctx.File != nil && isInsideCaseClause(ret, ctx.File) {
-		return nil
-	}
-
-	firstResult := ret.Results[0]
-	if !isErrorCall(firstResult) {
-		return nil
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "nil"}},
-	}
+// ZeroValueReturnError mutates error-producing expressions to nil.
+type ZeroValueReturnError struct {
+	zeroValueReturnBase
 }
 
 func init() {
-	mutator.Register(ZeroValueReturnError{})
+	mutator.Register(ZeroValueReturnError{
+		zeroValueReturnBase: zeroValueReturnBase{
+			name:      "zero_value_return_error",
+			checkExpr: common.IsErrorCall,
+			zeroValueFn: func(ast.Expr) ast.Expr {
+				return &ast.Ident{Name: "nil"}
+			},
+		},
+	})
 }
 
 var _ mutator.Operator = ZeroValueReturnError{}
 var _ mutator.ContextualOperator = ZeroValueReturnError{}
-

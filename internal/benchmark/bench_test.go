@@ -16,7 +16,6 @@ import (
 	"github.com/aclfe/gorgon/internal/reporter"
 	gtest "github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
 	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
 	"github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
 	"github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
@@ -24,6 +23,7 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
 	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
 	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
 	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
@@ -55,7 +55,7 @@ func BenchmarkPipeline_FullSmallCodebase(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -68,7 +68,7 @@ func BenchmarkPipeline_FullSmallCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants, 0)
+		_ = reporter.Report(mutants, 0, false)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -82,7 +82,7 @@ func BenchmarkPipeline_FullMediumCodebase(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -91,7 +91,7 @@ func BenchmarkPipeline_FullMediumCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants, 0)
+		_ = reporter.Report(mutants, 0, false)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -123,13 +123,13 @@ func BenchmarkPipeline_PhaseBreakdown(b *testing.B) {
 
 		// Phase 2: Mutant Generation
 		start = time.Now()
-		mutants := generateMutants(detectedSites, ops)
+		mutants := gtest.GenerateMutants(detectedSites, ops)
 		mutantGenTime += time.Since(start)
 
 		// Phase 3: Schemata Application (full pipeline includes this)
 		start = time.Now()
 		ctx, cancel := context.WithCancel(context.Background())
-		runMutants, err := gtest.GenerateAndRunSchemata(ctx, detectedSites, ops, smallCodebase, 1, nil, nil)
+		runMutants, err := gtest.GenerateAndRunSchemata(ctx, detectedSites, ops, smallCodebase, 1, nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Schemata failed (dependency issue): %v", err)
@@ -144,7 +144,7 @@ func BenchmarkPipeline_PhaseBreakdown(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(runMutants, 0)
+		_ = reporter.Report(runMutants, 0, false)
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -177,7 +177,7 @@ func BenchmarkPipeline_ConcurrencyScaling(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				ctx, cancel := context.WithCancel(context.Background())
-				_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, conc, nil, nil)
+				_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, conc, nil, nil, false)
 				cancel()
 				if err != nil {
 					b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -202,7 +202,7 @@ func BenchmarkPipeline_MutationDetectionRate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -235,7 +235,7 @@ func BenchmarkPipeline_ArithmeticOperators(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -253,7 +253,7 @@ func BenchmarkPipeline_LogicalOperators(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -272,7 +272,7 @@ func BenchmarkPipeline_ZeroValueReturns(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -291,7 +291,7 @@ func BenchmarkPipeline_LoopMutations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -312,7 +312,7 @@ func BenchmarkPipeline_MemoryAllocations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -333,7 +333,7 @@ func BenchmarkPipeline_Throughput(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		start := time.Now()
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -356,7 +356,7 @@ func BenchmarkPipeline_ColdStart(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Each iteration is a cold start - new context, new temp dir
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -375,7 +375,7 @@ func BenchmarkPipeline_ErrorRecovery(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil)
+		mutants, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, smallCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 
 		// Count errors for metrics
@@ -417,7 +417,7 @@ func BenchmarkPipeline_BuildTime(b *testing.B) {
 		}
 
 		// Generate and apply schemata
-		mutants := generateMutants(sites, ops)
+		mutants := gtest.GenerateMutants(sites, ops)
 		fileToMutants := make(map[string][]*gtest.Mutant)
 		for j := range mutants {
 			m := &mutants[j]
@@ -465,7 +465,7 @@ func BenchmarkPipeline_TestCompilation(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		mutants := generateMutants(sites, ops)
+		mutants := gtest.GenerateMutants(sites, ops)
 		fileToMutants := make(map[string][]*gtest.Mutant)
 		for j := range mutants {
 			m := &mutants[j]
@@ -497,16 +497,21 @@ func BenchmarkPipeline_TestCompilation(b *testing.B) {
 
 // Note: Requires working module dependencies
 func BenchmarkPipeline_ConditionalExpressions(b *testing.B) {
+	ifConditionTrue, _ := mutator.Get("if_condition_true")
+	ifConditionFalse, _ := mutator.Get("if_condition_false")
+	if ifConditionTrue == nil || ifConditionFalse == nil {
+		b.Skip("conditional expression mutators not available")
+	}
 	ops := []mutator.Operator{
-		conditional_expression.IfConditionTrue{},
-		conditional_expression.IfConditionFalse{},
+		ifConditionTrue,
+		ifConditionFalse,
 	}
 	sites := collectSites(b, mediumCodebase, ops)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, mediumCodebase, runtime.NumCPU(), nil, nil, false)
 		cancel()
 		if err != nil {
 			b.Skipf("Pipeline failed (dependency issue): %v", err)
@@ -537,31 +542,4 @@ func collectSites(b *testing.B, path string, ops []mutator.Operator) []engine.Si
 	}
 
 	return e.Sites()
-}
-
-func generateMutants(sites []engine.Site, ops []mutator.Operator) []gtest.Mutant {
-	var mutants []gtest.Mutant
-	mutantID := 1
-
-	for _, site := range sites {
-		for _, op := range ops {
-			apply := false
-			if cop, ok := op.(mutator.ContextualOperator); ok {
-				ctx := mutator.Context{ReturnType: site.ReturnType}
-				apply = cop.CanApplyWithContext(site.Node, ctx)
-			} else {
-				apply = op.CanApply(site.Node)
-			}
-			if apply {
-				mutants = append(mutants, gtest.Mutant{
-					ID:       mutantID,
-					Site:     site,
-					Operator: op,
-				})
-				mutantID++
-			}
-		}
-	}
-
-	return mutants
 }

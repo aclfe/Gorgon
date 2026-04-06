@@ -4,6 +4,7 @@ import (
 	"go/ast"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type SwapCaseBodies struct{}
@@ -41,7 +42,7 @@ func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 		return nil
 	}
 
-	siblings := findSiblingCasesInSameSwitch(cc, ctx.File, ctx.Parent)
+	siblings := findSiblingCasesInSameSwitch(cc, ctx.File)
 	if len(siblings) < 2 {
 		return nil
 	}
@@ -78,14 +79,21 @@ func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Nod
 	}
 }
 
-func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File, parent ast.Node) []*ast.CaseClause {
-	var siblings []*ast.CaseClause
+func isSwitchNode(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.SwitchStmt, *ast.TypeSwitchStmt:
+		return true
+	}
+	return false
+}
 
-	switchStmt := getSwitchStmt(cc, file)
+func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File) []*ast.CaseClause {
+	switchStmt := common.FindParentNode(cc, file, isSwitchNode)
 	if switchStmt == nil {
 		return nil
 	}
 
+	var siblings []*ast.CaseClause
 	switch stmt := switchStmt.(type) {
 	case *ast.SwitchStmt:
 		for _, s := range stmt.Body.List {
@@ -102,36 +110,6 @@ func findSiblingCasesInSameSwitch(cc *ast.CaseClause, file *ast.File, parent ast
 	}
 
 	return siblings
-}
-
-func getSwitchStmt(cc *ast.CaseClause, file *ast.File) ast.Node {
-	var result ast.Node
-	ast.Inspect(file, func(n ast.Node) bool {
-		if result != nil {
-			return false
-		}
-		switch stmt := n.(type) {
-		case *ast.SwitchStmt, *ast.TypeSwitchStmt:
-			if containsCaseClause(stmt, cc) {
-				result = stmt
-				return false
-			}
-		}
-		return true
-	})
-	return result
-}
-
-func containsCaseClause(n ast.Node, target *ast.CaseClause) bool {
-	found := false
-	ast.Inspect(n, func(node ast.Node) bool {
-		if node == target {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
 }
 
 func init() {

@@ -29,6 +29,10 @@ func (NilCheckRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool
 }
 
 func (NilCheckRemoval) Mutate(n ast.Node) ast.Node {
+	return nil
+}
+
+func (NilCheckRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	ifStmt, ok := n.(*ast.IfStmt)
 	if !ok {
 		return nil
@@ -36,14 +40,6 @@ func (NilCheckRemoval) Mutate(n ast.Node) ast.Node {
 	if !isSimpleNilCheck(ifStmt) {
 		return nil
 	}
-	return &ast.BlockStmt{List: ifStmt.Body.List}
-}
-
-func (NilCheckRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&NilCheckRemoval{}).CanApplyWithContext(n, ctx) {
-		return nil
-	}
-	ifStmt := n.(*ast.IfStmt)
 	return &ast.BlockStmt{List: ifStmt.Body.List}
 }
 

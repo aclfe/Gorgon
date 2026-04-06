@@ -3,16 +3,15 @@ package testing
 
 import (
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-const copyBufferSize = 32 * 1024 // 32KB buffer for optimized copying
-
-// CopyDir copies a directory recursively.
-// If src is a single file, it copies that file to dst directory.
+// CopyDir copies a directory recursively, only copying .go files, go.mod, and go.sum.
 //
 //nolint:gocognit,gocyclo,cyclop
 func CopyDir(src, dst string) error {
@@ -20,18 +19,14 @@ func CopyDir(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat source: %w", err)
 	}
-
 	if !srcInfo.IsDir() {
 		return copySingleFile(src, dst)
 	}
 
-	// Handle directory case
-	if err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-
-		// Calculate relative path and destination path
 		relPath, err := filepath.Rel(src, path)
 		if err != nil {
 			return fmt.Errorf("failed to compute relative path: %w", err)
@@ -42,84 +37,84 @@ func CopyDir(src, dst string) error {
 			if info.Name() == ".git" || info.Name() == "vendor" || strings.HasPrefix(info.Name(), "_") {
 				return filepath.SkipDir
 			}
-			if err := os.MkdirAll(dstPath, info.Mode()); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-			return nil
+			return os.MkdirAll(dstPath, info.Mode())
 		}
 
 		if !strings.HasSuffix(path, ".go") && path != "go.mod" && path != "go.sum" {
 			return nil
 		}
-		//nolint:gosec // Walking directory and opening files
-		srcFile, err := os.Open(path)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", path, err)
+
+		return copyFileWithBuffer(path, dstPath)
+	})
+}
+
+// extractPackageName reads the package clause from a Go file.
+func extractFilePath(filePath string) string {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, nil, parser.PackageClauseOnly)
+	if err == nil && file.Name != nil {
+		return file.Name.Name
+	}
+	return ""
+}
+
+// copyDir copies a directory's Go files to a destination.
+func copyDir(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("failed to read dir %s: %w", src, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
-		defer func() {
-			//nolint:errcheck
-			_ = srcFile.Close() // ignore error from Close
-		}()
-		//nolint:gosec // Creating file in destination
-		dstFile, err := os.Create(dstPath)
-		if err != nil {
-			return fmt.Errorf("failed to create file %s: %w", dstPath, err)
+		if !strings.HasSuffix(entry.Name(), ".go") {
+			continue
 		}
-		defer func() {
-			_ = dstFile.Close() // ignore error from Close
-		}()
-		// Use CopyBuffer for optimized bulk transfer instead of io.Copy byte-by-byte
-		buf := make([]byte, copyBufferSize)
-		if _, err = io.CopyBuffer(dstFile, srcFile, buf); err != nil {
-			return fmt.Errorf("failed to copy content to %s: %w", dstPath, err)
+		if err := copyFileWithBuffer(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+			return fmt.Errorf("failed to copy %s: %w", entry.Name(), err)
 		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("walk failed: %w", err)
 	}
 	return nil
 }
 
 func copySingleFile(src, dst string) error {
-	//nolint:gosec // Copying user-provided file
+	return copyFileWithBuffer(src, filepath.Join(dst, filepath.Base(src)))
+}
+
+func copyFileWithBuffer(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
+		return fmt.Errorf("failed to open %s: %w", src, err)
 	}
-	defer func() {
-		_ = srcFile.Close() // ignore error from Close
-	}()
+	defer srcFile.Close()
 
-	dstPath := filepath.Join(dst, filepath.Base(src))
-	//nolint:gosec // Creating user-provided file
-	dstFile, err := os.Create(dstPath)
+	dstFile, err := os.Create(dst)
 	if err != nil {
-		return fmt.Errorf("failed to create dest file: %w", err)
+		return fmt.Errorf("failed to create %s: %w", dst, err)
 	}
-	defer func() {
-		_ = dstFile.Close() // ignore error from Close
-	}()
+	defer dstFile.Close()
 
-	// Use CopyBuffer for optimized bulk transfer
-	buf := make([]byte, copyBufferSize)
-	if _, err = io.CopyBuffer(dstFile, srcFile, buf); err != nil {
-		return fmt.Errorf("failed to copy file content: %w", err)
+	bufPtr := hashBufPool.Get().(*[]byte)
+	defer hashBufPool.Put(bufPtr)
+
+	if _, err := io.CopyBuffer(dstFile, srcFile, *bufPtr); err != nil {
+		return fmt.Errorf("failed to copy %s: %w", src, err)
 	}
 	return nil
 }
 
-func findGoMod(dir string) string {
+// FindGoModDir walks up from dir looking for a go.mod file, returning the
+// directory containing it, or "" if none found.
+func FindGoModDir(dir string) string {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return "" // best effort? or should we log?
+		return ""
 	}
-
 	for {
-		goModPath := filepath.Join(absDir, "go.mod")
-		if fileExists(goModPath) {
-			return goModPath
+		if _, err := os.Stat(filepath.Join(absDir, "go.mod")); err == nil {
+			return absDir
 		}
-
 		parent := filepath.Dir(absDir)
 		if parent == absDir {
 			break
@@ -127,6 +122,32 @@ func findGoMod(dir string) string {
 		absDir = parent
 	}
 	return ""
+}
+
+// UniqueErrorLines extracts unique error messages from multi-line output.
+// If skipPrefix is non-empty, lines starting with it are skipped.
+// Lines are deduplicated after stripping the file:line:col prefix.
+func UniqueErrorLines(output string, skipPrefix string) []string {
+	var errs []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasSuffix(line, "too many errors") {
+			continue
+		}
+		if skipPrefix != "" && strings.HasPrefix(line, skipPrefix) {
+			continue
+		}
+		msg := line
+		if idx := strings.Index(line, ": "); idx >= 0 {
+			msg = line[idx+2:]
+		}
+		if !seen[msg] {
+			seen[msg] = true
+			errs = append(errs, msg)
+		}
+	}
+	return errs
 }
 
 func fileExists(path string) bool {

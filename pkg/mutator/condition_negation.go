@@ -3,7 +3,8 @@ package mutator
 
 import (
 	"go/ast"
-	"go/token"
+
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type ConditionNegation struct{}
@@ -17,12 +18,8 @@ func (ConditionNegation) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	//nolint:exhaustive
-	switch be.Op {
-	case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
-		return true
-	}
-	return false
+	_, ok = common.ComparisonNegationTokens[be.Op]
+	return ok
 }
 
 func (ConditionNegation) Mutate(n ast.Node) ast.Node {
@@ -30,22 +27,8 @@ func (ConditionNegation) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newOp token.Token
-	//nolint:exhaustive
-	switch be.Op {
-	case token.EQL:
-		newOp = token.NEQ
-	case token.NEQ:
-		newOp = token.EQL
-	case token.LSS:
-		newOp = token.GEQ
-	case token.LEQ:
-		newOp = token.GTR
-	case token.GTR:
-		newOp = token.LEQ
-	case token.GEQ:
-		newOp = token.LSS
-	default:
+	newOp, ok := common.SwapBinaryToken(be.Op, common.ComparisonNegationPairs)
+	if !ok {
 		return nil
 	}
 	return &ast.BinaryExpr{

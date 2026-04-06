@@ -37,7 +37,19 @@ func (PanicRemoval) Mutate(n ast.Node) ast.Node {
 }
 
 func (PanicRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&PanicRemoval{}).CanApplyWithContext(n, ctx) {
+	exprStmt, ok := n.(*ast.ExprStmt)
+	if !ok {
+		return nil
+	}
+	call, ok := exprStmt.X.(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	if ident.Name != "panic" {
 		return nil
 	}
 	return &ast.EmptyStmt{}

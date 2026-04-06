@@ -44,9 +44,7 @@ func (InterfaceReturns) MutateWithContext(n ast.Node, ctx mutator.Context) ast.N
 		return nil
 	}
 
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "nil"}},
-	}
+	return returnNilMutate(n)
 }
 
 func isInterfaceLiteral(expr ast.Expr) bool {

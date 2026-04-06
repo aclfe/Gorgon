@@ -32,11 +32,7 @@ func (LoopBreakFirst) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
-func (LoopBreakFirst) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&LoopBreakFirst{}).CanApplyWithContext(n, ctx) {
-		return nil
-	}
-
+func (LoopBreakFirst) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
 	switch stmt := n.(type) {
 	case *ast.ForStmt:
 		if stmt.Body == nil || len(stmt.Body.List) == 0 {

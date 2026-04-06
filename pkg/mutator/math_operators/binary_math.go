@@ -2,9 +2,9 @@ package math_operators
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type BinaryMath struct{}
@@ -18,11 +18,8 @@ func (BinaryMath) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	switch be.Op {
-	case token.REM, token.AND, token.OR, token.SHL, token.SHR:
-		return true
-	}
-	return false
+	_, ok = common.BinaryMathTokens[be.Op]
+	return ok
 }
 
 func (BinaryMath) Mutate(n ast.Node) ast.Node {
@@ -30,20 +27,8 @@ func (BinaryMath) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-
-	var newOp token.Token
-	switch be.Op {
-	case token.REM:
-		newOp = token.MUL
-	case token.AND:
-		newOp = token.OR
-	case token.OR:
-		newOp = token.AND
-	case token.SHL:
-		newOp = token.SHR
-	case token.SHR:
-		newOp = token.SHL
-	default:
+	newOp, ok := common.SwapBinaryToken(be.Op, common.BinaryMathPairs)
+	if !ok {
 		return nil
 	}
 	return &ast.BinaryExpr{

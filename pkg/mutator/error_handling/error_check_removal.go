@@ -29,18 +29,15 @@ func (ErrorCheckRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bo
 }
 
 func (ErrorCheckRemoval) Mutate(n ast.Node) ast.Node {
+	return nil
+}
+
+func (ErrorCheckRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	ifStmt, ok := n.(*ast.IfStmt)
 	if !ok {
 		return nil
 	}
 	if !isErrNotNilCheck(ifStmt) {
-		return nil
-	}
-	return &ast.EmptyStmt{}
-}
-
-func (ErrorCheckRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&ErrorCheckRemoval{}).CanApplyWithContext(n, ctx) {
 		return nil
 	}
 	return &ast.EmptyStmt{}

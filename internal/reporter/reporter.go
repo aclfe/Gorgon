@@ -4,6 +4,7 @@ package reporter
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/tabwriter"
 
 	"github.com/aclfe/gorgon/internal/testing"
@@ -14,7 +15,7 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, threshold float64) error {
+func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 	total := len(mutants)
 	killed := 0
 	survived := 0
@@ -33,6 +34,87 @@ func Report(mutants []testing.Mutant, threshold float64) error {
 		}
 	}
 
+	// Cache file contents for visual column calculation to avoid redundant I/O
+	fileCache := make(map[string][]byte)
+
+	// Debug section: print before the score table
+	if debug {
+		fmt.Println("=== Debug Information ===")
+
+		// Error mutants: grouped by original file location
+		if errors > 0 {
+			fmt.Printf("\nError Mutants (%d total):\n", errors)
+			// Group by file:line:col (original location — accurate)
+			type locKey struct {
+				file string
+				line int
+				col  int
+			}
+			type locGroup struct {
+				mutants  []testing.Mutant
+				errMsg   string
+			}
+			groups := make(map[locKey]*locGroup)
+			var order []locKey
+			for _, mutant := range mutants {
+				if mutant.Status == "error" && mutant.Error != nil {
+					key := locKey{
+						file: mutant.Site.File.Name(),
+						line: mutant.Site.Line,
+						col:  mutant.Site.Column,
+					}
+					if _, ok := groups[key]; !ok {
+						groups[key] = &locGroup{errMsg: mutant.Error.Error()}
+						order = append(order, key)
+					}
+					groups[key].mutants = append(groups[key].mutants, mutant)
+				}
+			}
+
+			for _, key := range order {
+				g := groups[key]
+				baseName := filepath.Base(key.file)
+				fmt.Printf("  %s:%d:%d  ", baseName, key.line, key.col)
+				for i, m := range g.mutants {
+					if i > 0 {
+						fmt.Print(", ")
+					}
+					fmt.Printf("%s (#%d)", m.Operator.Name(), m.ID)
+				}
+				fmt.Println()
+			}
+
+			// Extract unique compiler error messages for context
+			uniqueErrors := extractUniqueCompilerErrors(mutants)
+			if len(uniqueErrors) > 0 {
+				fmt.Printf("\nCompilation Error Context:\n")
+				for _, errMsg := range uniqueErrors {
+					fmt.Printf("  %s\n", errMsg)
+				}
+			}
+		}
+
+		fmt.Println("\nSurvived Mutants:")
+		if survived == 0 {
+			fmt.Println("  (none)")
+		} else {
+			for _, mutant := range mutants {
+				if mutant.Status == "survived" {
+					col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
+					baseName := filepath.Base(mutant.Site.File.Name())
+					fmt.Printf("  %s:%d:%d (%s)\n",
+						baseName,
+						mutant.Site.Line,
+						col,
+						mutant.Operator.Name())
+				}
+			}
+		}
+
+		fmt.Println("\n=== End Debug Information ===")
+		fmt.Println("---")
+	}
+
 	score := float64(killed) / float64(total) * percentageMultiplier
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -46,19 +128,19 @@ func Report(mutants []testing.Mutant, threshold float64) error {
 		return fmt.Errorf("failed to flush writer: %w", err)
 	}
 
-	fmt.Println("\nSurvived Mutants:")
-	for _, mutant := range mutants {
-		if mutant.Status == "survived" {
-			col := mutant.Site.Column
-			if content, err := os.ReadFile(mutant.Site.File.Name()); err == nil {
-				col = calculateVisualColumn(content, mutant.Site.Line, mutant.Site.Column)
+	// Non-debug mode: print survived mutants after the table
+	if !debug {
+		fmt.Println("\nSurvived Mutants:")
+		for _, mutant := range mutants {
+			if mutant.Status == "survived" {
+				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
+				fmt.Printf("- %s in %s:%d:%d (Operator: %s)\n",
+					mutant.Status,
+					mutant.Site.File.Name(),
+					mutant.Site.Line,
+					col,
+					mutant.Operator.Name())
 			}
-			fmt.Printf("- %s in %s:%d:%d (Operator: %s)\n",
-				mutant.Status,
-				mutant.Site.File.Name(),
-				mutant.Site.Line,
-				col,
-				mutant.Operator.Name())
 		}
 	}
 
@@ -69,6 +151,27 @@ func Report(mutants []testing.Mutant, threshold float64) error {
 	// WILL MAKE: HTML output with flag
 	// we'll have to make it pretty too kinda
 	return nil
+}
+
+func extractUniqueCompilerErrors(mutants []testing.Mutant) []string {
+	seen := make(map[string]bool)
+	var unique []string
+	prefix := "compilation failed: "
+	for _, m := range mutants {
+		if m.Status == "error" && m.Error != nil {
+			msg := m.Error.Error()
+			if idx := len(prefix); len(msg) > idx && msg[:idx] == prefix {
+				msg = msg[idx:]
+			}
+			for _, errMsg := range testing.UniqueErrorLines(msg, "# ") {
+				if !seen[errMsg] {
+					seen[errMsg] = true
+					unique = append(unique, errMsg)
+				}
+			}
+		}
+	}
+	return unique
 }
 
 func calculateVisualColumn(content []byte, line, col int) int {
@@ -96,4 +199,15 @@ func calculateVisualColumn(content []byte, line, col int) int {
 		}
 	}
 	return visualCol
+}
+
+func getVisualColumn(fileCache map[string][]byte, fileName string, line, col int) int {
+	if content, ok := fileCache[fileName]; ok {
+		return calculateVisualColumn(content, line, col)
+	}
+	if content, err := os.ReadFile(fileName); err == nil {
+		fileCache[fileName] = content
+		return calculateVisualColumn(content, line, col)
+	}
+	return col
 }

@@ -31,11 +31,7 @@ func (LoopBodyRemoval) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
-func (LoopBodyRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&LoopBodyRemoval{}).CanApplyWithContext(n, ctx) {
-		return nil
-	}
-
+func (LoopBodyRemoval) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
 	switch stmt := n.(type) {
 	case *ast.ForStmt:
 		return &ast.ForStmt{

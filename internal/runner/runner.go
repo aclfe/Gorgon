@@ -1,0 +1,349 @@
+// Package runner provides the core execution logic for Gorgon.
+// It unifies the execution paths that were previously duplicated
+// between main() and runWithConfig() in main.go.
+package runner
+
+import (
+	"context"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/aclfe/gorgon/internal/cache"
+	"github.com/aclfe/gorgon/internal/cli"
+	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/reporter"
+	"github.com/aclfe/gorgon/internal/suppressions"
+	"github.com/aclfe/gorgon/internal/testing"
+	"github.com/aclfe/gorgon/pkg/config"
+)
+
+// Run executes Gorgon with the given flags and targets.
+func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
+	if len(targets) == 0 {
+		cli.PrintUsage()
+	}
+
+	ops, err := cli.ParseOperators(cfg)
+	if err != nil {
+		ExitWithError(err)
+	}
+
+	concurrent := cli.ParseConcurrent(cfg.Concurrent)
+
+	eng := engine.NewEngine(flags.PrintAST)
+	eng.SetOperators(ops)
+
+	// Determine project root for consistent suppression paths
+	projectRoot := findProjectRoot(targets[0], cfg.Base)
+	eng.SetProjectRoot(projectRoot)
+	eng.SetSuppressEntries(cfg.Suppress)
+
+	for _, target := range targets {
+		if err := eng.Traverse(target, nil); err != nil {
+			ExitWithError(err)
+		}
+	}
+
+	if flags.PrintAST {
+		return nil
+	}
+
+	sites := eng.Sites()
+	sites = FilterSites(sites, targets, cfg.Exclude, cfg.Include, cfg.Skip, cfg.SkipFunc)
+
+	baseDir := targets[0]
+	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
+		baseDir = filepath.Dir(targets[0])
+	}
+
+	if cfg.DryRun {
+		mutants := testing.GenerateMutants(sites, ops)
+		fmt.Printf("Total mutants: %d\n\n", len(mutants))
+		for _, m := range mutants {
+			fmt.Printf("#%d %s:%d:%d (%s)\n", m.ID, m.Site.File.Name(), m.Site.Line, m.Site.Column, m.Operator.Name())
+		}
+		return nil
+	}
+
+	ctx := context.Background()
+
+	var c *cache.Cache
+	if cfg.Cache {
+		c, err = cache.Load(baseDir)
+		if err != nil {
+			ExitWithError(err)
+		}
+	}
+
+	tests, err := extractTests(cfg.Tests)
+	if err != nil {
+		ExitWithError(err)
+	}
+
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, cfg.Debug)
+	if err != nil {
+		ExitWithError(err)
+	}
+
+	if err := reporter.Report(mutants, cfg.Threshold, cfg.Debug); err != nil {
+		if cfg.Cache {
+			path, pathErr := cache.Path(baseDir)
+			if pathErr == nil {
+				fmt.Printf("\nCache stored at: %s\n", path)
+			}
+		}
+		suppressions.SyncSuppressions(configPath, eng)
+		_, _ = fmt.Fprintf(os.Stderr, "Report failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if cfg.Cache {
+		path, err := cache.Path(baseDir)
+		if err == nil {
+			fmt.Printf("\nCache stored at: %s\n", path)
+		}
+	}
+
+	suppressions.SyncSuppressions(configPath, eng)
+	return nil
+}
+
+// FilterSites filters mutation sites based on exclude, include, skip, and skip-func patterns.
+func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, skipFunc []string) []engine.Site {
+	if len(exclude) == 0 && len(include) == 0 && len(skip) == 0 && len(skipFunc) == 0 {
+		return sites
+	}
+
+	// Build skip-func lookup
+	skipFuncMap := make(map[string]map[string]bool)
+	for _, sf := range skipFunc {
+		parts := strings.SplitN(sf, ":", 2)
+		if len(parts) == 2 {
+			file, name := parts[0], parts[1]
+			if skipFuncMap[name] == nil {
+				skipFuncMap[name] = make(map[string]bool)
+			}
+			skipFuncMap[name][file] = true
+		}
+	}
+
+	var filtered []engine.Site
+	for _, site := range sites {
+		filePath := site.File.Name()
+
+		// Compute relative paths
+		relPath := filePath
+		cwdRel := filePath
+
+		for _, target := range targets {
+			if abs, err := filepath.Abs(target); err == nil {
+				if r, err := filepath.Rel(abs, filePath); err == nil {
+					relPath = r
+					break
+				}
+			}
+		}
+
+		if cwd, err := os.Getwd(); err == nil {
+			if r, err := filepath.Rel(cwd, filePath); err == nil {
+				cwdRel = r
+			}
+		}
+
+		// Check skip patterns
+		if shouldSkip(relPath, cwdRel, skip) {
+			continue
+		}
+
+		// Check skip-func patterns
+		if shouldSkipFunc(site.FunctionName, relPath, cwdRel, skipFuncMap) {
+			continue
+		}
+
+		// Check include patterns (if specified, file must match)
+		if len(include) > 0 && !matchesAny(relPath, include) {
+			continue
+		}
+
+		// Check exclude patterns
+		if matchesAny(relPath, exclude) {
+			continue
+		}
+
+		filtered = append(filtered, site)
+	}
+	return filtered
+}
+
+func shouldSkip(relPath, cwdRel string, skipPatterns []string) bool {
+	for _, s := range skipPatterns {
+		if relPath == s || cwdRel == s {
+			return true
+		}
+		if ok, _ := filepath.Match(s, relPath); ok {
+			return true
+		}
+		if ok, _ := filepath.Match(s, cwdRel); ok {
+			return true
+		}
+		// Check parent directories
+		if matchParentDirs(relPath, s) || matchParentDirs(cwdRel, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchParentDirs(path, pattern string) bool {
+	dir := path
+	for dir != "." && dir != "/" {
+		if dir == pattern {
+			return true
+		}
+		dir = filepath.Dir(dir)
+	}
+	return false
+}
+
+func shouldSkipFunc(funcName, relPath, cwdRel string, skipFuncMap map[string]map[string]bool) bool {
+	if funcName == "" {
+		return false
+	}
+
+	files, exists := skipFuncMap[funcName]
+	if !exists {
+		return false
+	}
+
+	// Empty file means skip this function name in any file
+	if files[""] {
+		return true
+	}
+
+	// Check if the file matches any of the specified files
+	for file := range files {
+		if relPath == file || cwdRel == file || filepath.Base(relPath) == file {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesAny(path string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if ok, _ := filepath.Match(pattern, filepath.Base(path)); ok {
+			return true
+		}
+		if ok, _ := filepath.Match(pattern, path); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func extractTests(testPaths []string) ([]string, error) {
+	var tests []string
+	for _, p := range testPaths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		names, err := extractTestNames(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse tests from %s: %w", p, err)
+		}
+		tests = append(tests, names...)
+	}
+	return tests, nil
+}
+
+func extractTestNames(path string) ([]string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil {
+		return nil, err
+	}
+
+	var testFiles []string
+	if info.IsDir() {
+		entries, err := os.ReadDir(abs)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
+				testFiles = append(testFiles, filepath.Join(abs, e.Name()))
+			}
+		}
+	} else {
+		testFiles = append(testFiles, abs)
+	}
+
+	var names []string
+	for _, f := range testFiles {
+		names = append(names, parseTestNamesFromFile(f)...)
+	}
+	return names, nil
+}
+
+func parseTestNamesFromFile(filePath string) []string {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, nil, 0)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(fn.Name.Name, "Test") {
+			names = append(names, fn.Name.Name)
+		}
+	}
+	return names
+}
+
+// findProjectRoot determines the project root for consistent suppression paths.
+// Priority: explicit config base > nearest go.mod > target directory.
+func findProjectRoot(target string, configBase string) string {
+	if configBase != "" {
+		if abs, err := filepath.Abs(configBase); err == nil {
+			return abs
+		}
+		return configBase
+	}
+
+	if dir := testing.FindGoModDir(target); dir != "" {
+		return dir
+	}
+
+	startPath, err := filepath.Abs(target)
+	if err != nil {
+		return target
+	}
+	info, err := os.Stat(startPath)
+	if err != nil {
+		return target
+	}
+	if !info.IsDir() {
+		return filepath.Dir(startPath)
+	}
+	return startPath
+}
+
+// ExitWithError prints the error to stderr and exits with code 1.
+func ExitWithError(err error) {
+	_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
+	os.Exit(1)
+}

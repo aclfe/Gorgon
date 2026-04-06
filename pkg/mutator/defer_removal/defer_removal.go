@@ -28,8 +28,9 @@ func (DeferRemoval) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
-func (DeferRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-	if !(&DeferRemoval{}).CanApplyWithContext(n, ctx) {
+func (DeferRemoval) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
+	_, ok := n.(*ast.DeferStmt)
+	if !ok {
 		return nil
 	}
 	return &ast.EmptyStmt{}

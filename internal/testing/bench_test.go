@@ -14,9 +14,16 @@ import (
 	gtest "github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
 	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
 )
+
+func mustGetMutator(name string) mutator.Operator {
+	op, ok := mutator.Get(name)
+	if !ok {
+		panic("mutator not found: " + name)
+	}
+	return op
+}
 
 const (
 	smallCodebase  = "../../examples/mutations/arithmetic_flip"
@@ -250,7 +257,7 @@ func Test() {
 	})
 
 	mutants := []schemata_nodes.MutantForSite{
-		{ID: 1, Op: conditional_expression.IfConditionTrue{}},
+		{ID: 1, Op: mustGetMutator("if_condition_true")},
 	}
 
 	b.ResetTimer()
@@ -439,34 +446,6 @@ func BenchmarkSchemata_PhaseBreakdown(b *testing.B) {
 	b.ReportMetric(float64(schemataTime.Milliseconds())/float64(b.N), "ms/schemata")
 	b.ReportMetric(float64(injectTime.Milliseconds())/float64(b.N), "ms/inject")
 }
-
-// =============================================================================
-// Concurrency Benchmarks
-// =============================================================================
-
-// Note: This benchmark runs actual mutation tests and may be slow
-// Skipped by default - uncomment to run
-/*
-func BenchmarkSchemata_ConcurrentExecution(b *testing.B) {
-	sites, operators := loadTestSitesBench(b, smallCodebase)
-
-	concurrencies := []int{1, 2, 4, 8}
-
-	for _, conc := range concurrencies {
-		b.Run(fmt.Sprintf("Concurrent_%d", conc), func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				_, err := gtest.GenerateAndRunSchemata(ctx, sites, operators, smallCodebase, conc, nil, nil)
-				cancel()
-				if err != nil {
-					b.Skipf("Schemata failed (dependency issue): %v", err)
-				}
-			}
-		})
-	}
-}
-*/
 
 // =============================================================================
 // Memory Allocation Benchmarks

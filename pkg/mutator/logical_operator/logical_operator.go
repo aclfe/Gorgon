@@ -4,9 +4,9 @@ package logical_operator
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type LogicalOperator struct{}
@@ -20,11 +20,8 @@ func (LogicalOperator) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	switch be.Op {
-	case token.LAND, token.LOR:
-		return true
-	}
-	return false
+	_, ok = common.LogicalOperatorTokens[be.Op]
+	return ok
 }
 
 func (LogicalOperator) Mutate(n ast.Node) ast.Node {
@@ -32,13 +29,8 @@ func (LogicalOperator) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newOp token.Token
-	switch be.Op {
-	case token.LAND:
-		newOp = token.LOR
-	case token.LOR:
-		newOp = token.LAND
-	default:
+	newOp, ok := common.SwapBinaryToken(be.Op, common.LogicalOperatorPairs)
+	if !ok {
 		return nil
 	}
 	return &ast.BinaryExpr{

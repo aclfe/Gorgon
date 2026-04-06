@@ -4,9 +4,9 @@ package boundary_value
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/common"
 )
 
 type BoundaryValue struct{}
@@ -20,11 +20,8 @@ func (BoundaryValue) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	switch be.Op {
-	case token.LSS, token.GTR, token.LEQ, token.GEQ:
-		return true
-	}
-	return false
+	_, ok = common.BoundaryValueTokens[be.Op]
+	return ok
 }
 
 func (BoundaryValue) Mutate(n ast.Node) ast.Node {
@@ -32,17 +29,8 @@ func (BoundaryValue) Mutate(n ast.Node) ast.Node {
 	if !ok {
 		return nil
 	}
-	var newOp token.Token
-	switch be.Op {
-	case token.LSS:
-		newOp = token.LEQ
-	case token.GTR:
-		newOp = token.GEQ
-	case token.LEQ:
-		newOp = token.LSS
-	case token.GEQ:
-		newOp = token.GTR
-	default:
+	newOp, ok := common.SwapBinaryToken(be.Op, common.BoundaryValuePairs)
+	if !ok {
 		return nil
 	}
 	return &ast.BinaryExpr{

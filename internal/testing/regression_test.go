@@ -93,7 +93,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false)
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}
@@ -141,7 +141,7 @@ func TestAllOperatorsCombined(tst *stdtesting.T) {
 
 	sites := eng.Sites()
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false)
 	if err != nil {
 		tst.Fatalf("GenerateAndRunSchemata failed: %v", err)
 	}

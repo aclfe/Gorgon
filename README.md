@@ -32,6 +32,7 @@ gorgon -cache ./path                # cache results between runs
 | `-skip` | `""` | Comma-separated relative file paths to skip entirely |
 | `-skip-func` | `""` | Comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc) |
 | `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
+| `-debug` | `false` | Show detailed debug output during execution |
 
 ## Config
 
@@ -52,6 +53,8 @@ skip:
 skip_func:
   - foo/bar.go:MyFunc
 tests: []
+debug: false
+base: ""
 ```
 
 ```
@@ -92,7 +95,13 @@ suppress:
   - location: path/to/file.go:10
 ```
 
-Relative paths are resolved from the target directory.
+Paths are relative to the project root (nearest `go.mod`). Override with `base:`
+
+```yaml
+base: examples  # use this dir as root instead of go.mod
+suppress:
+  - location: mutations/panic_removal/file.go:5
+```
 
 ### Auto Syncing
 
@@ -105,7 +114,7 @@ suppress:
       - panic_removal
 ```
 
-Existing config suppressions are preserved and merged with inline comments.
+Existing config suppressions are preserved and merged with inline comments. Paths are always relative to the project root, regardless of which subfolder you run Gorgon on.
 
 ## Mutations
 
