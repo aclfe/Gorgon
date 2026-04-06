@@ -157,7 +157,7 @@ jobs:
           fi
 
       - name: Upload coverage report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.html
@@ -200,7 +200,7 @@ jobs:
 
       - name: Upload SARIF artifact (for manual review if needed)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: codeql-sarif
           path: '*.sarif'
