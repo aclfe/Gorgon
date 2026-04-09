@@ -387,7 +387,8 @@ func (e *Engine) ProjectRoot() string {
 }
 
 type contextCache struct {
-	contexts map[ast.Node]*mutator.Context
+	contexts  map[ast.Node]*mutator.Context
+	typeCache typeDeclCache
 }
 
 func newContextCache() *contextCache {

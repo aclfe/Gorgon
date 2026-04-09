@@ -14,10 +14,7 @@ import (
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
 	gtest "github.com/aclfe/gorgon/internal/testing"
-<<<<<<< HEAD
-=======
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
->>>>>>> 5607fd5 (fixing relative path and example)
 	"github.com/aclfe/gorgon/pkg/mutator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
@@ -87,11 +84,7 @@ func BenchmarkGenerateMutants_Old(b *testing.B) {
 				file: site.File.Name(),
 				line: site.Line,
 				col:  site.Column,
-<<<<<<< HEAD
-				ntyp: gtest.TypeToUint8(site.Node),
-=======
 				ntyp: schemata_nodes.NodeTypeToUint8(site.Node),
->>>>>>> 5607fd5 (fixing relative path and example)
 			}
 			if !seen[key] {
 				seen[key] = true

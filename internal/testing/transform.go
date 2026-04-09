@@ -24,34 +24,6 @@ import (
 // - Identifiers can be replaced with NTCallExpr or NTBasicLit (literal or function call).
 // - Some types allow substitution with NTErrStmt (empty statement) or NTExprStmt.
 var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.NodeType{
-<<<<<<< HEAD
-	schemata_nodes.NTBinaryExpr:  {schemata_nodes.NTBinaryExpr, schemata_nodes.NTCallExpr},
-	schemata_nodes.NTUnaryExpr:   {schemata_nodes.NTUnaryExpr, schemata_nodes.NTCallExpr},
-	schemata_nodes.NTCallExpr:    {schemata_nodes.NTCallExpr},
-	schemata_nodes.NTIdent:       {schemata_nodes.NTIdent, schemata_nodes.NTCallExpr, schemata_nodes.NTBasicLit},
-	schemata_nodes.NTBasicLit:    {schemata_nodes.NTBasicLit, schemata_nodes.NTCallExpr, schemata_nodes.NTIdent},
-	schemata_nodes.NTCaseClause:  {schemata_nodes.NTCaseClause},
-	schemata_nodes.NTIfStmt:      {schemata_nodes.NTIfStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTForStmt:     {schemata_nodes.NTForStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTRangeStmt:   {schemata_nodes.NTRangeStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTAssignStmt:  {schemata_nodes.NTAssignStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTExprStmt},
-	schemata_nodes.NTIncDecStmt:  {schemata_nodes.NTIncDecStmt, schemata_nodes.NTCallExpr, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTDeferStmt:   {schemata_nodes.NTDeferStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTGoStmt:      {schemata_nodes.NTGoStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSendStmt:    {schemata_nodes.NTSendStmt, schemata_nodes.NTCallExpr, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSwitchStmt:  {schemata_nodes.NTSwitchStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTTypeSwitchStmt: {schemata_nodes.NTTypeSwitchStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTReturnStmt:  {schemata_nodes.NTReturnStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTErrStmt},
-	schemata_nodes.NTBranchStmt:  {schemata_nodes.NTBranchStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSelectStmt:  {schemata_nodes.NTSelectStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTCommClause:  {schemata_nodes.NTCommClause, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTLabeledStmt: {schemata_nodes.NTLabeledStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTExprStmt:    {schemata_nodes.NTExprStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTErrStmt},
-	schemata_nodes.NTDeclStmt:    {schemata_nodes.NTDeclStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTErrStmt:     {schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTBlockStmt:   {schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTFuncDecl:    {schemata_nodes.NTFuncDecl},
-=======
 	schemata_nodes.NTBinaryExpr:     {schemata_nodes.NTBinaryExpr, schemata_nodes.NTCallExpr},
 	schemata_nodes.NTUnaryExpr:      {schemata_nodes.NTUnaryExpr, schemata_nodes.NTCallExpr},
 	schemata_nodes.NTCallExpr:       {schemata_nodes.NTCallExpr},
@@ -78,7 +50,6 @@ var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.Nod
 	schemata_nodes.NTErrStmt:        {schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
 	schemata_nodes.NTBlockStmt:      {schemata_nodes.NTBlockStmt},
 	schemata_nodes.NTFuncDecl:       {schemata_nodes.NTFuncDecl},
->>>>>>> 5607fd5 (fixing relative path and example)
 }
 
 const filePermissions = 0o600
@@ -97,8 +68,6 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 		return fmt.Errorf("parse %s: %w", filePath, err)
 	}
 
-<<<<<<< HEAD
-=======
 	return applySchemataToAST(file, fset, filePath, src, fileMutants)
 }
 
@@ -110,7 +79,6 @@ func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string,
 }
 
 func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
->>>>>>> 5607fd5 (fixing relative path and example)
 	// Build position-to-mutants map
 	posToMutants := buildPositionToMutantsMap(fileMutants)
 
@@ -187,25 +155,13 @@ type posKey struct {
 	Type   uint8
 }
 
-<<<<<<< HEAD
-// TypeToUint8 returns the uint8 type identifier for an AST node.
-func TypeToUint8(node ast.Node) uint8 {
-	return schemata_nodes.NodeTypeToUint8(node)
-}
-
-=======
->>>>>>> 5607fd5 (fixing relative path and example)
 func buildPositionToMutantsMap(mutants []*Mutant) map[posKey][]schemata_nodes.MutantForSite {
 	posToMutants := make(map[posKey][]schemata_nodes.MutantForSite, len(mutants))
 	for _, mutant := range mutants {
 		key := posKey{
 			Line:   mutant.Site.Line,
 			Column: mutant.Site.Column,
-<<<<<<< HEAD
-			Type:   TypeToUint8(mutant.Site.Node),
-=======
 			Type:   schemata_nodes.NodeTypeToUint8(mutant.Site.Node),
->>>>>>> 5607fd5 (fixing relative path and example)
 		}
 		posToMutants[key] = append(posToMutants[key], schemata_nodes.MutantForSite{
 			ID:            mutant.ID,
@@ -263,11 +219,7 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 
 	// Check if this node has mutants to apply
 	newPos := schemata_nodes.GetNodePosition(node, fset)
-<<<<<<< HEAD
-	key := posKey{Line: newPos.Line, Column: newPos.Column, Type: TypeToUint8(node)}
-=======
 	key := posKey{Line: newPos.Line, Column: newPos.Column, Type: schemata_nodes.NodeTypeToUint8(node)}
->>>>>>> 5607fd5 (fixing relative path and example)
 	mutants, ok := posToMutants[key]
 	if !ok {
 		return true

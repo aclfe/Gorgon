@@ -2,10 +2,7 @@ package testing
 
 import (
 	"fmt"
-<<<<<<< HEAD
-=======
 	"go/ast"
->>>>>>> 5607fd5 (fixing relative path and example)
 	"go/parser"
 	"go/token"
 	"os"
@@ -92,10 +89,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	return nil
 }
 
-<<<<<<< HEAD
-// applySchemata applies mutations to files and injects the helper file.
-func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, error) {
-=======
 // applySchemata applies mutations to files using pre-parsed AST from Phase 1.
 // This avoids re-parsing files in Phase 2.
 func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, error) {
@@ -141,7 +134,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	}
 
 	// Build fileToMutants map for InjectSchemataHelpers
->>>>>>> 5607fd5 (fixing relative path and example)
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
 	for i := range mutants {
 		m := &mutants[i]
@@ -153,15 +145,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		fileToMutants[tempFile] = append(fileToMutants[tempFile], m)
 	}
 
-<<<<<<< HEAD
-	for tempFile, fileMutants := range fileToMutants {
-		if err := ApplySchemataToFile(tempFile, fileMutants); err != nil {
-			return nil, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-		}
-	}
-
-=======
->>>>>>> 5607fd5 (fixing relative path and example)
 	if err := InjectSchemataHelpers(w.TempDir, fileToMutants); err != nil {
 		return nil, err
 	}

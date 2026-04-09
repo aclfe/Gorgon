@@ -3,10 +3,7 @@ package testing
 import (
 	"context"
 	"fmt"
-<<<<<<< HEAD
-=======
 	"go/ast"
->>>>>>> 5607fd5 (fixing relative path and example)
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -207,15 +204,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return err
 	}
 
-<<<<<<< HEAD
-	// Apply schemata
-	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir)
-	for tempFile, mutants := range tempFileToMutants {
-		if err := ApplySchemataToFile(tempFile, mutants); err != nil {
-			return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-		}
-	}
-=======
 	// Apply schemata using pre-parsed AST if available, otherwise fallback to re-parsing
 	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir)
 
@@ -259,7 +247,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
->>>>>>> 5607fd5 (fixing relative path and example)
 	if err := InjectSchemataHelpers(tempDir, tempFileToMutants); err != nil {
 		return err
 	}
