@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
-	"sync"
+	"sort"
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
@@ -13,18 +13,10 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// hashBufPool provides reusable 32KB buffers for file hashing and copying.
-var hashBufPool = sync.Pool{
-	New: func() any {
-		buf := make([]byte, 32*1024)
-		return &buf
-	},
-}
 
-// GenerateMutants creates mutants from mutation sites, deduplicating by position
-// and node type in a single pass, then generating one mutant per applicable operator.
+
 func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant {
-	// Single-pass deduplication: O(n) instead of sort+dedup O(n log n)
+
 	type siteKey struct {
 		file string
 		line int
@@ -32,9 +24,16 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 		ntyp uint8
 	}
 	seen := make(map[siteKey]bool, len(sites))
-	// Pre-allocate with estimated capacity (unique sites × operators)
+
 	mutants := make([]Mutant, 0, len(sites)*len(operators))
 	mutantID := 1
+
+	// Sort operators by name to ensure deterministic ordering
+	sortedOps := make([]mutator.Operator, len(operators))
+	copy(sortedOps, operators)
+	sort.Slice(sortedOps, func(i, j int) bool {
+		return sortedOps[i].Name() < sortedOps[j].Name()
+	})
 
 	for _, site := range sites {
 		key := siteKey{
@@ -48,7 +47,7 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 		}
 		seen[key] = true
 
-		for _, op := range operators {
+		for _, op := range sortedOps {
 			if canApply(op, site) {
 				mutants = append(mutants, Mutant{
 					ID:       mutantID,
@@ -62,11 +61,11 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 	return mutants
 }
 
-// ResolveCache checks the cache and marks already-processed mutants.
-// Returns indices that still need to run, and the file hashes map (for reuse by SaveCache).
+
+
 func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int, fileHashes map[string]string, err error) {
 	if c == nil {
-		// No cache: all mutants need to run
+		
 		indices := make([]int, len(mutants))
 		for i := range mutants {
 			indices[i] = i
@@ -74,7 +73,7 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 		return indices, nil, nil
 	}
 
-	// Batch hash files to avoid re-reading
+	
 	fileHashes = make(map[string]string)
 	for i := range mutants {
 		f := mutants[i].Site.File.Name()
@@ -92,7 +91,7 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 		m := &mutants[i]
 		fh := fileHashes[m.Site.File.Name()]
 		if fh == "" {
-			continue // Can't hash, treat as uncached
+			continue 
 		}
 
 		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
@@ -105,10 +104,10 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 
 	if cachedCount == len(mutants) {
 		_ = c.Save(baseDir)
-		return nil, fileHashes, nil // All cached, nothing to run
+		return nil, fileHashes, nil 
 	}
 
-	// Collect indices of mutants that need to run
+	
 	toRun = make([]int, 0, len(mutants)-cachedCount)
 	for i := range mutants {
 		if mutants[i].Status == "" {
@@ -118,14 +117,14 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 	return toRun, fileHashes, nil
 }
 
-// SaveCache saves mutation results. If fileHashes is nil, files are hashed.
-// Pass the fileHashes map returned by ResolveCache to avoid re-hashing.
+
+
 func SaveCache(mutants []Mutant, baseDir string, c *cache.Cache, fileHashes map[string]string) {
 	if c == nil {
 		return
 	}
 
-	// Use provided hashes or compute them
+	
 	if fileHashes == nil {
 		fileHashes = make(map[string]string)
 		for i := range mutants {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,8 +24,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// bufPool provides reusable bytes.Buffer instances for AST formatting operations,
-// reducing GC pressure during repeated format.Node calls.
 var bufPool = sync.Pool{
 	New: func() any { return new(bytes.Buffer) },
 }
@@ -37,9 +36,6 @@ type Engine struct {
 	operators   []mutator.Operator
 	mu          sync.Mutex
 	projectRoot string
-	// ignoreDirectives maps filepath → line → operator → column → true.
-	// Empty operator key means "all operators on this line".
-	// Zero column means "all columns for this operator on this line".
 	ignoreDirectives map[string]map[int]map[string]map[int]bool
 }
 
@@ -54,9 +50,6 @@ func (e *Engine) SetOperators(ops []mutator.Operator) {
 	e.operators = ops
 }
 
-// SetProjectRoot sets the project root directory used for resolving
-// relative paths in suppression entries. This should be the directory
-// containing go.mod (or a user-specified base directory).
 func (e *Engine) SetProjectRoot(root string) {
 	if root != "" {
 		if abs, err := filepath.Abs(root); err == nil {
@@ -67,15 +60,9 @@ func (e *Engine) SetProjectRoot(root string) {
 	}
 }
 
-// SetSuppressEntries loads suppression entries from the YAML config.
-// Each entry has a Location like "path/to/file.go:6" and an optional
-// Operators list. Empty operators = suppress all on that line.
-// Operator names can include an optional column suffix: "arithmetic_flip:12".
-// Relative paths are resolved against e.projectRoot.
 func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 	root := e.projectRoot
 	if root == "" {
-		// Fallback: try to resolve from CWD if no project root set
 		if cwd, err := os.Getwd(); err == nil {
 			root = cwd
 		}
@@ -86,7 +73,6 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 		if loc == "" {
 			continue
 		}
-		// Parse "path/to/file.go:6" — split on last colon to handle Windows paths
 		lastColon := strings.LastIndex(loc, ":")
 		if lastColon < 0 {
 			continue
@@ -97,7 +83,6 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 			continue
 		}
 
-		// Resolve relative paths against project root
 		if !filepath.IsAbs(filePath) {
 			filePath = filepath.Join(root, filePath)
 			if abs, err := filepath.Abs(filePath); err == nil {
@@ -112,7 +97,6 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 			e.ignoreDirectives[filePath][line] = make(map[string]map[int]bool)
 		}
 
-		// Empty operators list = suppress all on this line
 		if len(entry.Operators) == 0 {
 			if e.ignoreDirectives[filePath][line][""] == nil {
 				e.ignoreDirectives[filePath][line][""] = make(map[int]bool)
@@ -126,7 +110,6 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 			if op == "" {
 				continue
 			}
-			// Check for operator:column suffix
 			parts := strings.SplitN(op, ":", 2)
 			operator := parts[0]
 			column := 0
@@ -164,7 +147,6 @@ func getPackageName(file *ast.File) string {
 	return ""
 }
 
-// typeDeclCache stores resolved type names for a single file, built once.
 type typeDeclCache struct {
 	resolved map[string]string
 	built    bool
@@ -187,7 +169,6 @@ func (c *typeDeclCache) buildOnce(file *ast.File, fset *token.FileSet) {
 			if !ok || ts.Type == nil {
 				continue
 			}
-			// Avoid infinite recursion for self-referential types
 			if _, exists := c.resolved[ts.Name.Name]; exists {
 				continue
 			}
@@ -241,13 +222,11 @@ func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet, typeC
 	if file == nil {
 		return typeName
 	}
-	// Use the pre-built cache if available
 	if typeCache != nil {
 		if resolved, ok := typeCache.resolved[typeName]; ok {
 			return resolved
 		}
 	}
-	// Fallback: scan the file once for this type name
 	resolved := ""
 	for _, decl := range file.Decls {
 		gd, ok := decl.(*ast.GenDecl)
@@ -283,9 +262,6 @@ func exprToString(expr ast.Expr, fset *token.FileSet) string {
 	return buf.String()
 }
 
-// parseIgnoreComments scans a file's comment groups for //gorgon:ignore directives.
-// Returns a map: line → operator → column → true.
-// Empty operator means "all operators on this line". Zero column means "all columns".
 func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string]map[int]bool {
 	directives := make(map[int]map[string]map[int]bool)
 
@@ -298,11 +274,9 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 
 			rest := strings.TrimSpace(strings.TrimPrefix(text, "gorgon:ignore"))
 			pos := fset.Position(c.Pos())
-			// The directive applies to the line *below* the comment.
 			targetLine := pos.Line + 1
 
 			if rest == "" {
-				// //gorgon:ignore — all operators, all columns
 				if directives[targetLine] == nil {
 					directives[targetLine] = make(map[string]map[int]bool)
 				}
@@ -311,7 +285,6 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 				continue
 			}
 
-			// Parse operator and optional column: "operator" or "operator:col"
 			parts := strings.SplitN(rest, ":", 2)
 			operator := strings.TrimSpace(parts[0])
 			if operator == "" {
@@ -323,10 +296,8 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 			}
 
 			if len(parts) == 2 {
-				// operator:column
 				col, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 				if err != nil {
-					// Invalid column number, treat as operator-only (all columns)
 					directives[targetLine][operator] = make(map[int]bool)
 					directives[targetLine][operator][0] = true
 					continue
@@ -334,7 +305,6 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 				directives[targetLine][operator] = make(map[int]bool)
 				directives[targetLine][operator][col] = true
 			} else {
-				// operator only — all columns
 				directives[targetLine][operator] = make(map[int]bool)
 				directives[targetLine][operator][0] = true
 			}
@@ -344,28 +314,22 @@ func parseIgnoreComments(file *ast.File, fset *token.FileSet) map[int]map[string
 	return directives
 }
 
-// isIgnored checks if a mutation site should be suppressed by an inline directive.
-// Returns true if the site should be skipped.
 func isIgnored(directives map[int]map[string]map[int]bool, line int, operator string, column int) bool {
 	lineMap, ok := directives[line]
 	if !ok {
 		return false
 	}
 
-	// Check for blanket ignore: //gorgon:ignore (all operators)
 	if colMap, ok := lineMap[""]; ok {
 		if colMap[0] {
 			return true
 		}
 	}
 
-	// Check for operator-specific ignore: //gorgon:ignore operator
 	if colMap, ok := lineMap[operator]; ok {
-		// All columns ignored for this operator
 		if colMap[0] {
 			return true
 		}
-		// Specific column ignored
 		if colMap[column] {
 			return true
 		}
@@ -374,14 +338,10 @@ func isIgnored(directives map[int]map[string]map[int]bool, line int, operator st
 	return false
 }
 
-// IgnoreDirectives returns all collected inline ignore directives, keyed by
-// absolute file path → line → operator → column. This is used by the CLI
-// to sync inline comments back to the YAML config.
 func (e *Engine) IgnoreDirectives() map[string]map[int]map[string]map[int]bool {
 	return e.ignoreDirectives
 }
 
-// ProjectRoot returns the project root directory used for path resolution.
 func (e *Engine) ProjectRoot() string {
 	return e.projectRoot
 }
@@ -465,13 +425,11 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 		return e.traverseSingleFile(path, visitor)
 	}
 
-	// Find all go.mod files to detect multiple modules
 	modFiles, err := findGoModFiles(path)
 	if err != nil {
 		return fmt.Errorf("failed to find go.mod files: %w", err)
 	}
 
-	// If multiple go.mod files found, traverse each module separately
 	if len(modFiles) > 1 {
 		for _, modFile := range modFiles {
 			modDir := filepath.Dir(modFile)
@@ -482,9 +440,6 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 		return nil
 	}
 
-	// No go.mod found — treat each subdirectory with .go files as a separate
-	// standalone package. This handles cases like examples/ where each
-	// subdirectory is an independent package without its own go.mod.
 	if len(modFiles) == 0 {
 		pkgDirs, err := findGoPackages(path)
 		if err != nil {
@@ -501,7 +456,6 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 		return nil
 	}
 
-	// Single go.mod - use original behavior
 	return e.traverseModule(path, visitor)
 }
 
@@ -514,11 +468,9 @@ func findGoPackages(root string) ([]string, error) {
 		if !info.IsDir() {
 			return nil
 		}
-		// Skip hidden dirs and vendor
 		if strings.HasPrefix(info.Name(), ".") || info.Name() == "vendor" {
 			return filepath.SkipDir
 		}
-		// Check if this directory has .go files
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return err
@@ -532,7 +484,6 @@ func findGoPackages(root string) ([]string, error) {
 		}
 		if hasGo {
 			pkgDirs = append(pkgDirs, path)
-			// Don't recurse into subdirectories that are already packages
 			return filepath.SkipDir
 		}
 		return nil
@@ -569,7 +520,6 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 		parents := buildParentMap(file)
 		ignoreMap := parseIgnoreComments(file, fset)
 
-		// Build type declaration cache once per file
 		fileCache.typeCache.buildOnce(file, fset)
 
 		absPath, _ := filepath.Abs(tfile.Name())
@@ -584,7 +534,6 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 			fmt.Println("=====================================")
 		}
 
-		// Collect sites locally, then batch-append once after inspection
 		var fileSites []Site
 
 		ast.Inspect(file, func(node ast.Node) bool {
@@ -638,7 +587,6 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 			return true
 		})
 
-		// Batch-append all sites for this file under a single lock
 		if len(fileSites) > 0 {
 			e.mu.Lock()
 			e.sites = append(e.sites, fileSites...)
@@ -743,5 +691,21 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 }
 
 func (e *Engine) Sites() []Site {
+	// Sort sites deterministically to ensure consistent mutant ID assignment
+	// across runs, regardless of goroutine scheduling during traversal.
+	sort.Slice(e.sites, func(i, j int) bool {
+		si, sj := &e.sites[i], &e.sites[j]
+		if si.File.Name() != sj.File.Name() {
+			return si.File.Name() < sj.File.Name()
+		}
+		if si.Line != sj.Line {
+			return si.Line < sj.Line
+		}
+		if si.Column != sj.Column {
+			return si.Column < sj.Column
+		}
+		// Node type as final tiebreaker
+		return schemata_nodes.NodeTypeToUint8(si.Node) < schemata_nodes.NodeTypeToUint8(sj.Node)
+	})
 	return e.sites
 }

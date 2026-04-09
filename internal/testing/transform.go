@@ -9,20 +9,21 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 )
 
-// validNodeTypeReplacements defines which NodeType values are compatible
-// replacements for a given original NodeType. This replaces the previous
-// magic-number map[uint8][]uint8 with self-documenting typed constants.
+
+
+
 //
-// The mapping encodes AST node type compatibility rules:
-// - Most statement types can be replaced with NTBlockStmt (wrapping in a block).
-// - Identifiers can be replaced with NTCallExpr or NTBasicLit (literal or function call).
-// - Some types allow substitution with NTErrStmt (empty statement) or NTExprStmt.
+
+
+
+
 var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.NodeType{
 	schemata_nodes.NTBinaryExpr:     {schemata_nodes.NTBinaryExpr, schemata_nodes.NTCallExpr},
 	schemata_nodes.NTUnaryExpr:      {schemata_nodes.NTUnaryExpr, schemata_nodes.NTCallExpr},
@@ -52,10 +53,8 @@ var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.Nod
 	schemata_nodes.NTFuncDecl:       {schemata_nodes.NTFuncDecl},
 }
 
-const filePermissions = 0o600
 
-// ApplySchemataToFile modifies a source file with mutation switch logic.
-// It replaces target nodes with schemata expressions that check GORGON_MUTANT_ID.
+
 func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
@@ -71,26 +70,26 @@ func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
 	return applySchemataToAST(file, fset, filePath, src, fileMutants)
 }
 
-// ApplySchemataToAST applies schemata transformations using pre-parsed AST.
-// This avoids re-parsing the file, improving performance.
-// caller must provide the original source bytes src for fallback on format failure.
+
+
+
 func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
 	return applySchemataToAST(fileAST, fset, filePath, src, fileMutants)
 }
 
 func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
-	// Build position-to-mutants map
+	
 	posToMutants := buildPositionToMutantsMap(fileMutants)
 
-	// Find nodes inside const declarations to skip
+	
 	constNodes := findConstNodes(file)
 
-	// Apply schemata transformations
+	
 	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
 		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file)
 	})
 
-	// Write transformed file
+	
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
 		_ = os.WriteFile(filePath, src, filePermissions)
@@ -103,19 +102,31 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	return nil
 }
 
-// InjectSchemataHelpers creates helper files that define the activeMutantID
-// variable and init() function to read it from GORGON_MUTANT_ID env var.
+
+
 func InjectSchemataHelpers(pkgDir string, fileToMutants map[string][]*Mutant) error {
+	// Collect and sort keys deterministically
 	pkgToFiles := make(map[string][]string, len(fileToMutants))
 	for tempFile := range fileToMutants {
 		pkgDir := filepath.Dir(tempFile)
 		pkgToFiles[pkgDir] = append(pkgToFiles[pkgDir], tempFile)
 	}
 
-	for pkgDir, files := range pkgToFiles {
+	// Sort package directories for deterministic processing
+	pkgDirs := make([]string, 0, len(pkgToFiles))
+	for pkgDir := range pkgToFiles {
+		pkgDirs = append(pkgDirs, pkgDir)
+	}
+	sort.Strings(pkgDirs)
+
+	for _, pkgDir := range pkgDirs {
+		files := pkgToFiles[pkgDir]
 		if len(files) == 0 {
 			continue
 		}
+
+		// Sort files for deterministic package name detection
+		sort.Strings(files)
 
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, files[0], nil, parser.PackageClauseOnly)
@@ -205,19 +216,19 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 		return true
 	}
 
-	// Skip import specs
+	
 	if cursor.Parent() != nil {
 		if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
 			return true
 		}
 	}
 
-	// Skip const nodes
+	
 	if constNodes[node] {
 		return true
 	}
 
-	// Check if this node has mutants to apply
+	
 	newPos := schemata_nodes.GetNodePosition(node, fset)
 	key := posKey{Line: newPos.Line, Column: newPos.Column, Type: schemata_nodes.NodeTypeToUint8(node)}
 	mutants, ok := posToMutants[key]
@@ -235,7 +246,7 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 		return true
 	}
 
-	// Apply replacement based on node type
+	
 	if _, isExpr := node.(ast.Expr); isExpr {
 		if _, ok := schemata.(ast.Expr); ok {
 			safeReplace(cursor, schemata)

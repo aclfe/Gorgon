@@ -12,8 +12,8 @@ import (
 	"unicode"
 )
 
-// -----
-// Methods with different receivers & signatures
+
+
 
 func (p Point) Distance(q Point) float64 {
 	return math.Hypot(p.X-q.X, p.Y-q.Y)
@@ -33,8 +33,8 @@ func (e *Employee) GiveRaise(percent float64) {
 	e.Salary *= (1 + percent/100)
 }
 
-// -----
-// Generic function (Go 1.18+)
+
+
 
 func functionWithParams(a int, b string) {
 	fmt.Println(a, b)
@@ -51,8 +51,8 @@ func Max[T ~int | ~float64](a, b T) T {
 	return b
 }
 
-// -----
-// Function literals, closures, defer, panic, recover
+
+
 
 func complicated() (result int, err error) {
 	defer func() {
@@ -87,13 +87,13 @@ func complicated() (result int, err error) {
 	}
 
 	panicIfNegative(5)
-	// panicIfNegative(-1)   // commented — uncomment to test recover
+	
 
 	return 42, nil
 }
 
-// -----
-// Every kind of operator we can reasonably use
+
+
 
 func operatorsPlayground() {
 	a, b := 10, 3
@@ -150,8 +150,8 @@ func operatorsPlayground() {
 	b--
 }
 
-// -----
-// Control structures — almost everything
+
+
 
 func controlStructures() {
 
@@ -195,7 +195,7 @@ func controlStructures() {
 	case int:
 		_ = v + 1
 	case nil:
-		// nothing
+		
 	default:
 		_ = reflect.TypeOf(v)
 	}
@@ -213,7 +213,7 @@ func controlStructures() {
 		_ = "goroutine"
 	}()
 
-	// labeled break / continue / goto (rare but valid)
+	
 loop:
 	for i := 0; i < 5; i++ {
 		for j := 0; j < 5; j++ {
@@ -255,8 +255,8 @@ loop:
 L:
 }
 
-// -----
-// Literals of many kinds
+
+
 
 func literals() {
 	_ = 42
@@ -304,8 +304,8 @@ func literals() {
 	_ = Pair[int, string]{42, "hello"}
 }
 
-// -----
-// Main — put many things together
+
+
 
 func main() {
 
@@ -384,5 +384,3 @@ func sum(nums ...int) int {
 }
 
 var rc <-chan int = make(<-chan int)
-
-//

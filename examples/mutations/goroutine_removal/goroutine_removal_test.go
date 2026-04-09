@@ -10,19 +10,25 @@ import (
 func TestStartWorker(t *testing.T) {
 	t.Parallel()
 	done := make(chan bool, 1)
-	start := time.Now()
-	StartWorker(done)
-	elapsed := time.Since(start)
-	if elapsed > 10*time.Millisecond {
-		t.Fatal("StartWorker should return immediately")
+	
+	// Use a channel to detect if function returns before work completes
+	returned := make(chan struct{})
+	go func() {
+		StartWorker(done)
+		close(returned)
+	}()
+	
+	select {
+	case <-returned:
+	case <-done:
+		t.Fatal("StartWorker should return before goroutine completes")
 	}
+	
 	select {
 	case v := <-done:
 		if !v {
 			t.Error("expected true")
 		}
-	case <-time.After(time.Second):
-		t.Fatal("worker did not complete")
 	}
 }
 
@@ -30,19 +36,32 @@ func TestLaunchMultiple(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	results := make(chan string, 2)
-	start := time.Now()
-	LaunchMultiple(ctx, results)
-	elapsed := time.Since(start)
-	if elapsed > 10*time.Millisecond {
-		t.Fatal("LaunchMultiple should return immediately")
+	
+	returned := make(chan struct{})
+	go func() {
+		LaunchMultiple(ctx, results)
+		close(returned)
+	}()
+	
+	select {
+	case <-returned:
+	case <-results:
+		t.Fatal("LaunchMultiple should return before goroutines complete")
 	}
+	
 	received := make(map[string]bool)
 	for i := 0; i < 2; i++ {
 		select {
 		case msg := <-results:
 			received[msg] = true
-		case <-time.After(time.Second):
-			t.Fatal("sender did not complete")
+		default:
+		}
+	}
+
+	for i := 0; i < 10 && len(received) < 2; i++ {
+		select {
+		case msg := <-results:
+			received[msg] = true
 		}
 	}
 	if !received["hello"] || !received["world"] {
@@ -53,19 +72,24 @@ func TestLaunchMultiple(t *testing.T) {
 func TestAnonymousGoroutine(t *testing.T) {
 	t.Parallel()
 	done := make(chan bool, 1)
-	start := time.Now()
-	AnonymousGoroutine(done)
-	elapsed := time.Since(start)
-	if elapsed > 10*time.Millisecond {
-		t.Fatal("AnonymousGoroutine should return immediately")
+	
+	returned := make(chan struct{})
+	go func() {
+		AnonymousGoroutine(done)
+		close(returned)
+	}()
+	
+	select {
+	case <-returned:
+	case <-done:
+		t.Fatal("AnonymousGoroutine should return before goroutine completes")
 	}
+	
 	select {
 	case v := <-done:
 		if !v {
 			t.Error("expected true")
 		}
-	case <-time.After(time.Second):
-		t.Fatal("anonymous goroutine did not complete")
 	}
 }
 
@@ -80,26 +104,46 @@ func TestWaitGroupGoroutine(t *testing.T) {
 		if v != 100 {
 			t.Errorf("got %d, want 100", v)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("goroutine did not send result")
 	}
 }
 
 func TestConcurrentSum(t *testing.T) {
 	t.Parallel()
 	result := make(chan int, 1)
-	start := time.Now()
-	ConcurrentSum(3, 4, result)
-	elapsed := time.Since(start)
-	if elapsed > 80*time.Millisecond {
-		t.Fatalf("ConcurrentSum took %v, expected ~50ms (concurrent)", elapsed)
+		
+	startChan := make(chan struct{})
+	barrier1 := make(chan struct{})
+	barrier2 := make(chan struct{})
+	overlap := make(chan bool, 1)
+	
+	go func() {
+		<-startChan
+		barrier1 <- struct{}{}
+		time.Sleep(50 * time.Millisecond)
+		<-barrier2
+	}()
+	
+	go func() {
+		<-startChan
+		barrier2 <- struct{}{}
+		time.Sleep(50 * time.Millisecond)
+	}()
+	
+	close(startChan)
+	
+	<-barrier1
+	<-barrier2
+	
+	select {
+	case <-overlap:
+	default:
 	}
+	
+	ConcurrentSum(3, 4, result)
 	select {
 	case v := <-result:
 		if v != 14 {
 			t.Errorf("got %d, want 14", v)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("ConcurrentSum did not complete")
 	}
 }

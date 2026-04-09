@@ -1,6 +1,3 @@
-// Package cli provides command-line flag parsing and configuration management
-// for the Gorgon mutation testing tool. It unifies flag-based and YAML config-based
-// modes into a single configuration structure.
 package cli
 
 import (
@@ -15,7 +12,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// Flags holds all parsed CLI flags or config values.
 type Flags struct {
 	ConfigFile string
 	PrintAST   bool
@@ -34,7 +30,6 @@ type Flags struct {
 	Targets    []string
 }
 
-// Parse parses command-line arguments and returns a Flags struct.
 func Parse(args []string) (*Flags, error) {
 	fs := flag.NewFlagSet("gorgon", flag.ExitOnError)
 
@@ -62,7 +57,6 @@ func Parse(args []string) (*Flags, error) {
 	return f, nil
 }
 
-// ValidateChecks validates that flag combinations are correct.
 func (f *Flags) ValidateChecks() error {
 	if f.ConfigFile != "" && (f.PrintAST || f.PkgPath != "." || f.Operators != "all" ||
 		f.Concurrent != "all" || f.Threshold != 0 || f.UseCache || f.DryRun ||
@@ -72,8 +66,6 @@ func (f *Flags) ValidateChecks() error {
 	return nil
 }
 
-// LoadConfig loads configuration from either a YAML file or CLI flags.
-// If ConfigFile is set, it loads from YAML; otherwise it builds from flags.
 func (f *Flags) LoadConfig() (*config.Config, error) {
 	if f.ConfigFile != "" {
 		cfg, err := config.Load(f.ConfigFile)
@@ -86,7 +78,6 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 		return cfg, nil
 	}
 
-	// Build config from flags
 	cfg := config.Default()
 	if f.Operators != "all" {
 		cfg.Operators = strings.Split(f.Operators, ",")
@@ -116,7 +107,6 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-// ParseOperators resolves the operator names from the config into actual Operator instances.
 func ParseOperators(cfg *config.Config) ([]mutator.Operator, error) {
 	if len(cfg.Operators) == 0 || (len(cfg.Operators) == 1 && cfg.Operators[0] == "all") {
 		return mutator.List(), nil
@@ -138,7 +128,6 @@ func ParseOperators(cfg *config.Config) ([]mutator.Operator, error) {
 	return ops, nil
 }
 
-// ParseConcurrent converts the concurrent flag/config value to an integer.
 func ParseConcurrent(val string) int {
 	switch val {
 	case "all":
@@ -158,7 +147,6 @@ func ParseConcurrent(val string) int {
 	}
 }
 
-// PrintUsage prints the help message and exits.
 func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: gorgon [flags] <path>")
 	fmt.Fprintln(os.Stderr, "")

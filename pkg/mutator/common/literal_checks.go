@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// IsNumericLiteral checks if expr is a numeric literal (int, float, imag).
-// Handles parenthesized expressions recursively.
+
+
 func IsNumericLiteral(expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -19,8 +19,8 @@ func IsNumericLiteral(expr ast.Expr) bool {
 	}
 }
 
-// IsStringLiteral checks if expr is a string literal.
-// Handles parenthesized expressions recursively.
+
+
 func IsStringLiteral(expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -32,7 +32,7 @@ func IsStringLiteral(expr ast.Expr) bool {
 	}
 }
 
-// IsBoolLiteral checks if expr is a boolean literal (true or false).
+
 func IsBoolLiteral(expr ast.Expr) bool {
 	ident, ok := expr.(*ast.Ident)
 	if !ok {
@@ -41,9 +41,9 @@ func IsBoolLiteral(expr ast.Expr) bool {
 	return ident.Name == "true" || ident.Name == "false"
 }
 
-// IsErrorExpr checks if expr represents an error-producing expression.
-// This includes fmt.Errorf, errors.New, error composite literals, and
-// other common error-producing patterns.
+
+
+
 func IsErrorExpr(expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.CallExpr:
@@ -93,7 +93,7 @@ func IsErrorExpr(expr ast.Expr) bool {
 	}
 }
 
-// IsErrorCall checks if expr is specifically a fmt.Errorf call (subset of IsErrorExpr).
+
 func IsErrorCall(expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.CallExpr:
@@ -108,7 +108,7 @@ func IsErrorCall(expr ast.Expr) bool {
 	}
 }
 
-// IsErrorNil checks if expr is the nil identifier.
+
 func IsErrorNil(expr ast.Expr) bool {
 	ident, ok := expr.(*ast.Ident)
 	if !ok {
@@ -117,7 +117,7 @@ func IsErrorNil(expr ast.Expr) bool {
 	return ident.Name == "nil"
 }
 
-// IsNumericIdent checks if an identifier name starts with a digit.
+
 func IsNumericIdent(name string) bool {
 	if len(name) == 0 {
 		return false

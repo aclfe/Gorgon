@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,14 +16,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// testExecutor handles compilation and execution of mutant tests for a package.
+
 type testExecutor struct {
 	tempDir    string
 	testBinary string
 	pkgDir     string
 	tests      []string
 	timeout    time.Duration
-	baseEnv    []string // Cached environment to avoid repeated os.Environ() calls
+	baseEnv    []string 
 }
 
 func newTestExecutor(tempDir, pkgDir string, tests []string) *testExecutor {
@@ -34,7 +35,7 @@ func newTestExecutor(tempDir, pkgDir string, tests []string) *testExecutor {
 	}
 }
 
-// compileWithDebug compiles the test binary and logs unique errors if debug is true.
+
 func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 	e.testBinary = filepath.Join(e.pkgDir, "package.test")
 	relPkg := e.relPath()
@@ -51,18 +52,50 @@ func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 	return nil
 }
 
-// measureBaseline runs the test binary once to determine appropriate timeout.
 func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
-	start := time.Now()
-	_ = exec.CommandContext(ctx, e.testBinary, testArgs("5s", e.tests)...).Run()
-	duration := time.Since(start)
-	if duration < minBaselineDuration*time.Millisecond {
-		duration = minBaselineDuration * time.Millisecond
+	// Run baseline up to 3 times and use median of successful runs
+	// This handles timing-sensitive tests that might occasionally fail
+	var durations []time.Duration
+	maxAttempts := 3
+	failureCount := 0
+
+	for i := 0; i < maxAttempts && len(durations) < 3; i++ {
+		start := time.Now()
+		cmd := exec.CommandContext(ctx, e.testBinary, testArgs("5s", e.tests)...)
+		cmd.Dir = e.tempDir
+		err := cmd.Run()
+
+		if err == nil {
+			duration := time.Since(start)
+			durations = append(durations, duration)
+		} else {
+			failureCount++
+		}
 	}
-	return duration
+
+	if len(durations) == 0 {
+		return minBaselineDuration * time.Millisecond
+	}
+
+	sortDurations(durations)
+	median := durations[len(durations)/2]
+
+	if median < minBaselineDuration*time.Millisecond {
+		median = minBaselineDuration * time.Millisecond
+	}
+	return median
 }
 
-// timeoutFor calculates appropriate test timeout.
+func sortDurations(d []time.Duration) {
+	for i := range d {
+		for j := i + 1; j < len(d); j++ {
+			if d[i] > d[j] {
+				d[i], d[j] = d[j], d[i]
+			}
+		}
+	}
+}
+
 func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration) {
 	timeout := time.Duration(float64(baseline) * timeoutMultiplier)
 	if timeout > maxTimeout*time.Second {
@@ -72,9 +105,6 @@ func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration
 	return fmt.Sprintf("%.0fs", timeout.Seconds()), timeout
 }
 
-// runMutant executes a single mutant test.
-// A per-mutant timeout is required because some mutations (e.g. for_condition_true)
-// create infinite loops; without this, exec.CommandContext would never kill the process.
 func (e *testExecutor) runMutant(ctx context.Context, mutantID int) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.timeout+2*time.Second)
 	defer cancel()
@@ -83,7 +113,7 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) (string, err
 	cmd := exec.CommandContext(ctx, e.testBinary, args...)
 	cmd.Dir = e.pkgDir
 
-	// Reuse cached baseEnv with pre-allocated slice to avoid GC pressure
+	
 	mutantEnv := make([]string, len(e.baseEnv)+1)
 	copy(mutantEnv, e.baseEnv)
 	mutantEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
@@ -103,11 +133,6 @@ func (e *testExecutor) relPath() string {
 	return "./" + filepath.ToSlash(rel)
 }
 
-// compileAndRunPackages compiles test binaries and runs mutants concurrently.
-// Compilation and test execution overlap: as soon as a package compiles,
-// its tests start running while other packages are still compiling.
-// Each compile goroutine directly dispatches its own test goroutines,
-// avoiding a single-goroutine processor bottleneck.
 func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, concurrent int, tests []string) ([]mutantResult, error) {
 
 	type compileResult struct {
@@ -122,13 +147,23 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	var compErrsMu sync.Mutex
 	var compErrors = make(map[string]error)
 
-	// Compile packages concurrently — each goroutine dispatches its own tests
+
 	var compileGroup, compileCtx = errgroup.WithContext(ctx)
 	compileGroup.SetLimit(concurrent)
 
-	for pkgDir, mutantIDs := range pkgToMutantIDs {
+	
+	pkgDirs := make([]string, 0, len(pkgToMutantIDs))
+	for pkgDir := range pkgToMutantIDs {
+		pkgDirs = append(pkgDirs, pkgDir)
+	}
+	sort.Strings(pkgDirs)
+
+	for _, pkgDir := range pkgDirs {
+		mutantIDs := pkgToMutantIDs[pkgDir]
+		
+		sort.Ints(mutantIDs)
+
 		pkgDir := pkgDir
-		mutantIDs := mutantIDs
 		compileGroup.Go(func() error {
 			executor := newTestExecutor(tempDir, pkgDir, tests)
 			err := executor.compileWithDebug(compileCtx, false)
@@ -136,10 +171,9 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				compErrsMu.Lock()
 				compErrors[pkgDir] = err
 				compErrsMu.Unlock()
-				return nil // Don't cancel siblings on compile error
+				return nil
 			}
 
-			// Measure baseline and dispatch tests directly from this goroutine
 			baseline := executor.measureBaseline(testCtx)
 			_, _ = executor.timeoutFor(baseline)
 
@@ -155,10 +189,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		})
 	}
 
-	// Wait for all compilations
+
 	_ = compileGroup.Wait()
 
-	// Wait for all tests to complete
+
 	if err := testGroup.Wait(); err != nil {
 		return nil, fmt.Errorf("test execution failed: %w", err)
 	}
@@ -168,6 +202,11 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	for result := range resultsChan {
 		allResults = append(allResults, result)
 	}
+
+	
+	sort.Slice(allResults, func(i, j int) bool {
+		return allResults[i].id < allResults[j].id
+	})
 
 	if len(compErrors) > 0 {
 		var errs []string
@@ -180,36 +219,46 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	return allResults, nil
 }
 
-// runStandalonePackage handles mutation testing for a single package without go.mod.
-// Copies files to temp, applies schemata, compiles, runs mutants, collects results.
+
+
 func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, debug bool) error {
-	// Create temp workspace
+
 	tempDir, err := os.MkdirTemp("", "gorgon-standalone-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Determine package name
+
 	pkgName := detectPackageName(pkgDir)
 
-	// Create go.mod
+
 	goMod := fmt.Sprintf("module %s\n\ngo %s\n", pkgName, goVersion)
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), filePermissions); err != nil {
 		return fmt.Errorf("failed to write go.mod: %w", err)
 	}
 
-	// Copy Go files
+
 	if err := copyDir(pkgDir, tempDir); err != nil {
 		return err
 	}
 
-	// Apply schemata using pre-parsed AST if available, otherwise fallback to re-parsing
-	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir)
 
-	// Group mutants by AST to apply efficiently
+	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir, pkgDir)
+
+
+	
+	tempFiles := make([]string, 0, len(tempFileToMutants))
+	for tempFile := range tempFileToMutants {
+		tempFiles = append(tempFiles, tempFile)
+	}
+	sort.Strings(tempFiles)
+
+
+	
 	astToFileMutants := make(map[*ast.File][]*Mutant)
-	for _, mutants := range tempFileToMutants {
+	for _, tempFile := range tempFiles {
+		mutants := tempFileToMutants[tempFile]
 		for _, m := range mutants {
 			if m.Site.FileAST != nil {
 				astToFileMutants[m.Site.FileAST] = append(astToFileMutants[m.Site.FileAST], m)
@@ -217,8 +266,26 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	// Use pre-parsed AST where available
+
+	
+	type astEntry struct {
+		astFile *ast.File
+		mutants []*Mutant
+	}
+	sortedASTs := make([]astEntry, 0, len(astToFileMutants))
 	for astFile, mutants := range astToFileMutants {
+		sortedASTs = append(sortedASTs, astEntry{astFile, mutants})
+	}
+	sort.Slice(sortedASTs, func(i, j int) bool {
+		if len(sortedASTs[i].mutants) == 0 || len(sortedASTs[j].mutants) == 0 {
+			return false
+		}
+		return sortedASTs[i].mutants[0].Site.File.Name() < sortedASTs[j].mutants[0].Site.File.Name()
+	})
+
+	for _, entry := range sortedASTs {
+		astFile := entry.astFile
+		mutants := entry.mutants
 		if len(mutants) == 0 || mutants[0].Site.File == nil {
 			continue
 		}
@@ -231,8 +298,10 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	// For any remaining files without pre-parsed AST, fall back to re-parsing
-	for tempFile, mutants := range tempFileToMutants {
+
+	
+	for _, tempFile := range tempFiles {
+		mutants := tempFileToMutants[tempFile]
 		hasAST := false
 		for _, m := range mutants {
 			if m.Site.FileAST != nil {
@@ -251,7 +320,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return err
 	}
 
-	// Compile
+
 	executor := newTestExecutor(tempDir, tempDir, tests)
 	if err := executor.compileWithDebug(context.Background(), debug); err != nil {
 		for _, m := range pkgMutants {
@@ -262,20 +331,22 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return nil
 	}
 
-	// Measure baseline and run mutants concurrently
+
 	baseline := executor.measureBaseline(context.Background())
 	_, _ = executor.timeoutFor(baseline)
 
 	resultsChan := make(chan mutantResult, len(pkgMutants))
+	
 	ids := make([]int, len(pkgMutants))
 	for i, m := range pkgMutants {
 		ids[i] = m.ID
 	}
+	sort.Ints(ids)
 
-	// Run all mutant tests for this package concurrently
+
 	executor.runMutantsConcurrent(context.Background(), ids, concurrent, resultsChan)
 
-	// Collect results using O(1) map lookup instead of linear search
+
 	idToMutant := make(map[int]*Mutant, len(pkgMutants))
 	for _, m := range pkgMutants {
 		idToMutant[m.ID] = m
@@ -291,9 +362,9 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	return nil
 }
 
-// runMutantsConcurrent executes multiple mutants concurrently, closing results channel when done.
-// Uses sync.WaitGroup instead of errgroup so that one mutant error does NOT cascade-cancel
-// all remaining goroutines — every mutant gets a fair chance to run and report its true status.
+
+
+
 func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int, concurrent int, results chan mutantResult) {
 	defer close(results)
 
@@ -302,11 +373,11 @@ func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int
 
 	for _, mutantID := range mutantIDs {
 		mutantID := mutantID
-		sem <- struct{}{} // Acquire semaphore
+		sem <- struct{}{} 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-sem }() // Release semaphore
+			defer func() { <-sem }() 
 
 			select {
 			case <-ctx.Done():
@@ -323,7 +394,7 @@ func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int
 	wg.Wait()
 }
 
-// Utility functions
+
 
 func testArgs(timeout string, tests []string) []string {
 	args := []string{"-test.timeout=" + timeout}
@@ -358,10 +429,16 @@ func detectPackageName(pkgDir string) string {
 	return filepath.Base(pkgDir)
 }
 
-func mapFilesToMutants(pkgMutants []*Mutant, tempDir string) map[string][]*Mutant {
+func mapFilesToMutants(pkgMutants []*Mutant, tempDir string, pkgDir string) map[string][]*Mutant {
 	result := make(map[string][]*Mutant, len(pkgMutants))
 	for _, m := range pkgMutants {
-		tempFile := filepath.Join(tempDir, filepath.Base(m.Site.File.Name()))
+		
+		origPath := m.Site.File.Name()
+		rel, err := filepath.Rel(pkgDir, origPath)
+		if err != nil {
+			rel = filepath.Base(origPath)
+		}
+		tempFile := filepath.Join(tempDir, rel)
 		result[tempFile] = append(result[tempFile], m)
 	}
 	return result

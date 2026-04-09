@@ -1,4 +1,3 @@
-// Package reporter provides functionality to report mutation testing results.
 package reporter
 
 import (
@@ -30,21 +29,21 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		case "error":
 			errors++
 		default:
-			// Should not happen, but good for completeness
+			
 		}
 	}
 
-	// Cache file contents for visual column calculation to avoid redundant I/O
+	
 	fileCache := make(map[string][]byte)
 
-	// Debug section: print before the score table
+	
 	if debug {
 		fmt.Println("=== Debug Information ===")
 
-		// Error mutants: grouped by original file location
+		
 		if errors > 0 {
 			fmt.Printf("\nError Mutants (%d total):\n", errors)
-			// Group by file:line:col (original location — accurate)
+			
 			type locKey struct {
 				file string
 				line int
@@ -84,7 +83,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 				fmt.Println()
 			}
 
-			// Extract unique compiler error messages for context
+			
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
 				fmt.Printf("\nCompilation Error Context:\n")
@@ -128,7 +127,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		return fmt.Errorf("failed to flush writer: %w", err)
 	}
 
-	// Non-debug mode: print survived mutants after the table
+	
 	if !debug {
 		fmt.Println("\nSurvived Mutants:")
 		for _, mutant := range mutants {
@@ -148,8 +147,8 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
 	}
 
-	// WILL MAKE: HTML output with flag
-	// we'll have to make it pretty too kinda
+	
+	
 	return nil
 }
 

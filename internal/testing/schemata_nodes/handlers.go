@@ -53,9 +53,9 @@ const (
 
 var Handlers = make([]SchemataHandler, NTMax)
 
-// Generic handler factories to eliminate repetitive code
 
-// makeExprHandler creates a handler for expression-like nodes that use wrapWithSchemataMulti
+
+
 func makeExprHandler() SchemataHandler {
 	return func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 		if len(mutants) == 0 {
@@ -68,7 +68,7 @@ func makeExprHandler() SchemataHandler {
 	}
 }
 
-// makeStmtHandler creates a handler for statement-like nodes that use WrapStatement
+
 func makeStmtHandler() SchemataHandler {
 	return func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 		if len(mutants) == 0 {
@@ -82,14 +82,14 @@ func makeStmtHandler() SchemataHandler {
 }
 
 func init() {
-	// Expression handlers - use wrapWithSchemataMulti for multiple mutants
+	
 	Handlers[NTBinaryExpr] = makeExprHandler()
 	Handlers[NTUnaryExpr] = makeExprHandler()
 	Handlers[NTCallExpr] = makeExprHandler()
 	Handlers[NTIdent] = makeExprHandler()
 	Handlers[NTBasicLit] = makeExprHandler()
 
-	// Statement handlers - use WrapStatement for multiple mutants
+	
 	Handlers[NTIfStmt] = makeStmtHandler()
 	Handlers[NTForStmt] = makeStmtHandler()
 	Handlers[NTBlockStmt] = makeStmtHandler()
@@ -107,7 +107,7 @@ func init() {
 	Handlers[NTErrStmt] = makeStmtHandler()
 	Handlers[NTFuncDecl] = makeStmtHandler()
 
-	// Special handlers with custom logic
+	
 	Handlers[NTCaseClause] = HandleCaseClause
 	Handlers[NTRangeStmt] = HandleRangeStmt
 	Handlers[NTAssignStmt] = HandleAssignStmt
@@ -312,7 +312,7 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 		})
 	}
 
-	// If no mutants produced valid mutations, return original
+	
 	if len(stmts) == 0 {
 		return original
 	}
@@ -753,9 +753,9 @@ func formatNode(expr ast.Expr) string {
 	}
 }
 
-// buildIfElseChain creates a chained if-else statement from mutants
-// originalStmt is the unmutated statement used as the final else clause
-// extractMutated extracts the mutated statement from a mutant, returns (stmt, ok)
+
+
+
 func buildIfElseChain(originalStmt ast.Stmt, mutants []MutantForSite, file *ast.File,
 	extractMutated func(mutant MutantForSite) (ast.Stmt, bool)) ast.Node {
 	type mutPair struct {
@@ -786,7 +786,7 @@ func buildIfElseChain(originalStmt ast.Stmt, mutants []MutantForSite, file *ast.
 	return &ast.BlockStmt{List: []ast.Stmt{chain}}
 }
 
-// WrapStatement wraps a statement node with mutation logic for multiple mutants
+
 func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	if len(mutants) == 0 {
 		return original

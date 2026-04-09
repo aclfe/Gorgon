@@ -22,7 +22,7 @@ func captureOutput(f func()) string {
 }
 
 func TestLogStart(t *testing.T) {
-	t.Parallel()
+	// Cannot run in parallel - captureOutput redirects global stdout
 	output := captureOutput(LogStart)
 	if output != "starting\n" {
 		t.Errorf("LogStart() output = %q, want %q", output, "starting\n")
@@ -59,7 +59,7 @@ func TestCloseChannel(t *testing.T) {
 }
 
 func TestMultiCall(t *testing.T) {
-	t.Parallel()
+	// Cannot run in parallel - captureOutput redirects global stdout
 	output := captureOutput(MultiCall)
 	if output != "before\nafter\n" {
 		t.Errorf("MultiCall() output = %q, want %q", output, "before\nafter\n")

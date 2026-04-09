@@ -8,11 +8,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// SuppressEntry represents a single suppression target in the config.
-// Format in YAML: "path/to/file.go:6" with optional "operators:" sub-key.
+
+
 type SuppressEntry struct {
-	Location  string   `yaml:"location"`  // e.g. "examples/foo.go:6"
-	Operators []string `yaml:"operators,omitempty"` // empty = all operators on that line
+	Location  string   `yaml:"location"`  
+	Operators []string `yaml:"operators,omitempty"` 
 }
 
 type Config struct {
@@ -72,14 +72,14 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// AddSuppression appends a suppression entry with location (e.g. "path/to/file.go:6")
-// and optional operator list. Duplicates are ignored.
+
+
 func (c *Config) AddSuppression(location string, operators []string) {
 	location = strings.TrimSpace(location)
 	if location == "" {
 		return
 	}
-	// Normalize operators list
+	
 	var normalized []string
 	seen := make(map[string]bool)
 	for _, op := range operators {
@@ -92,7 +92,7 @@ func (c *Config) AddSuppression(location string, operators []string) {
 
 	for _, existing := range c.Suppress {
 		if existing.Location == location {
-			// Merge operators if location already exists
+			
 			existingOps := make(map[string]bool)
 			for _, op := range existing.Operators {
 				existingOps[op] = true
@@ -111,7 +111,7 @@ func (c *Config) AddSuppression(location string, operators []string) {
 	})
 }
 
-// Save writes the config back to the given YAML file path.
+
 func (c *Config) Save(path string) error {
 	data, err := yaml.Marshal(c)
 	if err != nil {

@@ -1,4 +1,4 @@
-// Package testing provides testing utilities for the gorgon project.
+
 package testing
 
 import (
@@ -9,9 +9,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
-// CopyDir copies a directory recursively, only copying .go files, go.mod, and go.sum.
+
+var hashBufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 32*1024)
+		return &buf
+	},
+}
+
+
 //
 //nolint:gocognit,gocyclo,cyclop
 func CopyDir(src, dst string) error {
@@ -48,7 +57,7 @@ func CopyDir(src, dst string) error {
 	})
 }
 
-// extractPackageName reads the package clause from a Go file.
+
 func extractFilePath(filePath string) string {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filePath, nil, parser.PackageClauseOnly)
@@ -58,7 +67,7 @@ func extractFilePath(filePath string) string {
 	return ""
 }
 
-// copyDir copies a directory's Go files to a destination.
+
 func copyDir(src, dst string) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {
@@ -104,8 +113,8 @@ func copyFileWithBuffer(src, dst string) error {
 	return nil
 }
 
-// FindGoModDir walks up from dir looking for a go.mod file, returning the
-// directory containing it, or "" if none found.
+
+
 func FindGoModDir(dir string) string {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -124,9 +133,9 @@ func FindGoModDir(dir string) string {
 	return ""
 }
 
-// UniqueErrorLines extracts unique error messages from multi-line output.
-// If skipPrefix is non-empty, lines starting with it are skipped.
-// Lines are deduplicated after stripping the file:line:col prefix.
+
+
+
 func UniqueErrorLines(output string, skipPrefix string) []string {
 	var errs []string
 	seen := make(map[string]bool)

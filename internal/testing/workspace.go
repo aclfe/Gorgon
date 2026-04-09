@@ -7,19 +7,18 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
-// ModuleWorkspace manages the temp directory for mutation testing of a Go module.
+
 type ModuleWorkspace struct {
 	TempDir   string
 	absModule string
-	// fileRelPaths caches relative paths from absModule to each unique source file,
-	// avoiding repeated filepath.Rel calls across setup/applySchemata/buildPkgMap.
 	fileRelPaths map[string]string
 }
 
-// NewModuleWorkspace creates a temp directory for mutation testing.
+
 func NewModuleWorkspace() (*ModuleWorkspace, error) {
 	tempDir, err := os.MkdirTemp("", "gorgon-schemata-*")
 	if err != nil {
@@ -31,8 +30,7 @@ func NewModuleWorkspace() (*ModuleWorkspace, error) {
 	}, nil
 }
 
-// relPath returns the cached relative path from absModule to filePath,
-// computing and caching it if not already present.
+
 func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
 	if rel, ok := w.fileRelPaths[filePath]; ok {
 		return rel, nil
@@ -45,12 +43,12 @@ func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
 	return rel, nil
 }
 
-// Cleanup removes the temporary directory.
+
 func (w *ModuleWorkspace) Cleanup() {
 	_ = os.RemoveAll(w.TempDir)
 }
 
-// setup copies the module and affected packages to the temp directory.
+
 func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	modDir := FindGoModDir(baseDir)
 	if modDir == "" {
@@ -63,7 +61,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 	w.absModule = absModule
 
-	// Copy go.mod and go.sum
+	
 	if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
 		return fmt.Errorf("failed to copy go.mod: %w", err)
 	}
@@ -71,7 +69,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		_ = os.WriteFile(filepath.Join(w.TempDir, "go.sum"), data, filePermissions)
 	}
 
-	// Determine affected packages and copy them, caching relative paths
+	
 	affected := make(map[string]bool)
 	for i := range mutants {
 		rel, err := w.relPath(mutants[i].Site.File.Name())
@@ -89,10 +87,10 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	return nil
 }
 
-// applySchemata applies mutations to files using pre-parsed AST from Phase 1.
-// This avoids re-parsing files in Phase 2.
+
+
 func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, error) {
-	// Group mutants by their pre-parsed AST (from Phase 1) to avoid re-parsing
+
 	astToMutants := make(map[*ast.File][]*Mutant, len(mutants))
 	for i := range mutants {
 		m := &mutants[i]
@@ -101,42 +99,65 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		}
 	}
 
-	// Read source files once for fallback when format fails
 	sourceCache := make(map[string][]byte)
 
-	// Apply schemata using pre-parsed ASTs
+	// Sort AST files deterministically by file path
+	type astEntry struct {
+		astFile *ast.File
+		mutants []*Mutant
+	}
+	sortedASTs := make([]astEntry, 0, len(astToMutants))
 	for astFile, fileMutants := range astToMutants {
-		// Get original file path from any mutant's Site
+		sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants})
+	}
+	sort.Slice(sortedASTs, func(i, j int) bool {
+		if len(sortedASTs[i].mutants) == 0 || len(sortedASTs[j].mutants) == 0 {
+			return false
+		}
+		return sortedASTs[i].mutants[0].Site.File.Name() < sortedASTs[j].mutants[0].Site.File.Name()
+	})
+
+	for _, entry := range sortedASTs {
+		astFile := entry.astFile
+		fileMutants := entry.mutants
+
 		origPath := fileMutants[0].Site.File.Name()
 		if origPath == "" {
 			continue
 		}
 
-		// Cache source if not already done
+
 		if _, ok := sourceCache[origPath]; !ok {
 			if src, err := os.ReadFile(origPath); err == nil {
 				sourceCache[origPath] = src
 			}
 		}
 
-		// Compute temp file path
 		rel, err := w.relPath(origPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute rel path: %w", err)
 		}
 		tempFile := filepath.Join(w.TempDir, rel)
 
-		// Use pre-parsed AST - no re-parsing needed
+
 		src := sourceCache[origPath]
 		if err := ApplySchemataToAST(astFile, fileMutants[0].Site.Fset, tempFile, src, fileMutants); err != nil {
 			return nil, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
 		}
 	}
 
-	// Build fileToMutants map for InjectSchemataHelpers
+	// Build fileToMutants in deterministic order
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
+	// Sort mutants by ID to ensure deterministic file grouping
+	sortedMutants := make([]*Mutant, len(mutants))
 	for i := range mutants {
-		m := &mutants[i]
+		sortedMutants[i] = &mutants[i]
+	}
+	sort.Slice(sortedMutants, func(i, j int) bool {
+		return sortedMutants[i].ID < sortedMutants[j].ID
+	})
+
+	for _, m := range sortedMutants {
 		rel, err := w.relPath(m.Site.File.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute rel path: %w", err)
@@ -152,7 +173,7 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	return fileToMutants, nil
 }
 
-// buildPkgMap builds the package-to-mutant-IDs mapping and mutant ID to index mapping.
+
 func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[int]int, error) {
 	pkgToIDs := make(map[string][]int, len(mutants))
 	idToIndex := make(map[int]int, len(mutants))
@@ -171,10 +192,17 @@ func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[i
 	return pkgToIDs, idToIndex, nil
 }
 
-// simplifyGoMod removes external dependencies if only stdlib is used.
+
 func (w *ModuleWorkspace) simplifyGoMod(fileToMutants map[string][]*Mutant) {
-	hasNonStdlib := false
+	// Sort files for deterministic iteration
+	files := make([]string, 0, len(fileToMutants))
 	for tempFile := range fileToMutants {
+		files = append(files, tempFile)
+	}
+	sort.Strings(files)
+
+	hasNonStdlib := false
+	for _, tempFile := range files {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, tempFile, nil, parser.ImportsOnly)
 		if err != nil {

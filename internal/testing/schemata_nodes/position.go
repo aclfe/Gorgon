@@ -5,16 +5,23 @@ import (
 	"go/token"
 )
 
-// GetNodePosition returns the position of an AST node.
-// For BinaryExpr, it returns the operator position (OpPos).
-// For IncDecStmt, it returns the token position (TokPos).
-// For all other nodes, it returns the node's starting position.
+// GetNodePosition returns the most precise position for a node.
+// For operators (like +, -, ++, etc.), it returns the position of the operator token
+// rather than the start of the expression/statement. This ensures consistent position
+// matching between mutant generation and AST transformation.
 func GetNodePosition(node ast.Node, fset *token.FileSet) token.Position {
-	if be, ok := node.(*ast.BinaryExpr); ok {
-		return fset.Position(be.OpPos)
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		return fset.Position(n.OpPos)
+	case *ast.UnaryExpr:
+		return fset.Position(n.OpPos)
+	case *ast.IncDecStmt:
+		return fset.Position(n.TokPos)
+	case *ast.AssignStmt:
+		return fset.Position(n.TokPos)
+	case *ast.BranchStmt:
+		return fset.Position(n.TokPos)
+	default:
+		return fset.Position(node.Pos())
 	}
-	if ids, ok := node.(*ast.IncDecStmt); ok {
-		return fset.Position(ids.TokPos)
-	}
-	return fset.Position(node.Pos())
 }

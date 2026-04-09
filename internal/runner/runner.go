@@ -1,6 +1,3 @@
-// Package runner provides the core execution logic for Gorgon.
-// It unifies the execution paths that were previously duplicated
-// between main() and runWithConfig() in main.go.
 package runner
 
 import (
@@ -22,7 +19,7 @@ import (
 	"github.com/aclfe/gorgon/pkg/config"
 )
 
-// Run executes Gorgon with the given flags and targets.
+
 func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
 	if len(targets) == 0 {
 		cli.PrintUsage()
@@ -38,7 +35,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	eng := engine.NewEngine(flags.PrintAST)
 	eng.SetOperators(ops)
 
-	// Determine project root for consistent suppression paths
+	
 	projectRoot := findProjectRoot(targets[0], cfg.Base)
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
@@ -97,7 +94,6 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 				fmt.Printf("\nCache stored at: %s\n", path)
 			}
 		}
-		suppressions.SyncSuppressions(configPath, eng)
 		_, _ = fmt.Fprintf(os.Stderr, "Report failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -113,13 +109,13 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	return nil
 }
 
-// FilterSites filters mutation sites based on exclude, include, skip, and skip-func patterns.
+
 func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, skipFunc []string) []engine.Site {
 	if len(exclude) == 0 && len(include) == 0 && len(skip) == 0 && len(skipFunc) == 0 {
 		return sites
 	}
 
-	// Build skip-func lookup
+	
 	skipFuncMap := make(map[string]map[string]bool)
 	for _, sf := range skipFunc {
 		parts := strings.SplitN(sf, ":", 2)
@@ -136,7 +132,7 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 	for _, site := range sites {
 		filePath := site.File.Name()
 
-		// Compute relative paths
+		
 		relPath := filePath
 		cwdRel := filePath
 
@@ -155,22 +151,22 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 			}
 		}
 
-		// Check skip patterns
+		
 		if shouldSkip(relPath, cwdRel, skip) {
 			continue
 		}
 
-		// Check skip-func patterns
+		
 		if shouldSkipFunc(site.FunctionName, relPath, cwdRel, skipFuncMap) {
 			continue
 		}
 
-		// Check include patterns (if specified, file must match)
+		
 		if len(include) > 0 && !matchesAny(relPath, include) {
 			continue
 		}
 
-		// Check exclude patterns
+		
 		if matchesAny(relPath, exclude) {
 			continue
 		}
@@ -191,7 +187,7 @@ func shouldSkip(relPath, cwdRel string, skipPatterns []string) bool {
 		if ok, _ := filepath.Match(s, cwdRel); ok {
 			return true
 		}
-		// Check parent directories
+		
 		if matchParentDirs(relPath, s) || matchParentDirs(cwdRel, s) {
 			return true
 		}
@@ -220,12 +216,12 @@ func shouldSkipFunc(funcName, relPath, cwdRel string, skipFuncMap map[string]map
 		return false
 	}
 
-	// Empty file means skip this function name in any file
+	
 	if files[""] {
 		return true
 	}
 
-	// Check if the file matches any of the specified files
+	
 	for file := range files {
 		if relPath == file || cwdRel == file || filepath.Base(relPath) == file {
 			return true
@@ -314,8 +310,8 @@ func parseTestNamesFromFile(filePath string) []string {
 	return names
 }
 
-// findProjectRoot determines the project root for consistent suppression paths.
-// Priority: explicit config base > nearest go.mod > target directory.
+
+
 func findProjectRoot(target string, configBase string) string {
 	if configBase != "" {
 		if abs, err := filepath.Abs(configBase); err == nil {
@@ -342,7 +338,7 @@ func findProjectRoot(target string, configBase string) string {
 	return startPath
 }
 
-// ExitWithError prints the error to stderr and exits with code 1.
+
 func ExitWithError(err error) {
 	_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 	os.Exit(1)

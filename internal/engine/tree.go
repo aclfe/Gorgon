@@ -12,7 +12,7 @@ import (
 
 const astPrefix = "*ast."
 
-// PrintEnabled controls whether AST trees are printed during traversal.
+
 var PrintEnabled atomic.Bool
 
 var (
@@ -509,14 +509,14 @@ func registerMiscNodes() {
 			text := commentGroup.List[0].Text
 			const previewLen = 20
 			if len(text) > previewLen {
-				_ = text // lint SA4006: intentionally unused after truncation for display
+				_ = text 
 			}
 			return fmt.Sprintf("CommentGroup (%d lines)", len(commentGroup.List))
 		},
 		func(commentGroup *ast.CommentGroup) []ast.Node {
 			nodes := make([]ast.Node, len(commentGroup.List))
 			for i, comm := range commentGroup.List {
-				nodes[i] = comm // ← now returns individual *ast.Comment
+				nodes[i] = comm 
 			}
 			return nodes
 		})
@@ -559,8 +559,8 @@ func registerNode[T ast.Node](prototype T, kind string, descFn func(T) string, c
 	}
 }
 
-// PrintTree renders an AST node tree structure to a writer, displaying node types, positions, and relationships.
-// It respects the PrintEnabled flag and returns nil if PrintEnabled is false or node is nil.
+
+
 func PrintTree(writer io.Writer, fset *token.FileSet, node ast.Node) error {
 	if !PrintEnabled.Load() || node == nil {
 		return nil
@@ -598,7 +598,7 @@ func PrintTree(writer io.Writer, fset *token.FileSet, node ast.Node) error {
 			nextPrefix = entry.prefix + "│   "
 		}
 
-		for i := len(children) - 1; i >= 0; i-- { // Reverse for correct order
+		for i := len(children) - 1; i >= 0; i-- { 
 			stack = append(stack, stackEntry{node: children[i], prefix: nextPrefix, isLast: i == 0})
 		}
 	}
@@ -632,7 +632,7 @@ func processNode(strBuilder *strings.Builder, fset *token.FileSet, node ast.Node
 	}
 }
 
-// optimized with cap
+
 func anySliceToNodes[T ast.Node](s []T) []ast.Node {
 	result := make([]ast.Node, 0, len(s))
 	for _, v := range s {

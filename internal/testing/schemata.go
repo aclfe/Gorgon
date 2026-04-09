@@ -1,11 +1,12 @@
-// Package testing provides mutation testing execution logic.
+
 package testing
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -15,31 +16,31 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// GenerateAndRunSchemata is the main entry point: generates mutants, applies mutations,
-// compiles test binaries, runs tests, and collects results.
+
+
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, debug bool) ([]Mutant, error) {
-	// Step 1: Generate mutants (single-pass dedup + generation)
+	
 	mutants := GenerateMutants(sites, operators)
 	if len(mutants) == 0 {
 		return nil, nil
 	}
 
-	// Step 2: Resolve cache - get indices of mutants that still need to run
+	
 	uncachedIndices, fileHashes, err := ResolveCache(mutants, baseDir, cache)
 	if err != nil {
 		return nil, err
 	}
 	if uncachedIndices == nil {
-		return mutants, nil // All cached
+		return mutants, nil 
 	}
 
-	// Step 3: Determine execution path
+	
 	baseDirAbs, _ := filepath.Abs(baseDir)
 	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
 		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, debug, fileHashes)
 	}
 
-	// Step 4: Setup module workspace
+	
 	ws, err := NewModuleWorkspace()
 	if err != nil {
 		return nil, err
@@ -50,10 +51,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return nil, err
 	}
 
-	// Step 5: Apply schemata
-	if err := RewriteImports(ws.TempDir); err != nil {
-		return nil, fmt.Errorf("rewrite imports: %w", err)
-	}
 	_ = MakeSelfContained(ws.TempDir)
 
 	fileToMutants, err := ws.applySchemata(mutants)
@@ -61,34 +58,34 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return nil, err
 	}
 
-	// Step 6: Simplify go.mod if only stdlib used
+	
 	ws.simplifyGoMod(fileToMutants)
 
-	// Step 7: Build package mapping
+	
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 8: Compile and run tests with max concurrency
+	
 	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, concurrent, tests)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 9: Collect results
+	
 	collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
 
-	// Step 10: Save cache (reuse hashes from ResolveCache)
+	
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return mutants, nil
 }
 
-// runStandalone handles packages without go.mod.
-// All packages run concurrently, each with its own temp dir.
+
+
 func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, debug bool, fileHashes map[string]string) ([]Mutant, error) {
-	// Group uncached mutants by package
+
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
 		m := &mutants[idx]
@@ -96,14 +93,19 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
 	}
 
-	// Run all packages concurrently, limited by the concurrent setting.
-	// Each package has its own temp dir and compiles/runs independently.
+	// Sort package directories for deterministic processing
+	pkgDirs := make([]string, 0, len(pkgToMutants))
+	for pkgDir := range pkgToMutants {
+		pkgDirs = append(pkgDirs, pkgDir)
+	}
+	sort.Strings(pkgDirs)
+
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(concurrent)
 
-	for pkgDir, pkgMutants := range pkgToMutants {
+	for _, pkgDir := range pkgDirs {
+		pkgMutants := pkgToMutants[pkgDir]
 		pkgDir := pkgDir
-		pkgMutants := pkgMutants
 		g.Go(func() error {
 			select {
 			case <-ctx.Done():
@@ -118,23 +120,18 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 		return nil, err
 	}
 
-	// Save cache (reuse hashes from ResolveCache)
+
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return mutants, nil
 }
 
-// RewriteImports is a placeholder for future import rewriting logic.
-func RewriteImports(_ string) error {
-	return nil
-}
 
-// MakeSelfContained ensures the temp module is self-contained.
 func MakeSelfContained(tempDir string) error {
 	goModPath := filepath.Join(tempDir, "go.mod")
 	data, err := os.ReadFile(goModPath)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("read go.mod: %w", err)
+		return errors.New("read go.mod")
 	}
 
 	content := string(data)
@@ -145,8 +142,12 @@ func MakeSelfContained(tempDir string) error {
 	}
 
 	if err := os.WriteFile(goModPath, []byte(content), filePermissions); err != nil {
-		return fmt.Errorf("write go.mod: %w", err)
+		return errors.New("write go.mod")
 	}
+	return nil
+}
+
+func RewriteImports(_ string) error {
 	return nil
 }
 

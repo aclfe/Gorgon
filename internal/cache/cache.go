@@ -93,10 +93,8 @@ func (c *Cache) Save(projectDir string) error {
 }
 
 func (c *Cache) Key(filePath string, line, col int, nodeType uint8, operator string, fileHash string) string {
-	// Build key string efficiently without fmt.Sprintf allocations.
 	// Format: "filePath:line:col:nodeType:operator:fileHash"
 	const colon = byte(':')
-	// Estimate capacity: filePath + fileHash + operator + ~20 bytes for ints + colons
 	cap := len(filePath) + len(operator) + len(fileHash) + 30
 	buf := make([]byte, 0, cap)
 	buf = append(buf, filePath...)

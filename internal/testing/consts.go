@@ -17,3 +17,6 @@ const maxTimeout = 30
 
 // Minimum baseline duration for timeout calculations.
 const minBaselineDuration = 100
+
+// File permissions for generated files.
+const filePermissions = 0o600

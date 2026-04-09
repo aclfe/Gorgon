@@ -6,11 +6,10 @@ import (
 )
 
 type Mutant struct {
-	ID         int
-	Site       engine.Site
-	Operator   mutator.Operator
-	PackageDir string
-	TempDir    string
-	Status     string
-	Error      error
+	ID       int
+	Site     engine.Site
+	Operator mutator.Operator
+	TempDir  string
+	Status   string
+	Error    error
 }

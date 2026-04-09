@@ -1,5 +1,5 @@
-// Package suppressions handles inline //gorgon:ignore comment parsing
-// and synchronization with YAML config files.
+
+
 package suppressions
 
 import (
@@ -11,8 +11,8 @@ import (
 	"github.com/aclfe/gorgon/pkg/config"
 )
 
-// SyncSuppressions syncs inline //gorgon:ignore directives to the YAML config.
-// If configPath is empty, no sync is performed.
+
+
 func SyncSuppressions(configPath string, eng *engine.Engine) {
 	directives := eng.IgnoreDirectives()
 	if len(directives) == 0 {
@@ -36,10 +36,10 @@ func SyncSuppressions(configPath string, eng *engine.Engine) {
 		cfg = config.Default()
 	}
 
-	// Build a map of existing config suppressions for merging
+	
 	existingConfigSuppress := buildSuppressMap(cfg.Suppress)
 
-	// Merge inline directives into config suppressions
+	
 	projectRoot := eng.ProjectRoot()
 	if projectRoot == "" {
 		if cwd, err := os.Getwd(); err == nil {
@@ -49,7 +49,7 @@ func SyncSuppressions(configPath string, eng *engine.Engine) {
 
 	mergeInlineDirectives(existingConfigSuppress, directives, projectRoot)
 
-	// Build final suppress entries
+	
 	cfg.Suppress = buildSuppressEntries(existingConfigSuppress)
 
 	if err := cfg.Save(configPath); err != nil {
@@ -90,7 +90,7 @@ func mergeInlineDirectives(
 
 			for op, colMap := range opMap {
 				if op == "" {
-					// Empty operator = all operators on this line
+					
 					existing[location][""] = true
 					continue
 				}
