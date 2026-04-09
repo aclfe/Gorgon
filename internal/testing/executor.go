@@ -3,6 +3,10 @@ package testing
 import (
 	"context"
 	"fmt"
+<<<<<<< HEAD
+=======
+	"go/ast"
+>>>>>>> 5607fd5 (fixing relative path and example)
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -203,6 +207,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return err
 	}
 
+<<<<<<< HEAD
 	// Apply schemata
 	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir)
 	for tempFile, mutants := range tempFileToMutants {
@@ -210,6 +215,51 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 			return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
 		}
 	}
+=======
+	// Apply schemata using pre-parsed AST if available, otherwise fallback to re-parsing
+	tempFileToMutants := mapFilesToMutants(pkgMutants, tempDir)
+
+	// Group mutants by AST to apply efficiently
+	astToFileMutants := make(map[*ast.File][]*Mutant)
+	for _, mutants := range tempFileToMutants {
+		for _, m := range mutants {
+			if m.Site.FileAST != nil {
+				astToFileMutants[m.Site.FileAST] = append(astToFileMutants[m.Site.FileAST], m)
+			}
+		}
+	}
+
+	// Use pre-parsed AST where available
+	for astFile, mutants := range astToFileMutants {
+		if len(mutants) == 0 || mutants[0].Site.File == nil {
+			continue
+		}
+		origPath := mutants[0].Site.File.Name()
+		rel, _ := filepath.Rel(pkgDir, origPath)
+		tempFile := filepath.Join(tempDir, rel)
+		src, _ := os.ReadFile(origPath)
+		if err := ApplySchemataToAST(astFile, mutants[0].Site.Fset, tempFile, src, mutants); err != nil {
+			return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+		}
+	}
+
+	// For any remaining files without pre-parsed AST, fall back to re-parsing
+	for tempFile, mutants := range tempFileToMutants {
+		hasAST := false
+		for _, m := range mutants {
+			if m.Site.FileAST != nil {
+				hasAST = true
+				break
+			}
+		}
+		if !hasAST {
+			if err := ApplySchemataToFile(tempFile, mutants); err != nil {
+				return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+			}
+		}
+	}
+
+>>>>>>> 5607fd5 (fixing relative path and example)
 	if err := InjectSchemataHelpers(tempDir, tempFileToMutants); err != nil {
 		return err
 	}

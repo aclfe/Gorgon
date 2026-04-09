@@ -387,8 +387,7 @@ func (e *Engine) ProjectRoot() string {
 }
 
 type contextCache struct {
-	contexts   map[ast.Node]*mutator.Context
-	typeCache  typeDeclCache
+	contexts map[ast.Node]*mutator.Context
 }
 
 func newContextCache() *contextCache {
@@ -618,6 +617,8 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 					}
 					localSites = append(localSites, Site{
 						File:          tfile,
+						FileAST:       file,
+						Fset:          fset,
 						Line:          pos.Line,
 						Column:        pos.Column,
 						Node:          node,

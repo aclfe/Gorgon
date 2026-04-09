@@ -9,6 +9,10 @@ import (
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
+<<<<<<< HEAD
+=======
+	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
+>>>>>>> 5607fd5 (fixing relative path and example)
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
@@ -40,7 +44,11 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 			file: site.File.Name(),
 			line: site.Line,
 			col:  site.Column,
+<<<<<<< HEAD
 			ntyp: TypeToUint8(site.Node),
+=======
+			ntyp: schemata_nodes.NodeTypeToUint8(site.Node),
+>>>>>>> 5607fd5 (fixing relative path and example)
 		}
 		if seen[key] {
 			continue
@@ -95,7 +103,11 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 		}
 
 		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
+<<<<<<< HEAD
 			TypeToUint8(m.Site.Node), m.Operator.Name(), fh)
+=======
+			schemata_nodes.NodeTypeToUint8(m.Site.Node), m.Operator.Name(), fh)
+>>>>>>> 5607fd5 (fixing relative path and example)
 		if entry, ok := c.Get(key); ok {
 			m.Status = entry.Status
 			cachedCount++
@@ -152,7 +164,11 @@ func SaveCache(mutants []Mutant, baseDir string, c *cache.Cache, fileHashes map[
 			continue
 		}
 		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
+<<<<<<< HEAD
 			TypeToUint8(m.Site.Node), m.Operator.Name(), fh)
+=======
+			schemata_nodes.NodeTypeToUint8(m.Site.Node), m.Operator.Name(), fh)
+>>>>>>> 5607fd5 (fixing relative path and example)
 		c.Set(key, m.Status)
 	}
 	_ = c.Save(baseDir)

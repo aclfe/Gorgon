@@ -7,6 +7,8 @@ import (
 
 type Site struct {
 	File          *token.File
+	FileAST       *ast.File
+	Fset          *token.FileSet
 	Line          int
 	Column        int
 	Node          ast.Node
