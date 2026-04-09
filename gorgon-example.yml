@@ -14,7 +14,7 @@ skip_func:
     - examples/mutations/variable_replacement/variable_replacement.go:FindMax
 tests: []
 base: ""
-debug: false
+debug: true
 suppress:
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:

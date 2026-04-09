@@ -3,7 +3,6 @@ package reporter
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"text/tabwriter"
 
 	"github.com/aclfe/gorgon/internal/testing"
@@ -40,78 +39,38 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 	if debug {
 		fmt.Println("=== Debug Information ===")
 
-		
+
 		if errors > 0 {
-			fmt.Printf("\nError Mutants (%d total):\n", errors)
-			
-			type locKey struct {
-				file string
-				line int
-				col  int
-			}
-			type locGroup struct {
-				mutants  []testing.Mutant
-				errMsg   string
-			}
-			groups := make(map[locKey]*locGroup)
-			var order []locKey
+			fmt.Printf("\nError Summary by Operator:\n")
+			opErrors := make(map[string]int)
+			opTotal := make(map[string]int)
 			for _, mutant := range mutants {
-				if mutant.Status == "error" && mutant.Error != nil {
-					key := locKey{
-						file: mutant.Site.File.Name(),
-						line: mutant.Site.Line,
-						col:  mutant.Site.Column,
-					}
-					if _, ok := groups[key]; !ok {
-						groups[key] = &locGroup{errMsg: mutant.Error.Error()}
-						order = append(order, key)
-					}
-					groups[key].mutants = append(groups[key].mutants, mutant)
+				opTotal[mutant.Operator.Name()]++
+				if mutant.Status == "error" {
+					opErrors[mutant.Operator.Name()]++
 				}
 			}
-
-			for _, key := range order {
-				g := groups[key]
-				baseName := filepath.Base(key.file)
-				fmt.Printf("  %s:%d:%d  ", baseName, key.line, key.col)
-				for i, m := range g.mutants {
-					if i > 0 {
-						fmt.Print(", ")
-					}
-					fmt.Printf("%s (#%d)", m.Operator.Name(), m.ID)
-				}
-				fmt.Println()
+			for op, errCount := range opErrors {
+				total := opTotal[op]
+				pct := float64(errCount) / float64(total) * 100
+				fmt.Printf("  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 			}
 
-			
+
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
-				fmt.Printf("\nCompilation Error Context:\n")
-				for _, errMsg := range uniqueErrors {
-					fmt.Printf("  %s\n", errMsg)
-				}
-			}
-		}
-
-		fmt.Println("\nSurvived Mutants:")
-		if survived == 0 {
-			fmt.Println("  (none)")
-		} else {
-			for _, mutant := range mutants {
-				if mutant.Status == "survived" {
-					col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
-					baseName := filepath.Base(mutant.Site.File.Name())
-					fmt.Printf("  %s:%d:%d (%s)\n",
-						baseName,
-						mutant.Site.Line,
-						col,
-						mutant.Operator.Name())
+				fmt.Printf("\nTop Compilation Errors (%d unique):\n", len(uniqueErrors))
+				for i, errMsg := range uniqueErrors {
+					if i >= 10 {
+						fmt.Printf("  ... and %d more errors\n", len(uniqueErrors)-10)
+						break
+					}
+					fmt.Printf("  • %s\n", errMsg)
 				}
 			}
 		}
 
 		fmt.Println("\n=== End Debug Information ===")
-		fmt.Println("---")
 	}
 
 	score := float64(killed) / float64(total) * percentageMultiplier
