@@ -22,6 +22,7 @@ type Config struct {
 	Cache       bool            `yaml:"cache"`
 	DryRun      bool            `yaml:"dry_run"`
 	Debug       bool            `yaml:"debug"`
+	ProgBar     bool            `yaml:"progbar"`
 	CPUProfile  string          `yaml:"cpu_profile"`
 	Exclude     []string        `yaml:"exclude"`
 	Include     []string        `yaml:"include"`

@@ -27,6 +27,7 @@ gorgon -cache ./path                # cache results between runs
 | `-threshold` | `0` | Fail if mutation score is below this percentage (0-100) |
 | `-cache` | `false` | Cache mutation results between runs |
 | `-dry-run` | `false` | Preview mutants without running tests |
+| `-progbar` | `false` | Show progress percentage during execution |
 | `-exclude` | `""` | Comma-separated glob patterns for files to exclude |
 | `-include` | `""` | Comma-separated glob patterns for files to include |
 | `-skip` | `""` | Comma-separated relative file paths to skip entirely |
@@ -44,6 +45,7 @@ operators:
 concurrent: all
 threshold: 80
 cache: true
+progbar: false
 dry_run: false
 exclude:
   - "*_test.go"

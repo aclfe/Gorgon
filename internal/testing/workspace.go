@@ -1,15 +1,20 @@
 package testing
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
+
+func maxConcurrency() int { return runtime.NumCPU() }
 
 
 type ModuleWorkspace struct {
@@ -61,14 +66,29 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 	w.absModule = absModule
 
-
-	if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
-		return fmt.Errorf("failed to copy go.mod: %w", err)
+	
+	mutatedPaths := make(map[string]bool, len(mutants))
+	for i := range mutants {
+		if mutants[i].Site.File != nil {
+			mutatedPaths[mutants[i].Site.File.Name()] = true
+		}
 	}
-	if data, err := os.ReadFile(filepath.Join(absModule, "go.sum")); err == nil {
-		_ = os.WriteFile(filepath.Join(w.TempDir, "go.sum"), data, filePermissions)
-	}
 
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(maxConcurrency())
+
+	
+	g.Go(func() error {
+		if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
+			return fmt.Errorf("failed to copy go.mod: %w", err)
+		}
+		if data, err := os.ReadFile(filepath.Join(absModule, "go.sum")); err == nil {
+			if err := os.WriteFile(filepath.Join(w.TempDir, "go.sum"), data, filePermissions); err != nil {
+				return fmt.Errorf("failed to copy go.sum: %w", err)
+			}
+		}
+		return nil
+	})
 
 	affected := make(map[string]bool)
 	for i := range mutants {
@@ -80,16 +100,23 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 
 	for pkgRelDir := range affected {
-		if err := w.copyPackage(absModule, pkgRelDir); err != nil {
-			return err
-		}
+		pkgRelDir := pkgRelDir
+		g.Go(func() error {
+			return w.copyPackage(absModule, pkgRelDir, mutatedPaths)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	return nil
 }
 
 
 
-func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, error) {
+func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, bool, error) {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(maxConcurrency())
 
 	astToMutants := make(map[*ast.File][]*Mutant, len(mutants))
 	for i := range mutants {
@@ -99,7 +126,22 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		}
 	}
 
+	
+	hasNonStdlib := false
+	for astFile := range astToMutants {
+		for _, imp := range astFile.Imports {
+			if !isStdlib(strings.Trim(imp.Path.Value, `"`)) {
+				hasNonStdlib = true
+				break
+			}
+		}
+		if hasNonStdlib {
+			break
+		}
+	}
+
 	sourceCache := make(map[string][]byte)
+	var cacheMu sync.Mutex
 
 	type astEntry struct {
 		astFile *ast.File
@@ -117,37 +159,51 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	})
 
 	for _, entry := range sortedASTs {
-		astFile := entry.astFile
-		fileMutants := entry.mutants
+		entryAST := entry.astFile
+		entryMutants := entry.mutants
 
-		origPath := fileMutants[0].Site.File.Name()
+		origPath := entryMutants[0].Site.File.Name()
 		if origPath == "" {
 			continue
 		}
 
+		g.Go(func() error {
+			
+			cacheMu.Lock()
+			src, cached := sourceCache[origPath]
+			cacheMu.Unlock()
 
-		if _, ok := sourceCache[origPath]; !ok {
-			if src, err := os.ReadFile(origPath); err == nil {
+			if !cached {
+				var err error
+				src, err = os.ReadFile(origPath)
+				if err != nil {
+					return fmt.Errorf("failed to read %s: %w", origPath, err)
+				}
+				cacheMu.Lock()
 				sourceCache[origPath] = src
+				cacheMu.Unlock()
 			}
-		}
 
-		rel, err := w.relPath(origPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute rel path: %w", err)
-		}
-		tempFile := filepath.Join(w.TempDir, rel)
+			rel, err := w.relPath(origPath)
+			if err != nil {
+				return fmt.Errorf("failed to compute rel path: %w", err)
+			}
+			tempFile := filepath.Join(w.TempDir, rel)
 
+			if err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants); err != nil {
+				return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+			}
+			return nil
+		})
+	}
 
-		src := sourceCache[origPath]
-		if err := ApplySchemataToAST(astFile, fileMutants[0].Site.Fset, tempFile, src, fileMutants); err != nil {
-			return nil, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-		}
+	if err := g.Wait(); err != nil {
+		return nil, false, err
 	}
 
 	
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
-	
+
 	sortedMutants := make([]*Mutant, len(mutants))
 	for i := range mutants {
 		sortedMutants[i] = &mutants[i]
@@ -159,17 +215,17 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	for _, m := range sortedMutants {
 		rel, err := w.relPath(m.Site.File.Name())
 		if err != nil {
-			return nil, fmt.Errorf("failed to compute rel path: %w", err)
+			return nil, false, fmt.Errorf("failed to compute rel path: %w", err)
 		}
 		tempFile := filepath.Join(w.TempDir, rel)
 		fileToMutants[tempFile] = append(fileToMutants[tempFile], m)
 	}
 
-	if err := InjectSchemataHelpers(w.TempDir, fileToMutants); err != nil {
-		return nil, err
+	if err := InjectSchemataHelpers(fileToMutants); err != nil {
+		return nil, false, err
 	}
 
-	return fileToMutants, nil
+	return fileToMutants, hasNonStdlib, nil
 }
 
 
@@ -192,50 +248,27 @@ func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[i
 }
 
 
-func (w *ModuleWorkspace) simplifyGoMod(fileToMutants map[string][]*Mutant) {
-	
-	files := make([]string, 0, len(fileToMutants))
-	for tempFile := range fileToMutants {
-		files = append(files, tempFile)
+func (w *ModuleWorkspace) simplifyGoMod(hasNonStdlib bool) {
+	if hasNonStdlib {
+		return
 	}
-	sort.Strings(files)
 
-	hasNonStdlib := false
-	for _, tempFile := range files {
-		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, tempFile, nil, parser.ImportsOnly)
-		if err != nil {
-			continue
-		}
-		for _, imp := range f.Imports {
-			if !isStdlib(strings.Trim(imp.Path.Value, `"`)) {
-				hasNonStdlib = true
+	goModPath := filepath.Join(w.TempDir, "go.mod")
+	modName := defaultModuleName
+	if data, err := os.ReadFile(goModPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "module ") {
+				modName = strings.TrimPrefix(line, "module ")
 				break
 			}
 		}
-		if hasNonStdlib {
-			break
-		}
 	}
-
-	if !hasNonStdlib {
-		goModPath := filepath.Join(w.TempDir, "go.mod")
-		modName := defaultModuleName
-		if data, err := os.ReadFile(goModPath); err == nil {
-			for _, line := range strings.Split(string(data), "\n") {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "module ") {
-					modName = strings.TrimPrefix(line, "module ")
-					break
-				}
-			}
-		}
-		_ = os.WriteFile(goModPath, []byte(fmt.Sprintf("module %s\n\ngo %s\n", modName, goVersion)), filePermissions)
-		_ = os.Remove(filepath.Join(w.TempDir, "go.sum"))
-	}
+	_ = os.WriteFile(goModPath, []byte(fmt.Sprintf("module %s\n\ngo %s\n", modName, goVersion)), filePermissions)
+	_ = os.Remove(filepath.Join(w.TempDir, "go.sum"))
 }
 
-func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string) error {
+func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths map[string]bool) error {
 	srcDir := filepath.Join(absModule, pkgRelDir)
 	dstDir := filepath.Join(w.TempDir, pkgRelDir)
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
@@ -248,11 +281,30 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string) error {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
-			continue
-		}
 		src := filepath.Join(srcDir, entry.Name())
 		dst := filepath.Join(dstDir, entry.Name())
+
+		if entry.IsDir() {
+			// CRITICAL: Never symlink directories - always copy to avoid mutations
+			// being written back to the original source files
+			if hasGoFiles(src) {
+				if err := copyDirContents(src, dst, mutatedPaths); err != nil {
+					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
+				}
+			}
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+
+		// Skip mutated files — they'll be written by schemata application
+		if mutatedPaths[src] {
+			continue
+		}
+
+		// CRITICAL: Never symlink or hardlink files - always copy to ensure
+		// mutations are isolated to the temp workspace
 		if err := copyFileWithBuffer(src, dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", src, err)
 		}

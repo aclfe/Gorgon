@@ -431,7 +431,7 @@ func BenchmarkPipeline_BuildTime(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		if err := gtest.InjectSchemataHelpers(tempDir, fileToMutants); err != nil {
+		if err := gtest.InjectSchemataHelpers(fileToMutants); err != nil {
 			b.Fatal(err)
 		}
 		b.StartTimer()
@@ -479,7 +479,7 @@ func BenchmarkPipeline_TestCompilation(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		if err := gtest.InjectSchemataHelpers(tempDir, fileToMutants); err != nil {
+		if err := gtest.InjectSchemataHelpers(fileToMutants); err != nil {
 			b.Fatal(err)
 		}
 		b.StartTimer()

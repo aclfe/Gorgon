@@ -50,17 +50,16 @@ func IsInsideCaseClause(ret *ast.ReturnStmt, file *ast.File) bool {
 }
 
 func isInsideCaseClauseSlow(ret *ast.ReturnStmt, file *ast.File) bool {
+	retPos := ret.Pos()
 	var result bool
 	ast.Inspect(file, func(n ast.Node) bool {
 		if n == ret {
 			return true
 		}
 		if cc, ok := n.(*ast.CaseClause); ok {
-			for _, stmt := range cc.Body {
-				if findNode(stmt, ret) {
-					result = true
-					return false
-				}
+			if retPos >= cc.Pos() && retPos < cc.End() {
+				result = true
+				return false
 			}
 		}
 		return true
@@ -89,27 +88,24 @@ func FindParentNode(target ast.Node, file *ast.File, predicates ...func(ast.Node
 		return nil
 	}
 
-	var targetPos token.Pos
-	ast.Inspect(file, func(n ast.Node) bool {
-		if n == target {
-			targetPos = n.Pos()
-			return false
-		}
-		return true
-	})
-	if targetPos == 0 {
-		return nil
+	targetPos := target.Pos()
+	targetEnd := target.End()
+	if targetPos == token.NoPos {
+		return findParentByTraversal(target, file, predicates...)
 	}
 
 	var closest ast.Node
 	var closestPos token.Pos
 
 	ast.Inspect(file, func(n ast.Node) bool {
-		if n == nil || n.Pos() > targetPos || n.End() < targetPos {
+		if n == nil || n == target {
+			return true
+		}
+		if n.Pos() > targetPos || n.End() < targetEnd {
 			return true
 		}
 		for _, pred := range predicates {
-			if pred(n) && containsNode(n, target) {
+			if pred(n) {
 				if closest == nil || n.Pos() > closestPos {
 					closest = n
 					closestPos = n.Pos()
@@ -121,6 +117,29 @@ func FindParentNode(target ast.Node, file *ast.File, predicates ...func(ast.Node
 	})
 
 	return closest
+}
+
+func findParentByTraversal(target ast.Node, file *ast.File, predicates ...func(ast.Node) bool) ast.Node {
+	var result ast.Node
+	var resultPos token.Pos
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if n == nil || n == target {
+			return true
+		}
+		for _, pred := range predicates {
+			if pred(n) && containsNode(n, target) {
+				if result == nil || n.Pos() > resultPos {
+					result = n
+					resultPos = n.Pos()
+				}
+				break
+			}
+		}
+		return true
+	})
+
+	return result
 }
 
 func containsNode(container, target ast.Node) bool {

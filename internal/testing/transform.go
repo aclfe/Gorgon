@@ -7,15 +7,21 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 )
+
+var formatBufPool = sync.Pool{
+	New: func() any { return new(bytes.Buffer) },
+}
 
 
 
@@ -91,57 +97,89 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	})
 
 
-	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, file); err != nil {
-		_ = os.WriteFile(filePath, src, filePermissions)
+	fixUnusedImports(file)
+	fixUnusedLoopVarsAfterMutationFast(file)
+
+
+	buf := formatBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	if err := format.Node(buf, fset, file); err != nil {
+		formatBufPool.Put(buf)
+		// Safeguard: only restore original source if it's non-empty
+		if len(src) > 0 {
+			_ = os.WriteFile(filePath, src, filePermissions)
+		} else {
+			log.Printf("[WARN] format.Node failed for %s and original source is empty, skipping restore", filePath)
+		}
+		return nil
+	}
+
+	// Safeguard: don't write empty files
+	if buf.Len() == 0 {
+		formatBufPool.Put(buf)
+		if len(src) > 0 {
+			_ = os.WriteFile(filePath, src, filePermissions)
+			log.Printf("[WARN] formatted output for %s is empty, restoring original source", filePath)
+		} else {
+			log.Printf("[WARN] formatted output for %s is empty and no original source available", filePath)
+		}
 		return nil
 	}
 
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
+		formatBufPool.Put(buf)
 		return fmt.Errorf("write failed: %w", err)
 	}
-
-
-	if err := CleanupUnusedImportsAndLoopVars(filePath); err != nil {
-		return fmt.Errorf("cleanup failed for %s: %w", filePath, err)
-	}
+	formatBufPool.Put(buf)
 
 	return nil
 }
 
 
 
-func InjectSchemataHelpers(pkgDir string, fileToMutants map[string][]*Mutant) error {
-	
-	pkgToFiles := make(map[string][]string, len(fileToMutants))
-	for tempFile := range fileToMutants {
-		pkgDir := filepath.Dir(tempFile)
-		pkgToFiles[pkgDir] = append(pkgToFiles[pkgDir], tempFile)
+func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
+
+	type pkgInfo struct {
+		files     []string
+		pkgName   string
+	}
+	pkgToInfo := make(map[string]*pkgInfo, len(fileToMutants))
+	for tempFile, mutants := range fileToMutants {
+		dir := filepath.Dir(tempFile)
+		info, ok := pkgToInfo[dir]
+		if !ok {
+			info = &pkgInfo{}
+			pkgToInfo[dir] = info
+		}
+		info.files = append(info.files, tempFile)
+
+		// Extract package name from AST instead of re-parsing
+		if info.pkgName == "" {
+			for _, m := range mutants {
+				if m.Site.FileAST != nil && m.Site.FileAST.Name != nil {
+					info.pkgName = m.Site.FileAST.Name.Name
+					break
+				}
+			}
+		}
 	}
 
-	
-	pkgDirs := make([]string, 0, len(pkgToFiles))
-	for pkgDir := range pkgToFiles {
-		pkgDirs = append(pkgDirs, pkgDir)
-	}
-	sort.Strings(pkgDirs)
 
-	for _, pkgDir := range pkgDirs {
-		files := pkgToFiles[pkgDir]
-		if len(files) == 0 {
+	dirs := make([]string, 0, len(pkgToInfo))
+	for dir := range pkgToInfo {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+
+	for _, dir := range dirs {
+		info := pkgToInfo[dir]
+		if len(info.files) == 0 {
 			continue
 		}
 
-		
-		sort.Strings(files)
-
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, files[0], nil, parser.PackageClauseOnly)
-		var pkgName string
-		if err == nil && file.Name != nil {
-			pkgName = file.Name.Name
-		} else {
-			pkgName = filepath.Base(pkgDir)
+		pkgName := info.pkgName
+		if pkgName == "" {
+			pkgName = filepath.Base(dir)
 		}
 
 		helper := fmt.Sprintf(`package %s
@@ -160,7 +198,7 @@ func init() {
 }
 `, pkgName)
 
-		if err := os.WriteFile(filepath.Join(pkgDir, "gorgon_schemata.go"), []byte(helper), filePermissions); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "gorgon_schemata.go"), []byte(helper), filePermissions); err != nil {
 			return fmt.Errorf("failed to write helper: %w", err)
 		}
 	}
@@ -308,168 +346,150 @@ func isValidReplacement(original, replacement ast.Node) bool {
 
 
 
-func CleanupUnusedImportsAndLoopVars(filePath string) error {
-	fset := token.NewFileSet()
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", filePath, err)
-	}
-	
-	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("parse %s: %w", filePath, err)
-	}
+// fixUnusedImports converts unused imports to blank imports (_ "pkg") to avoid
+// "imported and not used" compilation errors after mutation.
+func fixUnusedImports(file *ast.File) {
+	used := make(map[string]bool)
 
-	removeUnusedImports(file)
-	fixUnusedLoopVarsAfterMutation(file)
-
-	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, file); err != nil {
-		return fmt.Errorf("format %s: %w", filePath, err)
-	}
-
-	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
-		return fmt.Errorf("write %s: %w", filePath, err)
-	}
-	return nil
-}
-
-
-func removeUnusedImports(file *ast.File) {
-	
-	usedIdent := make(map[string]bool)
-	
 	ast.Inspect(file, func(n ast.Node) bool {
 		if _, ok := n.(*ast.ImportSpec); ok {
 			return false
 		}
 		if ident, ok := n.(*ast.Ident); ok {
-			usedIdent[ident.Name] = true
+			used[ident.Name] = true
 		}
 		return true
 	})
 
-	
 	for _, imp := range file.Imports {
-		pkgName := getPackageNameFromImport(imp)
-		
-		
 		if imp.Name != nil && imp.Name.Name == "_" {
 			continue
 		}
-		
-		
-		if !usedIdent[pkgName] {
-			
-			imp.Path.Value = ""
+		pkgName := getPackageNameFromImport(imp)
+		if !used[pkgName] {
+			// Convert to blank import instead of removing
+			if imp.Name == nil {
+				imp.Name = &ast.Ident{Name: "_", NamePos: imp.Path.Pos()}
+			}
+		}
+	}
+}
+
+// fixUnusedLoopVarsAfterMutationFast fixes unused loop variables in a single pass.
+func fixUnusedLoopVarsAfterMutationFast(file *ast.File) {
+	// Handle range statements
+	for _, decl := range file.Decls {
+		processDeclForLoopVars(decl)
+	}
+}
+
+func processDeclForLoopVars(decl ast.Decl) {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		if d.Body == nil {
+			return
+		}
+		processStmtsForLoopVars(d.Body.List)
+	case *ast.GenDecl:
+		// No loops in gen decls
+	}
+}
+
+func processStmtsForLoopVars(stmts []ast.Stmt) {
+	for i, stmt := range stmts {
+		switch s := stmt.(type) {
+		case *ast.RangeStmt:
+			fixRangeStmt(s)
+		case *ast.ForStmt:
+			fixForStmt(s)
+		case *ast.IfStmt:
+			if s.Body != nil {
+				processStmtsForLoopVars(s.Body.List)
+			}
+			if s.Else != nil {
+				if block, ok := s.Else.(*ast.BlockStmt); ok {
+					processStmtsForLoopVars(block.List)
+				}
+			}
+		case *ast.BlockStmt:
+			processStmtsForLoopVars(s.List)
+		case *ast.CaseClause:
+			processStmtsForLoopVars(s.Body)
+		case *ast.CommClause:
+			processStmtsForLoopVars(s.Body)
+		}
+		_ = i
+	}
+}
+
+func fixRangeStmt(rangeStmt *ast.RangeStmt) {
+	if rangeStmt.Body == nil {
+		return
+	}
+	// Process nested statements first
+	processStmtsForLoopVars(rangeStmt.Body.List)
+
+	var loopVars []*ast.Ident
+	if key, ok := rangeStmt.Key.(*ast.Ident); ok && key.Name != "_" {
+		loopVars = append(loopVars, key)
+	}
+	if value, ok := rangeStmt.Value.(*ast.Ident); ok && value.Name != "_" {
+		loopVars = append(loopVars, value)
+	}
+
+	for _, loopVar := range loopVars {
+		if !isVariableUsedInBlockFast(loopVar.Name, rangeStmt.Body, loopVar) {
+			blankAssign := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
+			}
+			rangeStmt.Body.List = append([]ast.Stmt{blankAssign}, rangeStmt.Body.List...)
+		}
+	}
+}
+
+func fixForStmt(forStmt *ast.ForStmt) {
+	if forStmt.Body == nil {
+		return
+	}
+	// Process nested statements first
+	processStmtsForLoopVars(forStmt.Body.List)
+
+	var loopVars []*ast.Ident
+	if init, ok := forStmt.Init.(*ast.AssignStmt); ok {
+		for _, lhs := range init.Lhs {
+			if ident, ok := lhs.(*ast.Ident); ok && ident.Name != "_" {
+				loopVars = append(loopVars, ident)
+			}
 		}
 	}
 
-	
-	file.Imports = removeEmptyImportSpecs(file.Imports)
-}
-
-
-func getPackageNameFromImport(imp *ast.ImportSpec) string {
-	
-	if imp.Name != nil {
-		return imp.Name.Name
-	}
-	
-	
-	path := strings.Trim(imp.Path.Value, `"`)
-	parts := strings.Split(path, "/")
-	return parts[len(parts)-1]
-}
-
-
-func removeEmptyImportSpecs(imports []*ast.ImportSpec) []*ast.ImportSpec {
-	result := make([]*ast.ImportSpec, 0, len(imports))
-	for _, imp := range imports {
-		if imp.Path.Value != "" {
-			result = append(result, imp)
+	for _, loopVar := range loopVars {
+		if !isVariableUsedInBlockFast(loopVar.Name, forStmt.Body, loopVar) {
+			blankAssign := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
+			}
+			forStmt.Body.List = append([]ast.Stmt{blankAssign}, forStmt.Body.List...)
 		}
 	}
-	return result
 }
 
-
-
-func fixUnusedLoopVarsAfterMutation(file *ast.File) {
-	
-	ast.Inspect(file, func(n ast.Node) bool {
-		rangeStmt, ok := n.(*ast.RangeStmt)
-		if !ok || rangeStmt.Body == nil {
-			return true
-		}
-		
-		
-		var loopVars []*ast.Ident
-		if key, ok := rangeStmt.Key.(*ast.Ident); ok && key.Name != "_" {
-			loopVars = append(loopVars, key)
-		}
-		if value, ok := rangeStmt.Value.(*ast.Ident); ok && value.Name != "_" {
-			loopVars = append(loopVars, value)
-		}
-		
-		
-		for _, loopVar := range loopVars {
-			if !isVariableUsedInBlock(loopVar.Name, rangeStmt.Body) {
-				
-				blankAssign := &ast.AssignStmt{
-					Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
-					Tok: token.ASSIGN,
-					Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
-				}
-				rangeStmt.Body.List = append([]ast.Stmt{blankAssign}, rangeStmt.Body.List...)
-			}
-		}
-		
-		return true
-	})
-	
-	
-	ast.Inspect(file, func(n ast.Node) bool {
-		forStmt, ok := n.(*ast.ForStmt)
-		if !ok || forStmt.Body == nil {
-			return true
-		}
-		
-		
-		var loopVars []*ast.Ident
-		if init, ok := forStmt.Init.(*ast.AssignStmt); ok {
-			for _, lhs := range init.Lhs {
-				if ident, ok := lhs.(*ast.Ident); ok && ident.Name != "_" {
-					loopVars = append(loopVars, ident)
-				}
-			}
-		}
-		
-		
-		for _, loopVar := range loopVars {
-			if !isVariableUsedInBlock(loopVar.Name, forStmt.Body) {
-				blankAssign := &ast.AssignStmt{
-					Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
-					Tok: token.ASSIGN,
-					Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
-				}
-				forStmt.Body.List = append([]ast.Stmt{blankAssign}, forStmt.Body.List...)
-			}
-		}
-		
-		return true
-	})
-}
-
-
-func isVariableUsedInBlock(name string, block *ast.BlockStmt) bool {
+// isVariableUsedInBlockFast checks if a variable is used in the block, excluding the declaration itself.
+func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast.Ident) bool {
 	if block == nil {
 		return false
 	}
-	
+
 	used := false
 	ast.Inspect(block, func(n ast.Node) bool {
 		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
+			// Skip the declaration itself
+			if declIdent != nil && ident.Pos() == declIdent.Pos() {
+				return true
+			}
 			used = true
 			return false
 		}
@@ -478,18 +498,11 @@ func isVariableUsedInBlock(name string, block *ast.BlockStmt) bool {
 	return used
 }
 
-
-func countIdentUsesInNode(name string, node ast.Node) int {
-	if node == nil {
-		return 0
+func getPackageNameFromImport(imp *ast.ImportSpec) string {
+	if imp.Name != nil {
+		return imp.Name.Name
 	}
-	
-	count := 0
-	ast.Inspect(node, func(n ast.Node) bool {
-		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
-			count++
-		}
-		return true
-	})
-	return count
+	path := strings.Trim(imp.Path.Value, `"`)
+	parts := strings.Split(path, "/")
+	return parts[len(parts)-1]
 }

@@ -8,25 +8,27 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
-	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
-	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
-	_ "github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
-	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
-	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
-	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
-	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
-	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/conditional_expression"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/inc_dec_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_body_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/negate_condition"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/sign_toggle"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
 // These are slow integration tests - skip during benchmark runs
@@ -93,7 +95,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false, false)
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}
@@ -141,7 +143,7 @@ func TestAllOperatorsCombined(tst *stdtesting.T) {
 
 	sites := eng.Sites()
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false, false)
 	if err != nil {
 		tst.Fatalf("GenerateAndRunSchemata failed: %v", err)
 	}

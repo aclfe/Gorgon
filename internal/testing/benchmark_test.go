@@ -15,6 +15,8 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
 )
 
 const (
@@ -45,7 +47,7 @@ func BenchmarkFullMutationPipeline(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, false)
+				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, false, false)
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -111,7 +113,7 @@ func BenchmarkSchemataGeneration(bnch *stdtesting.B) {
 			}
 		}
 
-		if err := testing.InjectSchemataHelpers(tempDir, fileToMutants); err != nil {
+		if err := testing.InjectSchemataHelpers(fileToMutants); err != nil {
 			bnch.Fatal(err)
 		}
 	}
@@ -160,7 +162,7 @@ func BenchmarkParallelTestExecution(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, conc, nil, nil, false)
+				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, conc, nil, nil, false, false)
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -259,7 +261,7 @@ func BenchmarkPhaseBreakdown(bnch *stdtesting.B) {
 				bnch.Fatal(err)
 			}
 		}
-		if err := testing.InjectSchemataHelpers(tempDir, fileToMutants); err != nil {
+		if err := testing.InjectSchemataHelpers(fileToMutants); err != nil {
 			bnch.Fatal(err)
 		}
 		schemataTime += time.Since(start)
@@ -299,7 +301,7 @@ func BenchmarkMutationDetectionRate(bnch *stdtesting.B) {
 
 	bnch.ResetTimer()
 	for i := 0; i < bnch.N; i++ {
-		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, false)
+		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, false, false)
 		if err != nil {
 			bnch.Fatal(err)
 		}
@@ -353,8 +355,8 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 	}
 
 	operators := []mutator.Operator{
-		mutator.ArithmeticFlip{},
-		mutator.ConditionNegation{},
+		arithmetic_flip.ArithmeticFlip{},
+		condition_negation.ConditionNegation{},
 	}
 
 	return sites, operators
@@ -363,7 +365,7 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 //nolint:thelper
 func prepareOnce(bnch *stdtesting.B, basePath string, sites []engine.Site, operators []mutator.Operator) (string, []testing.Mutant) {
 	bnch.Helper()
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, basePath, 1, nil, nil, false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, basePath, 1, nil, nil, false, false)
 	if err != nil {
 		bnch.Fatal(err)
 	}

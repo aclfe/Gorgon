@@ -200,7 +200,22 @@ func buildTypeExpr(resultType string) ast.Expr {
 	return &ast.Ident{Name: resultType}
 }
 
+var mutantIDCondCache [256]*ast.BinaryExpr
+
 func createMutantIDCondition(mutantID int) *ast.BinaryExpr {
+	if mutantID >= 0 && mutantID < len(mutantIDCondCache) {
+		cond := mutantIDCondCache[mutantID]
+		if cond != nil {
+			return cond
+		}
+		cond = &ast.BinaryExpr{
+			X:  &ast.Ident{Name: "activeMutantID"},
+			Op: token.EQL,
+			Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mutantID)},
+		}
+		mutantIDCondCache[mutantID] = cond
+		return cond
+	}
 	return &ast.BinaryExpr{
 		X:  &ast.Ident{Name: "activeMutantID"},
 		Op: token.EQL,

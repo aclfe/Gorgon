@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 type Entry struct {
@@ -16,6 +17,7 @@ type Entry struct {
 
 type Cache struct {
 	Entries map[string]Entry `json:"entries"`
+	mu      sync.RWMutex
 }
 
 func New() *Cache {
@@ -115,10 +117,14 @@ func (c *Cache) Key(filePath string, line, col int, nodeType uint8, operator str
 }
 
 func (c *Cache) Get(key string) (Entry, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	e, ok := c.Entries[key]
 	return e, ok
 }
 
 func (c *Cache) Set(key string, status string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.Entries[key] = Entry{Status: status}
 }

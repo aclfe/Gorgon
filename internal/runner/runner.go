@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/cli"
@@ -40,10 +41,38 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
 
+	if cfg.ProgBar {
+		var mu sync.Mutex
+		var lastPct int
+		var lastFile string
+		eng.FileProgressFunc = func(filename string) {
+			mu.Lock()
+			lastFile = filepath.Base(filename)
+			mu.Unlock()
+		}
+		eng.ProgressFunc = func(current, total int) {
+			pct := (current * 100) / total
+			mu.Lock()
+			lp := lastPct
+			f := lastFile
+			mu.Unlock()
+			if pct != lp {
+				mu.Lock()
+				lastPct = pct
+				mu.Unlock()
+				fmt.Fprintf(os.Stderr, "Scanning [%d/%d %d%%] %s\n", current, total, pct, f)
+			}
+		}
+	}
+
 	for _, target := range targets {
 		if err := eng.Traverse(target, nil); err != nil {
 			return err
 		}
+	}
+
+	if cfg.ProgBar {
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 
 	if flags.PrintAST {
@@ -52,6 +81,10 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 	sites := eng.Sites()
 	sites = FilterSites(sites, targets, cfg.Exclude, cfg.Include, cfg.Skip, cfg.SkipFunc)
+
+	if cfg.ProgBar {
+		fmt.Fprintf(os.Stderr, "Found %d mutation sites\n", len(sites))
+	}
 
 	baseDir := targets[0]
 	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
@@ -82,18 +115,22 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		return err
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, cfg.Debug)
-	if err != nil {
-		return err
-	}
-
-	if err := reporter.Report(mutants, cfg.Threshold, cfg.Debug); err != nil {
-		if cfg.Cache {
-			path, pathErr := cache.Path(baseDir)
-			if pathErr == nil {
-				fmt.Printf("\nCache stored at: %s\n", path)
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, cfg.Debug, cfg.ProgBar)
+	
+	// Report statistics even if there are errors, as long as we have some mutants
+	if len(mutants) > 0 {
+		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug); reportErr != nil {
+			if cfg.Cache {
+				path, pathErr := cache.Path(baseDir)
+				if pathErr == nil {
+					fmt.Printf("\nCache stored at: %s\n", path)
+				}
 			}
+			return reportErr
 		}
+	}
+	
+	if err != nil {
 		return err
 	}
 

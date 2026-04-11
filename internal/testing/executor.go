@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,21 +20,64 @@ import (
 )
 
 
+type ProgressTracker struct {
+	total      int
+	lastPrinted int
+	mu         sync.Mutex
+	done       int
+}
+
+func NewProgressTracker(total int) *ProgressTracker {
+	return &ProgressTracker{total: total}
+}
+
+
+func (p *ProgressTracker) Record() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.done++
+	pct := (p.done * 100) / p.total
+	for p.lastPrinted < pct && pct > 0 {
+		p.lastPrinted += 2
+		fmt.Fprintf(os.Stderr, "Mutating [%d/%d %d%%]\n", p.done, p.total, p.lastPrinted)
+	}
+}
+
+func (p *ProgressTracker) Finish() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.done < p.total {
+		pct := (p.done * 100) / p.total
+		if pct > p.lastPrinted {
+			p.lastPrinted = pct
+		}
+		fmt.Fprintf(os.Stderr, "Mutating [%d/%d %d%%]\n", p.done, p.total, pct)
+	}
+	fmt.Fprintln(os.Stderr)
+}
+
+
 type testExecutor struct {
 	tempDir    string
 	testBinary string
 	pkgDir     string
 	tests      []string
 	timeout    time.Duration
-	baseEnv    []string 
+	baseEnv    []string
+	mutantEnv  []string 
 }
 
 func newTestExecutor(tempDir, pkgDir string, tests []string) *testExecutor {
+	baseEnv := os.Environ()
+	
+	mutantEnv := make([]string, len(baseEnv)+1)
+	copy(mutantEnv, baseEnv)
 	return &testExecutor{
-		tempDir: tempDir,
-		pkgDir:  pkgDir,
-		tests:   tests,
-		baseEnv: os.Environ(),
+		tempDir:    tempDir,
+		pkgDir:     pkgDir,
+		tests:      tests,
+		baseEnv:    baseEnv,
+		mutantEnv:  mutantEnv,
 	}
 }
 
@@ -55,13 +101,13 @@ func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 
 
 func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
-	
-	
+
+
 	var durations []time.Duration
-	maxAttempts := 3
+	maxAttempts := 2
 	failureCount := 0
 
-	for i := 0; i < maxAttempts && len(durations) < 3; i++ {
+	for i := 0; i < maxAttempts && len(durations) < 2; i++ {
 		start := time.Now()
 		cmd := exec.CommandContext(ctx, e.testBinary, testArgs("5s", e.tests)...)
 		cmd.Dir = e.tempDir
@@ -79,7 +125,7 @@ func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
 		return minBaselineDuration * time.Millisecond
 	}
 
-	sortDurations(durations)
+	slices.Sort(durations)
 	median := durations[len(durations)/2]
 
 	if median < minBaselineDuration*time.Millisecond {
@@ -88,41 +134,50 @@ func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
 	return median
 }
 
-func sortDurations(d []time.Duration) {
-	for i := range d {
-		for j := i + 1; j < len(d); j++ {
-			if d[i] > d[j] {
-				d[i], d[j] = d[j], d[i]
-			}
-		}
-	}
-}
-
 func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration) {
+	
+	
+	
+	if baseline > maxBaselineCap {
+		baseline = maxBaselineCap
+	}
 	timeout := time.Duration(float64(baseline) * timeoutMultiplier)
 	if timeout > maxTimeout*time.Second {
 		timeout = maxTimeout * time.Second
+	}
+	
+	if timeout < minMutantTimeout {
+		timeout = minMutantTimeout
 	}
 	e.timeout = timeout
 	return fmt.Sprintf("%.0fs", timeout.Seconds()), timeout
 }
 
+
+
+func (e *testExecutor) hardTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, e.timeout+hardTimeoutMargin)
+}
+
 func (e *testExecutor) runMutant(ctx context.Context, mutantID int) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, e.timeout+2*time.Second)
+	hardCtx, cancel := e.hardTimeout(ctx)
 	defer cancel()
 
 	args := testArgs(fmt.Sprintf("%.0fs", e.timeout.Seconds()), e.tests)
-	cmd := exec.CommandContext(ctx, e.testBinary, args...)
+	cmd := exec.CommandContext(hardCtx, e.testBinary, args...)
 	cmd.Dir = e.pkgDir
 
+	
+	e.mutantEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
+	cmd.Env = e.mutantEnv
 
-	mutantEnv := make([]string, len(e.baseEnv)+1)
-	copy(mutantEnv, e.baseEnv)
-	mutantEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
-	cmd.Env = mutantEnv
+	
+	
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "killed", fmt.Errorf("%s", out)
+	if err := cmd.Run(); err != nil {
+		return "killed", err
 	}
 	return "survived", nil
 }
@@ -135,7 +190,7 @@ func (e *testExecutor) relPath() string {
 	return "./" + filepath.ToSlash(rel)
 }
 
-func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, concurrent int, tests []string) ([]mutantResult, error) {
+func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, concurrent int, tests []string, prog *ProgressTracker) ([]mutantResult, error) {
 
 	type compileResult struct {
 		pkgDir string
@@ -174,9 +229,12 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				compErrsMu.Lock()
 				compErrors[pkgDir] = err
 				compErrsMu.Unlock()
-				
+
 				for _, mutantID := range mutantIDsForPkg {
 					resultsChan <- mutantResult{id: mutantID, status: "error", err: err}
+					if prog != nil {
+						prog.Record()
+					}
 				}
 				return nil
 			}
@@ -189,6 +247,9 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				testGroup.Go(func() error {
 					status, err := executor.runMutant(testCtx, mutantID)
 					resultsChan <- mutantResult{id: mutantID, status: status, err: err}
+					if prog != nil {
+						prog.Record()
+					}
 					return nil
 				})
 			}
@@ -201,7 +262,19 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 
 	if err := testGroup.Wait(); err != nil {
-		return nil, fmt.Errorf("test execution failed: %w", err)
+		// Collect any partial results before returning error
+		close(resultsChan)
+		var allResults []mutantResult
+		for result := range resultsChan {
+			allResults = append(allResults, result)
+		}
+		
+		if prog != nil {
+			prog.Finish()
+		}
+		
+		// Return partial results with the error
+		return allResults, fmt.Errorf("test execution failed: %w", err)
 	}
 	close(resultsChan)
 
@@ -215,12 +288,16 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		return allResults[i].id < allResults[j].id
 	})
 
+	if prog != nil {
+		prog.Finish()
+	}
+
 	if len(compErrors) > 0 {
 		var errs []string
 		for pkgDir, err := range compErrors {
 			errs = append(errs, fmt.Sprintf("%s: %v", pkgDir, err))
 		}
-		return nil, fmt.Errorf("compilation failures: %s", strings.Join(errs, "; "))
+		return allResults, fmt.Errorf("compilation failures: %s", strings.Join(errs, "; "))
 	}
 
 	return allResults, nil
@@ -228,25 +305,68 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 
 
-func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, debug bool) error {
+func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker) error {
 
-	tempDir, err := os.MkdirTemp("", "gorgon-standalone-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
+	
+	entries, _ := os.ReadDir(workerTempDir)
+	for _, e := range entries {
+		os.RemoveAll(filepath.Join(workerTempDir, e.Name()))
 	}
-	defer os.RemoveAll(tempDir)
+
+	tempDir := workerTempDir
 
 
 	pkgName := detectPackageName(pkgDir)
 
 
-	goMod := fmt.Sprintf("module %s\n\ngo %s\n", pkgName, goVersion)
+	// When no go.mod exists, infer the module path from imports.
+	// Walk up from pkgDir to find the project root, then scan for imports.
+	projectRoot := pkgDir
+	for {
+		parent := filepath.Dir(projectRoot)
+		if parent == projectRoot {
+			break
+		}
+		// If parent has a go.mod, use it as root
+		if _, err := os.Stat(filepath.Join(parent, "go.mod")); err == nil {
+			projectRoot = parent
+			break
+		}
+		// If parent has no Go files in non-subdir .go files, stop
+		hasGo := false
+		entries, _ := os.ReadDir(parent)
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
+				hasGo = true
+				break
+			}
+		}
+		if !hasGo {
+			break
+		}
+		projectRoot = parent
+	}
+
+	modulePath := detectModulePath(projectRoot, pkgDir)
+	if modulePath == "" {
+		modulePath = pkgName
+	}
+	goMod := fmt.Sprintf("module %s\n\ngo %s\n", modulePath, goVersion)
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), filePermissions); err != nil {
 		return fmt.Errorf("failed to write go.mod: %w", err)
 	}
 
 
-	if err := copyDir(pkgDir, tempDir); err != nil {
+	
+	mutatedOrigPaths := make(map[string]bool, len(pkgMutants))
+	for _, m := range pkgMutants {
+		if m.Site.File != nil {
+			mutatedOrigPaths[m.Site.File.Name()] = true
+		}
+	}
+
+
+	if err := linkOrCopyDir(pkgDir, tempDir, mutatedOrigPaths); err != nil {
 		return err
 	}
 
@@ -323,13 +443,21 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	if err := InjectSchemataHelpers(tempDir, tempFileToMutants); err != nil {
+	if err := InjectSchemataHelpers(tempFileToMutants); err != nil {
 		return err
 	}
 
+	// Resolve dependencies automatically. This handles external imports
+	// for GOPATH-style projects that have no go.mod/go.sum.
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = tempDir
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	_ = cmd.Run() // Best effort: if tidy fails, compilation will report the real error
+
 
 	executor := newTestExecutor(tempDir, tempDir, tests)
-	if err := executor.compileWithDebug(context.Background(), debug); err != nil {
+	if err := executor.compileWithDebug(context.Background(), false); err != nil {
 		for _, m := range pkgMutants {
 			m.Status = "error"
 			m.Error = err
@@ -351,7 +479,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	sort.Ints(ids)
 
 
-	executor.runMutantsConcurrent(context.Background(), ids, concurrent, resultsChan)
+	executor.runMutantsConcurrent(context.Background(), ids, concurrent, resultsChan, prog)
 
 
 	idToMutant := make(map[int]*Mutant, len(pkgMutants))
@@ -372,7 +500,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 
 
-func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int, concurrent int, results chan mutantResult) {
+func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int, concurrent int, results chan mutantResult, prog *ProgressTracker) {
 	defer close(results)
 
 	var wg sync.WaitGroup
@@ -384,7 +512,12 @@ func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-sem }()
+			defer func() {
+				<-sem
+				if prog != nil {
+					prog.Record()
+				}
+			}()
 
 			select {
 			case <-ctx.Done():
@@ -434,6 +567,54 @@ func detectPackageName(pkgDir string) string {
 		}
 	}
 	return filepath.Base(pkgDir)
+}
+
+// detectModulePath infers the Go module path when no go.mod exists.
+// It scans imports in .go files for paths that match local subdirectories,
+// then extracts the module prefix (e.g. "github.com/hlandau/acmetool" from
+// import "github.com/hlandau/acmetool/cli").
+func detectModulePath(projectRoot string, _ string) string {
+	var imports []string
+
+	filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return nil
+		}
+		for _, imp := range f.Imports {
+			p := strings.Trim(imp.Path.Value, `"`)
+			if !strings.HasPrefix(p, ".") && !isStdlib(p) {
+				imports = append(imports, p)
+			}
+		}
+		return nil
+	})
+
+	for _, imp := range imports {
+		lastSlash := strings.LastIndex(imp, "/")
+		if lastSlash < 0 {
+			continue
+		}
+		modulePrefix := imp[:lastSlash]
+
+		// Check if the import's last component matches a subdirectory of projectRoot
+		subDir := imp[lastSlash+1:]
+		if _, err := os.Stat(filepath.Join(projectRoot, subDir)); err == nil {
+			return modulePrefix
+		}
+	}
+
+	return ""
 }
 
 func mapFilesToMutants(pkgMutants []*Mutant, tempDir string, pkgDir string) map[string][]*Mutant {

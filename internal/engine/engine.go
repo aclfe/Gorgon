@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -16,7 +15,6 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
 
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
@@ -37,6 +35,10 @@ type Engine struct {
 	mu          sync.Mutex
 	projectRoot string
 	ignoreDirectives map[string]map[int]map[string]map[int]bool
+	ProgressFunc func(current, total int)
+	FileProgressFunc func(filename string)
+	totalFiles   int
+	filesProcessed int
 }
 
 func NewEngine(printAST bool) *Engine {
@@ -239,6 +241,9 @@ func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet, typeC
 				continue
 			}
 			resolved = typeToString(ts.Type, file, fset, typeCache)
+			if typeCache != nil {
+				typeCache.resolved[typeName] = resolved
+			}
 			return resolved
 		}
 	}
@@ -349,12 +354,18 @@ func (e *Engine) ProjectRoot() string {
 type contextCache struct {
 	contexts  map[ast.Node]*mutator.Context
 	typeCache typeDeclCache
+	pool      *sync.Pool
 }
 
 func newContextCache() *contextCache {
 	return &contextCache{
 		contexts:  make(map[ast.Node]*mutator.Context),
 		typeCache: typeDeclCache{},
+		pool: &sync.Pool{
+			New: func() any {
+				return &mutator.Context{}
+			},
+		},
 	}
 }
 
@@ -379,18 +390,17 @@ func buildParentMap(file *ast.File) map[ast.Node]ast.Node {
 	return parents
 }
 
-func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache *contextCache, parents map[ast.Node]ast.Node, needReturnType bool) mutator.Context {
+func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache *contextCache, parents map[ast.Node]ast.Node, needReturnType bool) *mutator.Context {
 	if cached, ok := cache.contexts[node]; ok {
-		return *cached
+		return cached
 	}
 
-	ctx := mutator.Context{
-		FileName:    fset.File(file.Pos()).Name(),
-		PackageName: getPackageName(file),
-		File:        file,
-		Position:    schemata_nodes.GetNodePosition(node, fset),
-		Parent:      parents[node],
-	}
+	ctx := cache.pool.Get().(*mutator.Context)
+	ctx.FileName = fset.File(file.Pos()).Name()
+	ctx.PackageName = getPackageName(file)
+	ctx.File = file
+	ctx.Position = schemata_nodes.GetNodePosition(node, fset)
+	ctx.Parent = parents[node]
 
 	if needReturnType {
 		fn := findEnclosingFuncFast(node, parents)
@@ -406,8 +416,7 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 		}
 	}
 
-	cache.contexts[node] = &ctx
-
+	cache.contexts[node] = ctx
 	return ctx
 }
 
@@ -514,9 +523,22 @@ func (e *Engine) mergeIgnoreDirectives(absPath string, ignoreMap map[int]map[str
 
 func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Visitor, printAST bool) error {
 	fileCache := newContextCache()
+	defer func() {
+		// Return all cached contexts to the pool to avoid memory leak
+		for _, ctx := range fileCache.contexts {
+			fileCache.pool.Put(ctx)
+		}
+	}()
 
 	for _, file := range files {
 		tfile := fset.File(file.Pos())
+		e.mu.Lock()
+		fileProgressFunc := e.FileProgressFunc
+		e.mu.Unlock()
+		if fileProgressFunc != nil {
+			fileProgressFunc(tfile.Name())
+		}
+
 		parents := buildParentMap(file)
 		ignoreMap := parseIgnoreComments(file, fset)
 
@@ -541,7 +563,7 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 				return true
 			}
 
-			var mctx mutator.Context
+			var mctx *mutator.Context
 			contextBuilt := false
 			var localSites []Site
 
@@ -552,7 +574,7 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 						mctx = buildContextLazy(node, file, fset, fileCache, parents, true)
 						contextBuilt = true
 					}
-					apply = cop.CanApplyWithContext(node, mctx)
+					apply = cop.CanApplyWithContext(node, *mctx)
 				} else {
 					apply = op.CanApply(node)
 				}
@@ -592,6 +614,17 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 			e.sites = append(e.sites, fileSites...)
 			e.mu.Unlock()
 		}
+
+		e.mu.Lock()
+		e.filesProcessed++
+		current := e.filesProcessed
+		total := e.totalFiles
+		progressFunc := e.ProgressFunc
+		e.mu.Unlock()
+
+		if progressFunc != nil && total > 0 {
+			progressFunc(current, total)
+		}
 	}
 	return nil
 }
@@ -630,6 +663,10 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 		return nil
 	}
 
+	e.mu.Lock()
+	e.totalFiles += len(files)
+	e.mu.Unlock()
+
 	return e.processFiles(files, fset, visitor, false)
 }
 
@@ -659,28 +696,56 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 		return fmt.Errorf("failed to load packages from %q: %w", path, err)
 	}
 
-	grp, ctx := errgroup.WithContext(context.Background())
-	grp.SetLimit(runtime.NumCPU())
-
+	// Count total files upfront for progress reporting
+	totalFiles := 0
 	for _, pkg := range pkgs {
-		grp.Go(func() error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			return e.processFiles(pkg.Syntax, pkg.Fset, visitor, e.PrintAST)
-		})
+		totalFiles += len(pkg.Syntax)
 	}
 
-	if err := grp.Wait(); err != nil {
-		return fmt.Errorf("error during traversal: %w", err)
+	e.mu.Lock()
+	e.totalFiles += totalFiles
+	e.mu.Unlock()
+
+	sem := make(chan struct{}, runtime.NumCPU())
+	defer close(sem)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+
+	for _, pkg := range pkgs {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(pkg *packages.Package) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+
+			if err := e.processFiles(pkg.Syntax, pkg.Fset, visitor, e.PrintAST); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+		}(pkg)
+	}
+
+	wg.Wait()
+
+	if firstErr != nil {
+		return fmt.Errorf("error during traversal: %w", firstErr)
 	}
 	return nil
 }
 
 func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
+	e.mu.Lock()
+	e.totalFiles = 1
+	e.mu.Unlock()
+
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	if err != nil {
@@ -691,8 +756,8 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 }
 
 func (e *Engine) Sites() []Site {
-	// Sort sites deterministically to ensure consistent mutant ID assignment
-	// across runs, regardless of goroutine scheduling during traversal.
+	
+	
 	sort.Slice(e.sites, func(i, j int) bool {
 		si, sj := &e.sites[i], &e.sites[j]
 		if si.File.Name() != sj.File.Name() {

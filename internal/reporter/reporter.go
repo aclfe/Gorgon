@@ -20,6 +20,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 	killed := 0
 	survived := 0
 	errors := 0
+	unknown := 0
 
 	for _, mutant := range mutants {
 		switch mutant.Status {
@@ -30,7 +31,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		case "error":
 			errors++
 		default:
-			
+			unknown++
 		}
 	}
 
@@ -142,13 +143,16 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		fmt.Println("\n=== End Debug Information ===")
 	}
 
-	score := float64(killed) / float64(total) * percentageMultiplier
+	score := 0.0
+	if total > 0 {
+		score = float64(killed) / float64(total) * percentageMultiplier
+	}
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tTotal"); err != nil {
+	if _, err := fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tUnknown\tTotal"); err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
-	if _, err := fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, total); err != nil {
+	if _, err := fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, unknown, total); err != nil {
 		return fmt.Errorf("failed to write stats: %w", err)
 	}
 	if err := writer.Flush(); err != nil {
@@ -156,19 +160,22 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 	}
 
 	
-	if !debug {
-		fmt.Println("\nSurvived Mutants:")
-		for _, mutant := range mutants {
-			if mutant.Status == "survived" {
-				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
-				fmt.Printf("- %s in %s:%d:%d (Operator: %s)\n",
-					mutant.Status,
-					mutant.Site.File.Name(),
-					mutant.Site.Line,
-					col,
-					mutant.Operator.Name())
-			}
+	fmt.Println("\nSurvived Mutants:")
+	hasSurvived := false
+	for _, mutant := range mutants {
+		if mutant.Status == "survived" {
+			hasSurvived = true
+			col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
+			fmt.Printf("- %s in %s:%d:%d (Operator: %s)\n",
+				mutant.Status,
+				mutant.Site.File.Name(),
+				mutant.Site.Line,
+				col,
+				mutant.Operator.Name())
 		}
+	}
+	if !hasSurvived {
+		fmt.Println("  (none)")
 	}
 
 	if threshold > 0 && score < threshold {

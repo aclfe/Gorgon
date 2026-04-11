@@ -14,9 +14,9 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
 // =============================================================================

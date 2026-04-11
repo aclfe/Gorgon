@@ -4,6 +4,7 @@ package testing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,65 +19,99 @@ import (
 
 
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, debug bool) ([]Mutant, error) {
-	
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, debug bool, progbar bool) ([]Mutant, error) {
+
 	mutants := GenerateMutants(sites, operators)
 	if len(mutants) == 0 {
 		return nil, nil
 	}
 
-	
+
 	uncachedIndices, fileHashes, err := ResolveCache(mutants, baseDir, cache)
 	if err != nil {
-		return nil, err
+		// Set error status on all mutants when cache resolution fails
+		for i := range mutants {
+			mutants[i].Status = "error"
+			mutants[i].Error = fmt.Errorf("cache resolution failed: %w", err)
+		}
+		return mutants, err
 	}
 	if uncachedIndices == nil {
-		return mutants, nil 
+		return mutants, nil
 	}
 
-	
+
 	baseDirAbs, _ := filepath.Abs(baseDir)
 	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
-		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, debug, fileHashes)
+		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes)
 	}
 
-	
+
 	ws, err := NewModuleWorkspace()
 	if err != nil {
-		return nil, err
+		// Set error status on all mutants when workspace creation fails
+		for i := range mutants {
+			mutants[i].Status = "error"
+			mutants[i].Error = fmt.Errorf("workspace creation failed: %w", err)
+		}
+		return mutants, err
 	}
 	defer ws.Cleanup()
 
 	if err := ws.setup(baseDir, mutants); err != nil {
-		return nil, err
+		// Set error status on all mutants when workspace setup fails
+		for i := range mutants {
+			mutants[i].Status = "error"
+			mutants[i].Error = fmt.Errorf("workspace setup failed: %w", err)
+		}
+		return mutants, err
 	}
 
 	_ = MakeSelfContained(ws.TempDir)
 
-	fileToMutants, err := ws.applySchemata(mutants)
+	_, hasNonStdlib, err := ws.applySchemata(mutants)
 	if err != nil {
-		return nil, err
+		// Set error status on all mutants when schemata application fails
+		for i := range mutants {
+			mutants[i].Status = "error"
+			mutants[i].Error = fmt.Errorf("schemata application failed: %w", err)
+		}
+		return mutants, err
 	}
 
-	
-	ws.simplifyGoMod(fileToMutants)
+
+	ws.simplifyGoMod(hasNonStdlib)
 
 	
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
-		return nil, err
+		// Set error status on all mutants when package map building fails
+		for i := range mutants {
+			mutants[i].Status = "error"
+			mutants[i].Error = fmt.Errorf("build package map failed: %w", err)
+		}
+		return mutants, err
 	}
 
+
+	var prog *ProgressTracker
+	if progbar {
+		prog = NewProgressTracker(len(mutants))
+	}
+	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, concurrent, tests, prog)
 	
-	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, concurrent, tests)
+	// Collect results even if there's an error
+	if len(results) > 0 {
+		collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+	}
+	
 	if err != nil {
-		return nil, err
+		// Save any cached results before returning
+		SaveCache(mutants, baseDir, cache, fileHashes)
+		return mutants, err
 	}
 
-	
-	collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
 
-	
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return mutants, nil
@@ -84,7 +119,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 
 
-func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, debug bool, fileHashes map[string]string) ([]Mutant, error) {
+func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string) ([]Mutant, error) {
 
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
@@ -93,33 +128,66 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
 	}
 
-	
+	totalMutants := len(uncachedIndices)
+	var prog *ProgressTracker
+	if progbar {
+		prog = NewProgressTracker(totalMutants)
+	}
+
+
 	pkgDirs := make([]string, 0, len(pkgToMutants))
 	for pkgDir := range pkgToMutants {
 		pkgDirs = append(pkgDirs, pkgDir)
 	}
 	sort.Strings(pkgDirs)
 
+	// Create worker-scoped temp dirs (one per concurrent slot) to avoid
+	// create/destroy syscalls per package.
+	workerTempDirs := make([]string, concurrent)
+	for i := 0; i < concurrent; i++ {
+		d, err := os.MkdirTemp("", "gorgon-worker-*")
+		if err != nil {
+			// Clean up any already created dirs
+			for j := 0; j < i; j++ {
+				os.RemoveAll(workerTempDirs[j])
+			}
+			return nil, fmt.Errorf("failed to create worker temp dir: %w", err)
+		}
+		workerTempDirs[i] = d
+	}
+	defer func() {
+		for _, d := range workerTempDirs {
+			os.RemoveAll(d)
+		}
+	}()
+
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(concurrent)
 
-	for _, pkgDir := range pkgDirs {
+	for i, pkgDir := range pkgDirs {
 		pkgMutants := pkgToMutants[pkgDir]
 		pkgDir := pkgDir
+		workerTempDir := workerTempDirs[i%concurrent]
 		g.Go(func() error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 			}
-			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, debug)
+			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog)
 		})
 	}
 
 	if err := g.Wait(); err != nil {
+		if prog != nil {
+			prog.Finish()
+		}
 		return nil, err
 	}
 
+	if prog != nil {
+		prog.Finish()
+	}
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
 

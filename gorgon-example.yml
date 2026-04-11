@@ -4,18 +4,20 @@ concurrent: all
 threshold: 80
 cache: false
 dry_run: false
+progbar: true
 exclude:
     - '*_test.go'
 include: []
 skip:
     - vendor/
+    - internal/testing/schemata_nodes/
 skip_func:
     - foo/bar.go:MyFunc
     - examples/mutations/variable_replacement/variable_replacement.go:FindMax
 tests: []
 base: ""
 debug: true
-cpu_profile: true
+cpu_profile: false
 suppress:
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:
