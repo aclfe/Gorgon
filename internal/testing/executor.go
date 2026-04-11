@@ -165,18 +165,17 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 		sort.Ints(mutantIDsForPkg)
 
-		pkgDirLocal := pkgDir 
-		mutantIDsForPkgLocal := mutantIDsForPkg 
-
 		compileGroup.Go(func() error {
-			executor := newTestExecutor(tempDir, pkgDirLocal, tests)
+			pkgDir := pkgDir
+			mutantIDsForPkg := mutantIDsForPkg
+			executor := newTestExecutor(tempDir, pkgDir, tests)
 			err := executor.compileWithDebug(compileCtx, false)
 			if err != nil {
 				compErrsMu.Lock()
-				compErrors[pkgDirLocal] = err
+				compErrors[pkgDir] = err
 				compErrsMu.Unlock()
 				
-				for _, mutantID := range mutantIDsForPkgLocal {
+				for _, mutantID := range mutantIDsForPkg {
 					resultsChan <- mutantResult{id: mutantID, status: "error", err: err}
 				}
 				return nil
@@ -185,22 +184,13 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			baseline := executor.measureBaseline(testCtx)
 			_, _ = executor.timeoutFor(baseline)
 
-			packageTestGroup, packageTestCtx := errgroup.WithContext(testCtx)
-			packageTestGroup.SetLimit(concurrent) 
-
-			for _, mutantID := range mutantIDsForPkgLocal {
-				mutantIDLocal := mutantID 
-				packageTestGroup.Go(func() error {
-					status, err := executor.runMutant(packageTestCtx, mutantIDLocal)
-					resultsChan <- mutantResult{id: mutantIDLocal, status: status, err: err}
+			for _, mutantID := range mutantIDsForPkg {
+				mutantID := mutantID
+				testGroup.Go(func() error {
+					status, err := executor.runMutant(testCtx, mutantID)
+					resultsChan <- mutantResult{id: mutantID, status: status, err: err}
 					return nil
 				})
-			}
-			
-			if err := packageTestGroup.Wait(); err != nil {
-				
-				
-				return fmt.Errorf("test execution failed for package %s: %w", pkgDirLocal, err)
 			}
 			return nil
 		})
