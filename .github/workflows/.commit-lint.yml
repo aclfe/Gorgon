@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Conventional PR Lint
-        uses: Namchee/conventional-pr@v0.5.0
+        uses: Namchee/conventional-pr@v0.15.6
         with:
           access_token: ${{ secrets.GITHUB_TOKEN }}
           types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
