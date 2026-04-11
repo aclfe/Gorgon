@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"golang.org/x/sync/errgroup"
 )
 
 
@@ -81,18 +79,11 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		affected[filepath.Dir(rel)] = true
 	}
 
-	var eg errgroup.Group
 	for pkgRelDir := range affected {
-		pkgRelDir := pkgRelDir
-		eg.Go(func() error {
-			return w.copyPackage(absModule, pkgRelDir)
-		})
+		if err := w.copyPackage(absModule, pkgRelDir); err != nil {
+			return err
+		}
 	}
-	
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	
 	return nil
 }
 

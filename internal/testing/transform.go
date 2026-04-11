@@ -100,6 +100,12 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
 		return fmt.Errorf("write failed: %w", err)
 	}
+
+
+	if err := CleanupUnusedImportsAndLoopVars(filePath); err != nil {
+		return fmt.Errorf("cleanup failed for %s: %w", filePath, err)
+	}
+
 	return nil
 }
 

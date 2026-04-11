@@ -13,21 +13,22 @@ import (
 )
 
 type Flags struct {
-	ConfigFile string
-	PrintAST   bool
-	PkgPath    string
-	Operators  string
-	Concurrent string
-	Threshold  float64
-	UseCache   bool
-	DryRun     bool
-	Exclude    string
-	Include    string
-	Skip       string
-	SkipFunc   string
-	Tests      string
-	Debug      bool
-	Targets    []string
+	ConfigFile  string
+	PrintAST    bool
+	PkgPath     string
+	Operators   string
+	Concurrent  string
+	Threshold   float64
+	UseCache    bool
+	DryRun      bool
+	Debug       bool
+	CPUProfile  string
+	Exclude     string
+	Include     string
+	Skip        string
+	SkipFunc    string
+	Tests       string
+	Targets     []string
 }
 
 func Parse(args []string) (*Flags, error) {
@@ -48,6 +49,7 @@ func Parse(args []string) (*Flags, error) {
 	fs.StringVar(&f.SkipFunc, "skip-func", "", "Comma-separated file:function pairs to skip")
 	fs.StringVar(&f.Tests, "tests", "", "Comma-separated relative paths to test files/folders")
 	fs.BoolVar(&f.Debug, "debug", false, "Show detailed debug output during execution")
+	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -60,7 +62,7 @@ func Parse(args []string) (*Flags, error) {
 func (f *Flags) ValidateChecks() error {
 	if f.ConfigFile != "" && (f.PrintAST || f.PkgPath != "." || f.Operators != "all" ||
 		f.Concurrent != "all" || f.Threshold != 0 || f.UseCache || f.DryRun ||
-		f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "") {
+		f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "") {
 		return fmt.Errorf("Error: -config cannot be used with other flags")
 	}
 	return nil
@@ -104,6 +106,7 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 		cfg.Tests = splitAndTrim(f.Tests)
 	}
 	cfg.Debug = f.Debug
+	cfg.CPUProfile = f.CPUProfile
 	return cfg, nil
 }
 
@@ -166,6 +169,7 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -skip-func string     comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc)")
 	fmt.Fprintln(os.Stderr, "  -tests string         comma-separated relative paths to test files/folders")
 	fmt.Fprintln(os.Stderr, "  -debug                show detailed debug output during execution")
+	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")

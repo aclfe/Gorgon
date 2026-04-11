@@ -44,18 +44,6 @@ func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 	cmd.Dir = e.tempDir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		
-		if e.tryLazyCleanup(debug) {
-			
-			cmd = exec.CommandContext(ctx, "go", "test", "-c", "-o", e.testBinary, relPkg)
-			cmd.Dir = e.tempDir
-			if retryOut, retryErr := cmd.CombinedOutput(); retryErr == nil {
-				_ = out 
-				return nil 
-			} else {
-				_ = retryOut
-			}
-		}
-		
 		if debug {
 			errs := uniqueErrors(string(out))
 			fmt.Fprintf(os.Stderr, "  Compilation failed (%d unique errors)\n", len(errs))
@@ -65,27 +53,10 @@ func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 	return nil
 }
 
-func (e *testExecutor) tryLazyCleanup(debug bool) bool {
-	
-	entries, _ := os.ReadDir(e.pkgDir)
-	success := true
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		filePath := filepath.Join(e.pkgDir, name)
-		if err := CleanupUnusedImportsAndLoopVars(filePath); err != nil {
-			if debug {
-				fmt.Fprintf(os.Stderr, "  Lazy cleanup failed on %s: %v\n", name, err)
-			}
-			success = false
-		}
-	}
-	return success
-}
 
 func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
+	
+	
 	var durations []time.Duration
 	maxAttempts := 3
 	failureCount := 0
@@ -108,15 +79,23 @@ func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
 		return minBaselineDuration * time.Millisecond
 	}
 
-	sort.Slice(durations, func(i, j int) bool {
-		return durations[i] < durations[j]
-	})
+	sortDurations(durations)
 	median := durations[len(durations)/2]
 
 	if median < minBaselineDuration*time.Millisecond {
 		median = minBaselineDuration * time.Millisecond
 	}
 	return median
+}
+
+func sortDurations(d []time.Duration) {
+	for i := range d {
+		for j := i + 1; j < len(d); j++ {
+			if d[i] > d[j] {
+				d[i], d[j] = d[j], d[i]
+			}
+		}
+	}
 }
 
 func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration) {
@@ -158,13 +137,22 @@ func (e *testExecutor) relPath() string {
 
 func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, concurrent int, tests []string) ([]mutantResult, error) {
 
+	type compileResult struct {
+		pkgDir string
+		err    error
+	}
+
 	resultsChan := make(chan mutantResult, sumMutantIDs(pkgToMutantIDs))
-	
+	testGroup, testCtx := errgroup.WithContext(ctx)
+	testGroup.SetLimit(concurrent)
+
 	var compErrsMu sync.Mutex
 	var compErrors = make(map[string]error)
 
+
 	var compileGroup, compileCtx = errgroup.WithContext(ctx)
 	compileGroup.SetLimit(concurrent)
+
 
 	pkgDirs := make([]string, 0, len(pkgToMutantIDs))
 	for pkgDir := range pkgToMutantIDs {
@@ -174,41 +162,64 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 	for _, pkgDir := range pkgDirs {
 		mutantIDsForPkg := pkgToMutantIDs[pkgDir]
+
 		sort.Ints(mutantIDsForPkg)
 
+		pkgDirLocal := pkgDir 
+		mutantIDsForPkgLocal := mutantIDsForPkg 
+
 		compileGroup.Go(func() error {
-			pkgDir := pkgDir
-			mutantIDsForPkg := mutantIDsForPkg
-			executor := newTestExecutor(tempDir, pkgDir, tests)
+			executor := newTestExecutor(tempDir, pkgDirLocal, tests)
 			err := executor.compileWithDebug(compileCtx, false)
 			if err != nil {
 				compErrsMu.Lock()
-				compErrors[pkgDir] = err
+				compErrors[pkgDirLocal] = err
 				compErrsMu.Unlock()
 				
-				for _, mutantID := range mutantIDsForPkg {
+				for _, mutantID := range mutantIDsForPkgLocal {
 					resultsChan <- mutantResult{id: mutantID, status: "error", err: err}
 				}
 				return nil
 			}
 
-			baseline := executor.measureBaseline(compileCtx)
-			executor.timeoutFor(baseline)
+			baseline := executor.measureBaseline(testCtx)
+			_, _ = executor.timeoutFor(baseline)
 
+			packageTestGroup, packageTestCtx := errgroup.WithContext(testCtx)
+			packageTestGroup.SetLimit(concurrent) 
+
+			for _, mutantID := range mutantIDsForPkgLocal {
+				mutantIDLocal := mutantID 
+				packageTestGroup.Go(func() error {
+					status, err := executor.runMutant(packageTestCtx, mutantIDLocal)
+					resultsChan <- mutantResult{id: mutantIDLocal, status: status, err: err}
+					return nil
+				})
+			}
 			
-			executor.runMutantsConcurrent(compileCtx, mutantIDsForPkg, concurrent, resultsChan)
-			
+			if err := packageTestGroup.Wait(); err != nil {
+				
+				
+				return fmt.Errorf("test execution failed for package %s: %w", pkgDirLocal, err)
+			}
 			return nil
 		})
 	}
 
+
 	_ = compileGroup.Wait()
+
+
+	if err := testGroup.Wait(); err != nil {
+		return nil, fmt.Errorf("test execution failed: %w", err)
+	}
 	close(resultsChan)
 
 	var allResults []mutantResult
 	for result := range resultsChan {
 		allResults = append(allResults, result)
 	}
+
 
 	sort.Slice(allResults, func(i, j int) bool {
 		return allResults[i].id < allResults[j].id
@@ -374,37 +385,26 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int, concurrent int, results chan mutantResult) {
 	defer close(results)
 
-	
-	sort.Ints(mutantIDs)
-
-	
-	
-	workChan := make(chan int, len(mutantIDs))
-	
-	
-	for _, id := range mutantIDs {
-		workChan <- id
-	}
-	close(workChan)
-
 	var wg sync.WaitGroup
-	
-	
-	for i := 0; i < concurrent && i < len(mutantIDs); i++ {
+	sem := make(chan struct{}, concurrent)
+
+	for _, mutantID := range mutantIDs {
+		mutantID := mutantID
+		sem <- struct{}{}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for mutantID := range workChan {
-				select {
-				case <-ctx.Done():
-					results <- mutantResult{id: mutantID, status: "error", err: ctx.Err()}
-					return
-				default:
-				}
+			defer func() { <-sem }()
 
-				status, err := e.runMutant(ctx, mutantID)
-				results <- mutantResult{id: mutantID, status: status, err: err}
+			select {
+			case <-ctx.Done():
+				results <- mutantResult{id: mutantID, status: "error", err: ctx.Err()}
+				return
+			default:
 			}
+
+			status, err := e.runMutant(ctx, mutantID)
+			results <- mutantResult{id: mutantID, status: status, err: err}
 		}()
 	}
 

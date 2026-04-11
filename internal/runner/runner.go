@@ -27,7 +27,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 	ops, err := cli.ParseOperators(cfg)
 	if err != nil {
-		ExitWithError(err)
+		return err
 	}
 
 	concurrent := cli.ParseConcurrent(cfg.Concurrent)
@@ -35,14 +35,14 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	eng := engine.NewEngine(flags.PrintAST)
 	eng.SetOperators(ops)
 
-	
+
 	projectRoot := findProjectRoot(targets[0], cfg.Base)
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
 
 	for _, target := range targets {
 		if err := eng.Traverse(target, nil); err != nil {
-			ExitWithError(err)
+			return err
 		}
 	}
 
@@ -73,18 +73,18 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	if cfg.Cache {
 		c, err = cache.Load(baseDir)
 		if err != nil {
-			ExitWithError(err)
+			return err
 		}
 	}
 
 	tests, err := extractTests(cfg.Tests)
 	if err != nil {
-		ExitWithError(err)
+		return err
 	}
 
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, cfg.Debug)
 	if err != nil {
-		ExitWithError(err)
+		return err
 	}
 
 	if err := reporter.Report(mutants, cfg.Threshold, cfg.Debug); err != nil {
@@ -94,8 +94,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 				fmt.Printf("\nCache stored at: %s\n", path)
 			}
 		}
-		_, _ = fmt.Fprintf(os.Stderr, "Report failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	if cfg.Cache {

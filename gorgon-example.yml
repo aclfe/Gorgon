@@ -15,6 +15,7 @@ skip_func:
 tests: []
 base: ""
 debug: true
+cpu_profile: true
 suppress:
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:

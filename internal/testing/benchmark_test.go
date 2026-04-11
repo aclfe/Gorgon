@@ -15,8 +15,6 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
-	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
 )
 
 const (
@@ -355,8 +353,8 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 	}
 
 	operators := []mutator.Operator{
-		arithmetic_flip.ArithmeticFlip{},
-		condition_negation.ConditionNegation{},
+		mutator.ArithmeticFlip{},
+		mutator.ConditionNegation{},
 	}
 
 	return sites, operators

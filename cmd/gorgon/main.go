@@ -2,7 +2,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"runtime/pprof"
 
 	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/runner"
@@ -42,23 +44,43 @@ func main() {
 		cli.PrintUsage()
 	}
 
-	// Add pkgPath as target if no targets specified
 	if len(flags.Targets) == 0 {
 		flags.Targets = []string{flags.PkgPath}
 	}
 
-	// Load configuration (from YAML or flags)
+	// Load configuration (from YAML or fags)
 	cfg, err := flags.LoadConfig()
 	if err != nil {
 		runner.ExitWithError(err)
 	}
 
-	// Determine config path for suppression syncing
+	var cpuProfileFile *os.File
+	if cfg.CPUProfile != "" && cfg.CPUProfile != "false" {
+		path := cfg.CPUProfile
+		if path == "true" {
+			path = "gorgon.cpuprofile"
+		}
+		cpuProfileFile, err = os.Create(path)
+		if err != nil {
+			runner.ExitWithError(fmt.Errorf("failed to create CPU profile: %w", err))
+		}
+		if err := pprof.StartCPUProfile(cpuProfileFile); err != nil {
+			runner.ExitWithError(fmt.Errorf("failed to start CPU profile: %w", err))
+		}
+	}
+
 	configPath := flags.ConfigFile
 
-	// Run the core logic
-	if err := runner.Run(flags, cfg, flags.Targets, configPath); err != nil {
-		// Error already handled in runner
+	
+	runErr := runner.Run(flags, cfg, flags.Targets, configPath)
+
+	
+	if cpuProfileFile != nil {
+		pprof.StopCPUProfile()
+		cpuProfileFile.Close()
+	}
+
+	if runErr != nil {
 		os.Exit(1)
 	}
 }

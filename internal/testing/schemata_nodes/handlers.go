@@ -289,7 +289,6 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 		return original
 	}
 
-	// Build typeMap from the first mutant's EnclosingFunc (all mutants should have the same function)
 	var typeMap map[string]string
 	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
 		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
@@ -518,7 +517,6 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		return original
 	}
 
-	// Build typeMap from the first mutant's EnclosingFunc
 	var typeMap map[string]string
 	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
 		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
@@ -641,7 +639,6 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]string) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
-		// First check if this identifier is a known variable with a declared type
 		if typeMap != nil {
 			if typ, ok := typeMap[e.Name]; ok {
 				return typ

@@ -1,1 +1,2 @@
 go test ./internal/testing -run TestMutationCounts -v 
+go tool pprof -top gorgon.cpuprofile

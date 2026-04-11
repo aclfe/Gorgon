@@ -16,19 +16,20 @@ type SuppressEntry struct {
 }
 
 type Config struct {
-	Operators  []string        `yaml:"operators"`
-	Concurrent string          `yaml:"concurrent"`
-	Threshold  float64         `yaml:"threshold"`
-	Cache      bool            `yaml:"cache"`
-	DryRun     bool            `yaml:"dry_run"`
-	Exclude    []string        `yaml:"exclude"`
-	Include    []string        `yaml:"include"`
-	Skip       []string        `yaml:"skip"`
-	SkipFunc   []string        `yaml:"skip_func"`
-	Tests      []string        `yaml:"tests"`
-	Base       string          `yaml:"base"`
-	Debug      bool            `yaml:"debug"`
-	Suppress   []SuppressEntry `yaml:"suppress"`
+	Operators   []string        `yaml:"operators"`
+	Concurrent  string          `yaml:"concurrent"`
+	Threshold   float64         `yaml:"threshold"`
+	Cache       bool            `yaml:"cache"`
+	DryRun      bool            `yaml:"dry_run"`
+	Debug       bool            `yaml:"debug"`
+	CPUProfile  string          `yaml:"cpu_profile"`
+	Exclude     []string        `yaml:"exclude"`
+	Include     []string        `yaml:"include"`
+	Skip        []string        `yaml:"skip"`
+	SkipFunc    []string        `yaml:"skip_func"`
+	Tests       []string        `yaml:"tests"`
+	Base        string          `yaml:"base"`
+	Suppress    []SuppressEntry `yaml:"suppress"`
 }
 
 func Default() *Config {
