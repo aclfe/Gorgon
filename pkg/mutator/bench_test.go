@@ -8,24 +8,26 @@ import (
 	"testing"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
-	"github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	"github.com/aclfe/gorgon/pkg/mutator/defer_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
-	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
-	"github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
-	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
-	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
-	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
-	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
-	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/defer_removal"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/inc_dec_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_body_removal"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_removal"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/sign_toggle"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/negate_condition"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
 )
 
 // =============================================================================
@@ -189,7 +191,7 @@ func getNodeTypeName(n ast.Node) string {
 func BenchmarkMutator_ArithmeticFlip_CanApply(b *testing.B) {
 	f := parseCode(b, arithmeticCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ArithmeticFlip{}
+	op := arithmetic_flip.ArithmeticFlip{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -202,7 +204,7 @@ func BenchmarkMutator_ArithmeticFlip_CanApply(b *testing.B) {
 func BenchmarkMutator_ArithmeticFlip_Mutate(b *testing.B) {
 	f := parseCode(b, arithmeticCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ArithmeticFlip{}
+	op := arithmetic_flip.ArithmeticFlip{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -215,7 +217,7 @@ func BenchmarkMutator_ArithmeticFlip_Mutate(b *testing.B) {
 func BenchmarkMutator_ArithmeticFlip_FullCycle(b *testing.B) {
 	f := parseCode(b, arithmeticCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ArithmeticFlip{}
+	op := arithmetic_flip.ArithmeticFlip{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -264,7 +266,7 @@ func BenchmarkMutator_LogicalOperator_Mutate(b *testing.B) {
 func BenchmarkMutator_ConditionNegation_CanApply(b *testing.B) {
 	f := parseCode(b, conditionCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ConditionNegation{}
+	op := condition_negation.ConditionNegation{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -277,7 +279,7 @@ func BenchmarkMutator_ConditionNegation_CanApply(b *testing.B) {
 func BenchmarkMutator_ConditionNegation_Mutate(b *testing.B) {
 	f := parseCode(b, conditionCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ConditionNegation{}
+	op := condition_negation.ConditionNegation{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -655,7 +657,7 @@ func BenchmarkMutator_AllOperators_FullCycle(b *testing.B) {
 func BenchmarkMutator_ArithmeticFlip_Allocations(b *testing.B) {
 	f := parseCode(b, arithmeticCode)
 	nodes := findNodes(b, f, "BinaryExpr")
-	op := mutator.ArithmeticFlip{}
+	op := arithmetic_flip.ArithmeticFlip{}
 
 	b.ReportAllocs()
 	b.ResetTimer()

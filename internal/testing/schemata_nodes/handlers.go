@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
+	"github.com/aclfe/gorgon/pkg/mutator/analysis"
 )
 
 type SchemataHandler func(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node
@@ -210,19 +211,20 @@ func createMutantIDCondition(mutantID int) *ast.BinaryExpr {
 func applyMutant(original ast.Node, mutant MutantForSite, returnType string, file *ast.File) ast.Node {
 	mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
 	if mutated != nil {
-		return wrapWithSchemata(original, mutated, mutant.ID, returnType)
+		return wrapWithSchemata(original, mutated, mutant.ID, returnType, mutant.EnclosingFunc)
 	}
 	return original
 }
 
-func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType string) ast.Node {
+func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType string, fn *ast.FuncDecl) ast.Node {
 	switch orig := original.(type) {
 	case ast.Expr:
 		mutExpr, ok := mutated.(ast.Expr)
 		if !ok {
 			return original
 		}
-		resultType := inferExprType(orig, returnType)
+		typeMap := analysis.BuildTypeMap(fn)
+		resultType := inferExprType(orig, returnType, typeMap)
 		if resultType == "" {
 			return mutExpr
 		}
@@ -287,7 +289,13 @@ func wrapExpression(original ast.Node, mutants []MutantForSite, returnType strin
 		return original
 	}
 
-	resultType := inferExprType(originalExpr, returnType)
+	// Build typeMap from the first mutant's EnclosingFunc (all mutants should have the same function)
+	var typeMap map[string]string
+	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
+		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
+	}
+
+	resultType := inferExprType(originalExpr, returnType, typeMap)
 
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
@@ -430,9 +438,9 @@ func HandleRangeStmt(original ast.Node, mutants []MutantForSite, returnType stri
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
 		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
+			return wrapWithSchemata(original, mutated, mutant.ID, returnType, mutant.EnclosingFunc)
 		}
 		return original
 	}
@@ -458,9 +466,9 @@ func HandleAssignStmt(original ast.Node, mutants []MutantForSite, returnType str
 
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
 		if mutated != nil {
-			return wrapWithSchemata(original, mutated, mutant.ID, returnType)
+			return wrapWithSchemata(original, mutated, mutant.ID, returnType, mutant.EnclosingFunc)
 		}
 		return original
 	}
@@ -510,12 +518,18 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		return original
 	}
 
+	// Build typeMap from the first mutant's EnclosingFunc
+	var typeMap map[string]string
+	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
+		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
+	}
+
 	if len(mutants) == 1 {
 		mutant := mutants[0]
-		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, nil)
+		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
 		if mutated != nil {
 			if retStmt, ok := mutated.(*ast.ReturnStmt); ok && len(retStmt.Results) > 0 {
-				return wrapReturnWithSchemata(originalRet, retStmt.Results[0], mutant.ID, returnType)
+				return wrapReturnWithSchemata(originalRet, retStmt.Results[0], mutant.ID, returnType, typeMap)
 			}
 			return mutated
 		}
@@ -533,7 +547,7 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		if mutReturnType == "" {
 			mutReturnType = returnType
 		}
-		mutated := mutator.ApplyOperator(mutant.Op, original, mutReturnType, file, nil)
+		mutated := mutator.ApplyOperator(mutant.Op, original, mutReturnType, file, mutant.EnclosingFunc)
 		if mutated == nil {
 			continue
 		}
@@ -551,14 +565,14 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 
 	if len(mutResults) == 1 {
-		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType)
+		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType, typeMap)
 	}
 
 	origExpr := originalRet.Results[0]
 
 	resultType := returnType
 	if resultType == "" || resultType == "interface{}" {
-		resultType = inferExprType(origExpr, returnType)
+		resultType = inferExprType(origExpr, returnType, typeMap)
 	}
 
 	typeExpr := buildTypeExpr(resultType)
@@ -592,10 +606,10 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 }
 
-func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, mutantID int, returnType string) ast.Node {
+func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, mutantID int, returnType string, typeMap map[string]string) ast.Node {
 	resultType := returnType
 	if resultType == "" || resultType == "interface{}" {
-		resultType = inferExprType(mutatedExpr, returnType)
+		resultType = inferExprType(mutatedExpr, returnType, typeMap)
 	}
 	typeExpr := buildTypeExpr(resultType)
 	return &ast.ReturnStmt{
@@ -624,9 +638,15 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 	}
 }
 
-func inferExprType(expr ast.Expr, siteReturnType string) string {
+func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]string) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
+		// First check if this identifier is a known variable with a declared type
+		if typeMap != nil {
+			if typ, ok := typeMap[e.Name]; ok {
+				return typ
+			}
+		}
 		switch e.Name {
 		case "true", "false":
 			return "bool"
@@ -676,25 +696,25 @@ func inferExprType(expr ast.Expr, siteReturnType string) string {
 		if isComparisonOp(e.Op) || isLogicalOp(e.Op) {
 			return "bool"
 		}
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
 			return "bool"
 		}
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.CallExpr:
 		if siteReturnType != "" && siteReturnType != "interface{}" {
 			return siteReturnType
 		}
 		return "interface{}"
 	case *ast.StarExpr:
-		return "*" + inferExprType(e.X, siteReturnType)
+		return "*" + inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.IndexExpr:
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.SliceExpr:
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.SelectorExpr:
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.TypeAssertExpr:
 		if e.Type != nil {
 			return typeToString(e.Type)
@@ -705,9 +725,9 @@ func inferExprType(expr ast.Expr, siteReturnType string) string {
 	case *ast.FuncLit:
 		return "func"
 	case *ast.ParenExpr:
-		return inferExprType(e.X, siteReturnType)
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.KeyValueExpr:
-		return inferExprType(e.Value, siteReturnType)
+		return inferExprType(e.Value, siteReturnType, typeMap)
 	}
 	return "interface{}"
 }

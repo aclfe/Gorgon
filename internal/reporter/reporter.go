@@ -3,6 +3,8 @@ package reporter
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/aclfe/gorgon/internal/testing"
@@ -56,17 +58,84 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 				fmt.Printf("  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 			}
 
-
+			
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
-				fmt.Printf("\nTop Compilation Errors (%d unique):\n", len(uniqueErrors))
+				fmt.Printf("\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
 				for i, errMsg := range uniqueErrors {
-					if i >= 10 {
-						fmt.Printf("  ... and %d more errors\n", len(uniqueErrors)-10)
+					if i >= 20 {
+						fmt.Printf("  ... and %d more unique error types\n", len(uniqueErrors)-20)
 						break
 					}
 					fmt.Printf("  • %s\n", errMsg)
 				}
+			}
+
+			
+			
+			fmt.Printf("\nPer-Mutant Compilation Errors:\n")
+			seen := make(map[string]bool)
+			shownCount := 0
+			const maxLines = 200
+			for _, mutant := range mutants {
+				if mutant.Status == "error" && mutant.Error != nil {
+					errMsg := mutant.Error.Error()
+
+					
+					compilerOutput := extractCompilerOutput(errMsg)
+					
+					compilerErrors := testing.ParseCompilerErrors(compilerOutput)
+					if len(compilerErrors) > 0 {
+						for _, ce := range compilerErrors {
+							line := fmt.Sprintf("%s:%d:%d: %s", filepath.Base(ce.File), ce.Line, ce.Col, ce.Message)
+							if seen[line] {
+								continue
+							}
+							seen[line] = true
+							shownCount++
+							if shownCount > maxLines {
+								continue
+							}
+							fmt.Printf("  (%s) %s\n", mutant.Operator.Name(), line)
+						}
+					} else {
+						
+						lines := strings.Split(compilerOutput, "\n")
+						for _, l := range lines {
+							l = strings.TrimSpace(l)
+							if l == "" || strings.HasPrefix(l, "# ") || strings.HasPrefix(l, "compilation failed") {
+								continue
+							}
+							if seen[l] {
+								continue
+							}
+							seen[l] = true
+							shownCount++
+							if shownCount > maxLines {
+								continue
+							}
+							fmt.Printf("  (%s) %s\n", mutant.Operator.Name(), l)
+						}
+					}
+				}
+			}
+			totalUnique := len(seen)
+			if shownCount > maxLines {
+				fmt.Printf("  ... and %d more unique error lines (total: %d)\n", totalUnique-maxLines, totalUnique)
+			} else if totalUnique == 0 {
+				fmt.Println("  (no detailed errors available)")
+			}
+			
+			
+			fmt.Printf("\nError Count by Operator:\n")
+			opErrorCount := make(map[string]int)
+			for _, mutant := range mutants {
+				if mutant.Status == "error" {
+					opErrorCount[mutant.Operator.Name()]++
+				}
+			}
+			for op, count := range opErrorCount {
+				fmt.Printf("  %s: %d errors\n", op, count)
 			}
 		}
 
@@ -130,6 +199,22 @@ func extractUniqueCompilerErrors(mutants []testing.Mutant) []string {
 		}
 	}
 	return unique
+}
+
+
+func extractCompilerOutput(errMsg string) string {
+	
+	
+	idx := strings.Index(errMsg, "\n")
+	if idx >= 0 && idx+1 < len(errMsg) {
+		return errMsg[idx+1:]
+	}
+	
+	prefix := "compilation failed: "
+	if strings.HasPrefix(errMsg, prefix) {
+		return errMsg[len(prefix):]
+	}
+	return errMsg
 }
 
 func calculateVisualColumn(content []byte, line, col int) int {

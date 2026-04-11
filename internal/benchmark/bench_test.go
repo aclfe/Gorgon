@@ -16,25 +16,27 @@ import (
 	"github.com/aclfe/gorgon/internal/reporter"
 	gtest "github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
-	"github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
-	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
-	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
-	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
-	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
-	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
-	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
-	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
-	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
-	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_body_removal"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_removal"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/conditional_expression"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/inc_dec_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/negate_condition"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/sign_toggle"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
 )
 
 const (
@@ -228,7 +230,7 @@ func BenchmarkPipeline_MutationDetectionRate(b *testing.B) {
 // Note: Requires working module dependencies
 func BenchmarkPipeline_ArithmeticOperators(b *testing.B) {
 	ops := []mutator.Operator{
-		mutator.ArithmeticFlip{},
+		arithmetic_flip.ArithmeticFlip{},
 	}
 	sites := collectSites(b, smallCodebase, ops)
 
@@ -245,7 +247,7 @@ func BenchmarkPipeline_ArithmeticOperators(b *testing.B) {
 
 func BenchmarkPipeline_LogicalOperators(b *testing.B) {
 	ops := []mutator.Operator{
-		mutator.ConditionNegation{},
+		condition_negation.ConditionNegation{},
 		logical_operator.LogicalOperator{},
 	}
 	sites := collectSites(b, mediumCodebase, ops)

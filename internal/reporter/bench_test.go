@@ -14,9 +14,11 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	"github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
 // =============================================================================
@@ -32,7 +34,7 @@ func generateMutants(count int) []mtest.Mutant {
 		mutants[i] = mtest.Mutant{
 			ID:       i + 1,
 			Status:   status,
-			Operator: mutator.ArithmeticFlip{},
+			Operator: arithmetic_flip.ArithmeticFlip{},
 			Site: engine.Site{
 				File:   &token.File{},
 				Line:   (i % 100) + 1,
@@ -59,8 +61,8 @@ func generateRealisticMutants() []mtest.Mutant {
 	mutants := make([]mtest.Mutant, 0, 50)
 
 	operators := []mutator.Operator{
-		mutator.ArithmeticFlip{},
-		mutator.ConditionNegation{},
+		arithmetic_flip.ArithmeticFlip{},
+		condition_negation.ConditionNegation{},
 		logical_operator.LogicalOperator{},
 		boundary_value.BoundaryValue{},
 		zero_value_return.ZeroValueReturnNumeric{},

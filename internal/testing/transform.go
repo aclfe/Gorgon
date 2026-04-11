@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
 
@@ -78,18 +79,18 @@ func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string,
 }
 
 func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
-	
+
 	posToMutants := buildPositionToMutantsMap(fileMutants)
 
-	
+
 	constNodes := findConstNodes(file)
 
-	
+
 	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
 		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file)
 	})
 
-	
+
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
 		_ = os.WriteFile(filePath, src, filePermissions)
@@ -105,14 +106,14 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 
 
 func InjectSchemataHelpers(pkgDir string, fileToMutants map[string][]*Mutant) error {
-	// Collect and sort keys deterministically
+	
 	pkgToFiles := make(map[string][]string, len(fileToMutants))
 	for tempFile := range fileToMutants {
 		pkgDir := filepath.Dir(tempFile)
 		pkgToFiles[pkgDir] = append(pkgToFiles[pkgDir], tempFile)
 	}
 
-	// Sort package directories for deterministic processing
+	
 	pkgDirs := make([]string, 0, len(pkgToFiles))
 	for pkgDir := range pkgToFiles {
 		pkgDirs = append(pkgDirs, pkgDir)
@@ -125,7 +126,7 @@ func InjectSchemataHelpers(pkgDir string, fileToMutants map[string][]*Mutant) er
 			continue
 		}
 
-		// Sort files for deterministic package name detection
+		
 		sort.Strings(files)
 
 		fset := token.NewFileSet()
@@ -297,4 +298,192 @@ func isValidReplacement(original, replacement ast.Node) bool {
 	}
 
 	return false
+}
+
+
+
+func CleanupUnusedImportsAndLoopVars(filePath string) error {
+	fset := token.NewFileSet()
+	src, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", filePath, err)
+	}
+	
+	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", filePath, err)
+	}
+
+	removeUnusedImports(file)
+	fixUnusedLoopVarsAfterMutation(file)
+
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, file); err != nil {
+		return fmt.Errorf("format %s: %w", filePath, err)
+	}
+
+	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
+		return fmt.Errorf("write %s: %w", filePath, err)
+	}
+	return nil
+}
+
+
+func removeUnusedImports(file *ast.File) {
+	
+	usedIdent := make(map[string]bool)
+	
+	ast.Inspect(file, func(n ast.Node) bool {
+		if _, ok := n.(*ast.ImportSpec); ok {
+			return false
+		}
+		if ident, ok := n.(*ast.Ident); ok {
+			usedIdent[ident.Name] = true
+		}
+		return true
+	})
+
+	
+	for _, imp := range file.Imports {
+		pkgName := getPackageNameFromImport(imp)
+		
+		
+		if imp.Name != nil && imp.Name.Name == "_" {
+			continue
+		}
+		
+		
+		if !usedIdent[pkgName] {
+			
+			imp.Path.Value = ""
+		}
+	}
+
+	
+	file.Imports = removeEmptyImportSpecs(file.Imports)
+}
+
+
+func getPackageNameFromImport(imp *ast.ImportSpec) string {
+	
+	if imp.Name != nil {
+		return imp.Name.Name
+	}
+	
+	
+	path := strings.Trim(imp.Path.Value, `"`)
+	parts := strings.Split(path, "/")
+	return parts[len(parts)-1]
+}
+
+
+func removeEmptyImportSpecs(imports []*ast.ImportSpec) []*ast.ImportSpec {
+	result := make([]*ast.ImportSpec, 0, len(imports))
+	for _, imp := range imports {
+		if imp.Path.Value != "" {
+			result = append(result, imp)
+		}
+	}
+	return result
+}
+
+
+
+func fixUnusedLoopVarsAfterMutation(file *ast.File) {
+	
+	ast.Inspect(file, func(n ast.Node) bool {
+		rangeStmt, ok := n.(*ast.RangeStmt)
+		if !ok || rangeStmt.Body == nil {
+			return true
+		}
+		
+		
+		var loopVars []*ast.Ident
+		if key, ok := rangeStmt.Key.(*ast.Ident); ok && key.Name != "_" {
+			loopVars = append(loopVars, key)
+		}
+		if value, ok := rangeStmt.Value.(*ast.Ident); ok && value.Name != "_" {
+			loopVars = append(loopVars, value)
+		}
+		
+		
+		for _, loopVar := range loopVars {
+			if !isVariableUsedInBlock(loopVar.Name, rangeStmt.Body) {
+				
+				blankAssign := &ast.AssignStmt{
+					Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
+				}
+				rangeStmt.Body.List = append([]ast.Stmt{blankAssign}, rangeStmt.Body.List...)
+			}
+		}
+		
+		return true
+	})
+	
+	
+	ast.Inspect(file, func(n ast.Node) bool {
+		forStmt, ok := n.(*ast.ForStmt)
+		if !ok || forStmt.Body == nil {
+			return true
+		}
+		
+		
+		var loopVars []*ast.Ident
+		if init, ok := forStmt.Init.(*ast.AssignStmt); ok {
+			for _, lhs := range init.Lhs {
+				if ident, ok := lhs.(*ast.Ident); ok && ident.Name != "_" {
+					loopVars = append(loopVars, ident)
+				}
+			}
+		}
+		
+		
+		for _, loopVar := range loopVars {
+			if !isVariableUsedInBlock(loopVar.Name, forStmt.Body) {
+				blankAssign := &ast.AssignStmt{
+					Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
+				}
+				forStmt.Body.List = append([]ast.Stmt{blankAssign}, forStmt.Body.List...)
+			}
+		}
+		
+		return true
+	})
+}
+
+
+func isVariableUsedInBlock(name string, block *ast.BlockStmt) bool {
+	if block == nil {
+		return false
+	}
+	
+	used := false
+	ast.Inspect(block, func(n ast.Node) bool {
+		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
+			used = true
+			return false
+		}
+		return true
+	})
+	return used
+}
+
+
+func countIdentUsesInNode(name string, node ast.Node) int {
+	if node == nil {
+		return 0
+	}
+	
+	count := 0
+	ast.Inspect(node, func(n ast.Node) bool {
+		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
+			count++
+		}
+		return true
+	})
+	return count
 }

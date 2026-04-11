@@ -704,7 +704,6 @@ func (e *Engine) Sites() []Site {
 		if si.Column != sj.Column {
 			return si.Column < sj.Column
 		}
-		// Node type as final tiebreaker
 		return schemata_nodes.NodeTypeToUint8(si.Node) < schemata_nodes.NodeTypeToUint8(sj.Node)
 	})
 	return e.sites

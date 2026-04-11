@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -157,6 +158,78 @@ func UniqueErrorLines(output string, skipPrefix string) []string {
 		}
 	}
 	return errs
+}
+
+
+type CompilerError struct {
+	File    string
+	Line    int
+	Col     int
+	Message string
+}
+
+
+
+func ParseCompilerErrors(output string) []CompilerError {
+	var errors []CompilerError
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasSuffix(line, "too many errors") {
+			continue
+		}
+		if strings.HasPrefix(line, "# ") {
+			continue
+		}
+		
+		if parsed, ok := parseCompilerErrorLine(line); ok {
+			errors = append(errors, parsed)
+		}
+	}
+	return errors
+}
+
+func parseCompilerErrorLine(line string) (CompilerError, bool) {
+	
+	idx := strings.Index(line, ": ")
+	if idx < 0 {
+		return CompilerError{}, false
+	}
+
+	locPart := line[:idx]
+	msg := line[idx+2:]
+
+	
+	
+	rest, col, ok := splitLastInt(locPart)
+	if !ok {
+		return CompilerError{}, false
+	}
+	rest, lineNum, ok := splitLastInt(rest)
+	if !ok {
+		return CompilerError{}, false
+	}
+	
+	filePath := rest
+
+	return CompilerError{
+		File:    filePath,
+		Line:    lineNum,
+		Col:     col,
+		Message: msg,
+	}, true
+}
+
+func splitLastInt(s string) (string, int, bool) {
+	lastColon := strings.LastIndex(s, ":")
+	if lastColon < 0 {
+		return "", 0, false
+	}
+	numStr := s[lastColon+1:]
+	n, err := strconv.Atoi(numStr)
+	if err != nil {
+		return "", 0, false
+	}
+	return s[:lastColon], n, true
 }
 
 func fileExists(path string) bool {

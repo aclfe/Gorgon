@@ -14,7 +14,8 @@ import (
 	gtest "github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	"github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	"github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
 func mustGetMutator(name string) mutator.Operator {
@@ -182,7 +183,7 @@ func BenchmarkSchemata_BinaryExprHandler(b *testing.B) {
 	})
 
 	mutants := []schemata_nodes.MutantForSite{
-		{ID: 1, Op: mutator.ArithmeticFlip{}},
+		{ID: 1, Op: arithmetic_flip.ArithmeticFlip{}},
 	}
 
 	b.ResetTimer()

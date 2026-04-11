@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 )
 
 
@@ -61,7 +63,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 	w.absModule = absModule
 
-	
+
 	if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
 		return fmt.Errorf("failed to copy go.mod: %w", err)
 	}
@@ -69,7 +71,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		_ = os.WriteFile(filepath.Join(w.TempDir, "go.sum"), data, filePermissions)
 	}
 
-	
+
 	affected := make(map[string]bool)
 	for i := range mutants {
 		rel, err := w.relPath(mutants[i].Site.File.Name())
@@ -79,11 +81,18 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		affected[filepath.Dir(rel)] = true
 	}
 
+	var eg errgroup.Group
 	for pkgRelDir := range affected {
-		if err := w.copyPackage(absModule, pkgRelDir); err != nil {
-			return err
-		}
+		pkgRelDir := pkgRelDir
+		eg.Go(func() error {
+			return w.copyPackage(absModule, pkgRelDir)
+		})
 	}
+	
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	
 	return nil
 }
 
@@ -101,7 +110,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 
 	sourceCache := make(map[string][]byte)
 
-	// Sort AST files deterministically by file path
 	type astEntry struct {
 		astFile *ast.File
 		mutants []*Mutant
@@ -146,9 +154,9 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		}
 	}
 
-	// Build fileToMutants in deterministic order
+	
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
-	// Sort mutants by ID to ensure deterministic file grouping
+	
 	sortedMutants := make([]*Mutant, len(mutants))
 	for i := range mutants {
 		sortedMutants[i] = &mutants[i]
@@ -194,7 +202,7 @@ func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[i
 
 
 func (w *ModuleWorkspace) simplifyGoMod(fileToMutants map[string][]*Mutant) {
-	// Sort files for deterministic iteration
+	
 	files := make([]string, 0, len(fileToMutants))
 	for tempFile := range fileToMutants {
 		files = append(files, tempFile)

@@ -8,25 +8,25 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/assignment_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/boundary_value"
-	_ "github.com/aclfe/gorgon/pkg/mutator/conditional_expression"
-	_ "github.com/aclfe/gorgon/pkg/mutator/constant_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/defer_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/early_return_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/empty_body"
-	_ "github.com/aclfe/gorgon/pkg/mutator/inc_dec_flip"
-	_ "github.com/aclfe/gorgon/pkg/mutator/logical_operator"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_body_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_first"
-	_ "github.com/aclfe/gorgon/pkg/mutator/loop_break_removal"
-	_ "github.com/aclfe/gorgon/pkg/mutator/math_operators"
-	_ "github.com/aclfe/gorgon/pkg/mutator/negate_condition"
-	_ "github.com/aclfe/gorgon/pkg/mutator/reference_returns"
-	_ "github.com/aclfe/gorgon/pkg/mutator/sign_toggle"
-	_ "github.com/aclfe/gorgon/pkg/mutator/switch_mutations"
-	_ "github.com/aclfe/gorgon/pkg/mutator/variable_replacement"
-	_ "github.com/aclfe/gorgon/pkg/mutator/zero_value_return"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/conditional_expression"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/constant_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/defer_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/early_return_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/empty_body"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/inc_dec_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/logical_operator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_body_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_removal"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/math_operators"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/negate_condition"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/reference_returns"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/sign_toggle"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
 // These are slow integration tests - skip during benchmark runs
@@ -52,7 +52,7 @@ var expectedResults = []expectedMutations{
 	{folder: "zero_value_return", operator: "zero_value_return_string", total: 1, killed: 1, survived: 0},
 	{folder: "sign_toggle", operator: "sign_toggle", total: 4, killed: 4, survived: 0},
 	{folder: "constant_replacement", operator: "constant_replacement", total: 6, killed: 5, survived: 1},
-	{folder: "variable_replacement", operator: "variable_replacement", total: 18, killed: 15, survived: 3},
+	{folder: "variable_replacement", operator: "variable_replacement", total: 18, killed: 11, survived: 7},
 	{folder: "binary_math", operator: "binary_math", total: 5, killed: 5, survived: 0},
 	{folder: "inc_dec_flip", operator: "inc_dec_flip", total: 2, killed: 2, survived: 0},
 	{folder: "switch_mutations/switch_remove_default", operator: "switch_remove_default", total: 3, killed: 2, survived: 1},

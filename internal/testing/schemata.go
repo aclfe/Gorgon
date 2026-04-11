@@ -93,7 +93,7 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
 	}
 
-	// Sort package directories for deterministic processing
+	
 	pkgDirs := make([]string, 0, len(pkgToMutants))
 	for pkgDir := range pkgToMutants {
 		pkgDirs = append(pkgDirs, pkgDir)
