@@ -26,53 +26,124 @@ func (ConstantReplacement) CanApply(n ast.Node) bool {
 }
 
 func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
-	if !(ConstantReplacement{}).CanApply(n) {
+	bl, ok := n.(*ast.BasicLit)
+	if !ok {
 		return false
 	}
 
-	bl := n.(*ast.BasicLit)
 	p := ctx.Parent
 
-	switch p := p.(type) {
-	case *ast.ArrayType:
-		if p.Len == bl {
-			return false
-		}
-	case *ast.CallExpr:
-		if len(p.Args) > 0 && p.Args[0] == bl {
-			if sel, ok := p.Fun.(*ast.SelectorExpr); ok {
-				if id, ok := sel.X.(*ast.Ident); ok && id.Name == "fmt" && sel.Sel.Name == "Errorf" {
-					return false
+	
+	switch parent := p.(type) {
+
+	
+	case *ast.AssignStmt:
+		for _, rhs := range parent.Rhs {
+			if rhs == bl {
+				
+				if parent.Tok == token.DEFINE || parent.Tok == token.ASSIGN {
+					return isSafeLiteral(bl)
 				}
 			}
 		}
-	}
+		return false
 
-	if bin, ok := p.(*ast.BinaryExpr); ok && bin.Op == token.MUL {
-		if isTimeDuration(bin.X) || isTimeDuration(bin.Y) {
+	
+	case *ast.ReturnStmt:
+		for _, r := range parent.Results {
+			if r == bl {
+				return isSafeLiteral(bl)
+			}
+		}
+		return false
+
+	
+	case *ast.BinaryExpr:
+		if isTimeDuration(parent.X) || isTimeDuration(parent.Y) {
 			return false
 		}
-	}
+		
+		
+		
+		switch parent.Op {
+		case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ,
+			token.ADD, token.SUB, token.MUL, token.QUO, token.REM:
+			return isSafeLiteral(bl)
+		}
+		return false
 
-	return true
+	
+	case *ast.ValueSpec:
+		for _, v := range parent.Values {
+			if v == bl {
+				
+				
+				if parent.Type == nil {
+					return isSafeLiteral(bl)
+				}
+				
+				return false
+			}
+		}
+		return false
+
+	
+	
+	case *ast.CompositeLit:
+		for _, elt := range parent.Elts {
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				
+				if kv.Value == bl {
+					return isSafeLiteral(bl)
+				}
+			} else if elt == bl {
+				return isSafeLiteral(bl)
+			}
+		}
+		return false
+
+	
+	case *ast.ExprStmt:
+		return false 
+
+	default:
+		return false
+	}
+}
+
+
+
+func isSafeLiteral(bl *ast.BasicLit) bool {
+	switch bl.Kind {
+	case token.INT:
+		
+		
+		return true
+	case token.FLOAT:
+		return true
+	case token.STRING:
+		return true
+	case token.CHAR:
+		return true
+	}
+	return false
 }
 
 func (ConstantReplacement) Mutate(n ast.Node) ast.Node {
-    bl, ok := n.(*ast.BasicLit)
-    if !ok {
-        return nil
-    }
-    return mutateBasicLit(bl)
+	bl, ok := n.(*ast.BasicLit)
+	if !ok {
+		return nil
+	}
+	return mutateBasicLit(bl)
 }
 
 func (ConstantReplacement) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
-    cr := ConstantReplacement{}
-    if !cr.CanApplyWithContext(n, ctx) {
-        return nil
-    }
-    return cr.Mutate(n)
+	cr := ConstantReplacement{}
+	if !cr.CanApplyWithContext(n, ctx) {
+		return nil
+	}
+	return cr.Mutate(n)
 }
-
 
 func mutateBasicLit(bl *ast.BasicLit) ast.Node {
 	switch bl.Kind {

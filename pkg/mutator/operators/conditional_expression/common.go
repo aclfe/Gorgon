@@ -2,18 +2,19 @@ package conditional_expression
 
 import (
 	"go/ast"
+	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-// ConditionMutation defines a condition mutation operation.
+
 type ConditionMutation struct {
 	name        string
 	nodeType    ast.Node
 	replaceWith string
 }
 
-// buildConditionMutator creates a mutator for a specific condition mutation.
+
 func buildConditionMutator(m ConditionMutation) mutator.Operator {
 	return &conditionMutator{
 		name:        m.name,
@@ -36,10 +37,20 @@ func (m *conditionMutator) CanApply(n ast.Node) bool {
 	switch m.nodeType.(type) {
 	case *ast.IfStmt:
 		ie, ok := n.(*ast.IfStmt)
-		return ok && ie.Cond != nil
+		if !ok || ie.Cond == nil {
+			return false
+		}
+		
+		
+		if ie.Init != nil {
+			if _, ok := ie.Init.(*ast.AssignStmt); !ok {
+				return false
+			}
+		}
+		return isSafeCondition(ie.Cond)
 	case *ast.ForStmt:
 		fs, ok := n.(*ast.ForStmt)
-		return ok && fs.Cond != nil
+		return ok && fs.Cond != nil && isSafeCondition(fs.Cond)
 	default:
 		return false
 	}
@@ -53,7 +64,12 @@ func (m *conditionMutator) Mutate(n ast.Node) ast.Node {
 			return nil
 		}
 		return &ast.IfStmt{
-			Cond: &ast.Ident{Name: m.replaceWith},
+			If:   ie.If,
+			Init: ie.Init, 
+			Cond: &ast.Ident{
+				NamePos: ie.Cond.Pos(), 
+				Name:    m.replaceWith,
+			},
 			Body: ie.Body,
 			Else: ie.Else,
 		}
@@ -63,8 +79,12 @@ func (m *conditionMutator) Mutate(n ast.Node) ast.Node {
 			return nil
 		}
 		return &ast.ForStmt{
+			For:  fs.For,
 			Init: fs.Init,
-			Cond: &ast.Ident{Name: m.replaceWith},
+			Cond: &ast.Ident{
+				NamePos: fs.Cond.Pos(), 
+				Name:    m.replaceWith,
+			},
 			Post: fs.Post,
 			Body: fs.Body,
 		}
@@ -73,10 +93,38 @@ func (m *conditionMutator) Mutate(n ast.Node) ast.Node {
 	}
 }
 
-func (m *conditionMutator) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
+func (m *conditionMutator) CanApplyWithContext(n ast.Node, _ mutator.Context) bool {
 	return m.CanApply(n)
 }
 
-func (m *conditionMutator) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
+func (m *conditionMutator) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
 	return m.Mutate(n)
+}
+
+
+func isSafeCondition(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return true
+	case *ast.BasicLit:
+		return true
+	case *ast.ParenExpr:
+		return isSafeCondition(e.X)
+	case *ast.UnaryExpr:
+		return e.Op == token.NOT && isSafeCondition(e.X)
+	case *ast.BinaryExpr:
+		switch e.Op {
+		case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ,
+			token.LAND, token.LOR:
+			return isSafeCondition(e.X) && isSafeCondition(e.Y)
+		}
+		return false
+	case *ast.SelectorExpr:
+		return true
+	case *ast.CallExpr:
+		return true
+	default:
+		
+		return false
+	}
 }
