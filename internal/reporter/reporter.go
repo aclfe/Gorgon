@@ -144,8 +144,9 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 	}
 
 	score := 0.0
-	if total > 0 {
-		score = float64(killed) / float64(total) * percentageMultiplier
+	effectiveTotal := killed + survived
+	if effectiveTotal > 0 {
+		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
 	}
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -178,7 +179,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool) error {
 		fmt.Println("  (none)")
 	}
 
-	if threshold > 0 && score < threshold {
+	if threshold > 0 && effectiveTotal > 0 && score < threshold {
 		return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
 	}
 

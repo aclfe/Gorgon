@@ -93,12 +93,23 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, err
 	}
 
+	mutantSites := make(map[int]MutantSite, len(mutants))
+	for i := range mutants {
+		m := &mutants[i]
+		if m.Site.File != nil {
+			mutantSites[m.ID] = MutantSite{
+				File: m.Site.File.Name(),
+				Line: m.Site.Line,
+				Col:  m.Site.Column,
+			}
+		}
+	}
 
 	var prog *ProgressTracker
 	if progbar {
 		prog = NewProgressTracker(len(mutants))
 	}
-	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, concurrent, tests, prog)
+	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, mutantSites, concurrent, tests, prog)
 	
 	// Collect results even if there's an error
 	if len(results) > 0 {

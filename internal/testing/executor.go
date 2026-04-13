@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,6 +57,93 @@ func (p *ProgressTracker) Finish() {
 	fmt.Fprintln(os.Stderr)
 }
 
+type MutantSite struct {
+	File string 
+	Line int
+	Col  int
+}
+
+type compileResultWithAttribution struct {
+	compilerOutput string
+	perMutant      map[int]error
+}
+
+func attributeCompileErrors(tempDir string, mutantIDs []int, sites map[int]MutantSite, output string) compileResultWithAttribution {
+	result := compileResultWithAttribution{
+		compilerOutput: output,
+		perMutant:      make(map[int]error, len(mutantIDs)),
+	}
+
+	errors := ParseCompilerErrors(output)
+	if len(errors) == 0 {
+		for _, id := range mutantIDs {
+			result.perMutant[id] = nil
+		}
+		return result
+	}
+
+	type pos struct {
+		file string
+		line int
+		id   int
+	}
+	positions := make([]pos, 0, len(mutantIDs))
+	for _, id := range mutantIDs {
+		site, ok := sites[id]
+		if !ok {
+			continue
+		}
+		tempFile := filepath.Join(tempDir, relPathFromOriginal(site.File))
+		positions = append(positions, pos{file: tempFile, line: site.Line, id: id})
+	}
+
+	mutantErrors := make(map[int][]string, len(mutantIDs))
+	for _, ce := range errors {
+		errFile := filepath.Clean(ce.File)
+		if !filepath.IsAbs(errFile) {
+			errFile = filepath.Join(tempDir, errFile)
+		}
+
+		bestID := -1
+		bestDist := math.MaxInt32
+		for _, p := range positions {
+			if filepath.Clean(p.file) == errFile {
+				dist := absInt(p.line - ce.Line)
+				if dist < bestDist {
+					bestDist = dist
+					bestID = p.id
+				}
+			}
+		}
+		if bestID >= 0 && bestDist <= 20 {
+			line := fmt.Sprintf("%s:%d:%d: %s", ce.File, ce.Line, ce.Col, ce.Message)
+			mutantErrors[bestID] = append(mutantErrors[bestID], line)
+		}
+	}
+
+	for _, id := range mutantIDs {
+		if errs, ok := mutantErrors[id]; ok && len(errs) > 0 {
+			result.perMutant[id] = fmt.Errorf("compilation failed:\n%s", strings.Join(errs, "\n"))
+		} else {
+			result.perMutant[id] = nil
+		}
+	}
+	return result
+}
+
+func absInt(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func relPathFromOriginal(origPath string) string {
+	dir := filepath.Dir(origPath)
+	base := filepath.Base(origPath)
+	pkg := filepath.Base(dir)
+	return filepath.Join(pkg, base)
+}
 
 type testExecutor struct {
 	tempDir    string
@@ -64,7 +152,7 @@ type testExecutor struct {
 	tests      []string
 	timeout    time.Duration
 	baseEnv    []string
-	mutantEnv  []string 
+	mutantEnv  []string
 }
 
 func newTestExecutor(tempDir, pkgDir string, tests []string) *testExecutor {
@@ -81,6 +169,40 @@ func newTestExecutor(tempDir, pkgDir string, tests []string) *testExecutor {
 	}
 }
 
+
+func (e *testExecutor) compile(ctx context.Context) error {
+	e.testBinary = filepath.Join(e.pkgDir, "package.test")
+	relPkg := e.relPath()
+
+	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-o", e.testBinary, relPkg)
+	cmd.Dir = e.tempDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("test compilation failed for %s:\n%s", relPkg, out)
+	}
+	return nil
+}
+
+// compileWithAttribution compiles the package and returns structured attribution
+// for each mutant if compilation fails.
+func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []int, sites map[int]MutantSite) compileResultWithAttribution {
+	e.testBinary = filepath.Join(e.pkgDir, "package.test")
+	relPkg := e.relPath()
+
+	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-o", e.testBinary, relPkg)
+	cmd.Dir = e.tempDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return attributeCompileErrors(e.tempDir, mutantIDs, sites, string(out))
+	}
+	// Compilation succeeded — all mutants are fine
+	result := compileResultWithAttribution{
+		perMutant: make(map[int]error, len(mutantIDs)),
+	}
+	for _, id := range mutantIDs {
+		result.perMutant[id] = nil
+	}
+	return result
+}
 
 func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 	e.testBinary = filepath.Join(e.pkgDir, "package.test")
@@ -100,7 +222,7 @@ func (e *testExecutor) compileWithDebug(ctx context.Context, debug bool) error {
 }
 
 
-func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
+func (e *testExecutor) measureBaseline(ctx context.Context) (time.Duration, bool) {
 
 
 	var durations []time.Duration
@@ -122,7 +244,7 @@ func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
 	}
 
 	if len(durations) == 0 {
-		return minBaselineDuration * time.Millisecond
+		return minBaselineDuration * time.Millisecond, false
 	}
 
 	slices.Sort(durations)
@@ -131,7 +253,7 @@ func (e *testExecutor) measureBaseline(ctx context.Context) time.Duration {
 	if median < minBaselineDuration*time.Millisecond {
 		median = minBaselineDuration * time.Millisecond
 	}
-	return median
+	return median, true
 }
 
 func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration) {
@@ -167,12 +289,12 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) (string, err
 	cmd := exec.CommandContext(hardCtx, e.testBinary, args...)
 	cmd.Dir = e.pkgDir
 
-	
-	e.mutantEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
-	cmd.Env = e.mutantEnv
+	// Create a copy of mutantEnv to avoid race condition when running concurrently
+	cmdEnv := make([]string, len(e.mutantEnv))
+	copy(cmdEnv, e.mutantEnv)
+	cmdEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
+	cmd.Env = cmdEnv
 
-	
-	
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
@@ -190,7 +312,7 @@ func (e *testExecutor) relPath() string {
 	return "./" + filepath.ToSlash(rel)
 }
 
-func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, concurrent int, tests []string, prog *ProgressTracker) ([]mutantResult, error) {
+func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker) ([]mutantResult, error) {
 
 	type compileResult struct {
 		pkgDir string
@@ -224,13 +346,26 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			pkgDir := pkgDir
 			mutantIDsForPkg := mutantIDsForPkg
 			executor := newTestExecutor(tempDir, pkgDir, tests)
-			err := executor.compileWithDebug(compileCtx, false)
-			if err != nil {
+			result := executor.compileWithAttribution(compileCtx, mutantIDsForPkg, mutantSites)
+			hasError := false
+			for _, err := range result.perMutant {
+				if err != nil {
+					hasError = true
+					break
+				}
+			}
+			if hasError {
 				compErrsMu.Lock()
-				compErrors[pkgDir] = err
+				compErrors[pkgDir] = fmt.Errorf("compilation failed: %s", result.compilerOutput)
 				compErrsMu.Unlock()
 
 				for _, mutantID := range mutantIDsForPkg {
+					err := result.perMutant[mutantID]
+					// When package compilation fails, all mutants should be marked as "error"
+					// because none of them could be tested
+					if err == nil {
+						err = fmt.Errorf("compilation failed in package: %s", result.compilerOutput)
+					}
 					resultsChan <- mutantResult{id: mutantID, status: "error", err: err}
 					if prog != nil {
 						prog.Record()
@@ -239,8 +374,20 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				return nil
 			}
 
-			baseline := executor.measureBaseline(testCtx)
+			baseline, baselineOK := executor.measureBaseline(testCtx)
 			_, _ = executor.timeoutFor(baseline)
+
+			if !baselineOK {
+				// Baseline failed (tests don't exist or fail to run)
+				// All mutants should be marked as "survived" since we can't test them
+				for _, mutantID := range mutantIDsForPkg {
+					resultsChan <- mutantResult{id: mutantID, status: "survived", err: nil}
+					if prog != nil {
+						prog.Record()
+					}
+				}
+				return nil
+			}
 
 			for _, mutantID := range mutantIDsForPkg {
 				mutantID := mutantID
@@ -457,8 +604,37 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 
 	executor := newTestExecutor(tempDir, tempDir, tests)
-	if err := executor.compileWithDebug(context.Background(), false); err != nil {
+
+	// Build sites map for attribution
+	sites := make(map[int]MutantSite, len(pkgMutants))
+	mutantIDs := make([]int, len(pkgMutants))
+	for i, m := range pkgMutants {
+		mutantIDs[i] = m.ID
+		if m.Site.File != nil {
+			sites[m.ID] = MutantSite{
+				File: m.Site.File.Name(),
+				Line: m.Site.Line,
+				Col:  m.Site.Column,
+			}
+		}
+	}
+
+	result := executor.compileWithAttribution(context.Background(), mutantIDs, sites)
+	hasCompileError := false
+	for _, err := range result.perMutant {
+		if err != nil {
+			hasCompileError = true
+			break
+		}
+	}
+	if hasCompileError {
 		for _, m := range pkgMutants {
+			err := result.perMutant[m.ID]
+			// When package compilation fails, all mutants should be marked as "error"
+			// because none of them could be tested
+			if err == nil {
+				err = fmt.Errorf("compilation failed in package")
+			}
 			m.Status = "error"
 			m.Error = err
 			m.TempDir = tempDir
@@ -467,8 +643,19 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	}
 
 
-	baseline := executor.measureBaseline(context.Background())
+	baseline, baselineOK := executor.measureBaseline(context.Background())
 	_, _ = executor.timeoutFor(baseline)
+
+	if !baselineOK {
+		// Baseline failed (tests don't exist or fail to run)
+		// All mutants should be marked as "survived" since we can't test them
+		for _, m := range pkgMutants {
+			m.Status = "survived"
+			m.Error = nil
+			m.TempDir = tempDir
+		}
+		return nil
+	}
 
 	resultsChan := make(chan mutantResult, len(pkgMutants))
 	

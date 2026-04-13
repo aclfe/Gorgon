@@ -107,8 +107,7 @@ func isExported(name string) bool {
 	return false
 }
 
-
-
+ 
 func hasConcretReceiver(fn *ast.FuncDecl) bool {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 {
 		return false
