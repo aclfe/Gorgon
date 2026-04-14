@@ -31,8 +31,8 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
-// These are slow integration tests - skip during benchmark runs
-// Run explicitly with: go test -run TestMutationCounts
+
+
 
 type expectedMutations struct {
 	folder   string
@@ -71,8 +71,8 @@ var expectedResults = []expectedMutations{
 }
 
 func TestMutationCounts(tst *stdtesting.T) {
-	// Skip this slow test - run explicitly with: go test -run TestMutationCounts
-	// tst.Skip("Slow integration test - run explicitly if needed")
+	
+	
 
 	for _, expected := range expectedResults {
 		tst.Run(expected.folder+"/"+expected.operator, func(t *stdtesting.T) {
@@ -95,7 +95,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false, false)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, false, false)
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}
@@ -126,7 +126,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 }
 
 func TestAllOperatorsCombined(tst *stdtesting.T) {
-	// Skip this slow test - run explicitly with: go test -run TestAllOperatorsCombined
+	
 	tst.Skip("Slow integration test - run explicitly if needed")
 	
 	absPath, err := filepath.Abs("../../examples/mutations")
@@ -143,7 +143,7 @@ func TestAllOperatorsCombined(tst *stdtesting.T) {
 
 	sites := eng.Sites()
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false, false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, false, false)
 	if err != nil {
 		tst.Fatalf("GenerateAndRunSchemata failed: %v", err)
 	}

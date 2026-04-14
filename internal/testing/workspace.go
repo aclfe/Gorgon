@@ -21,6 +21,7 @@ type ModuleWorkspace struct {
 	TempDir   string
 	absModule string
 	fileRelPaths map[string]string
+	mu         sync.Mutex
 }
 
 
@@ -37,6 +38,8 @@ func NewModuleWorkspace() (*ModuleWorkspace, error) {
 
 
 func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if rel, ok := w.fileRelPaths[filePath]; ok {
 		return rel, nil
 	}
@@ -66,7 +69,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 	w.absModule = absModule
 
-	
+
 	mutatedPaths := make(map[string]bool, len(mutants))
 	for i := range mutants {
 		if mutants[i].Site.File != nil {
@@ -77,7 +80,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
 
-	
+
 	g.Go(func() error {
 		if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
 			return fmt.Errorf("failed to copy go.mod: %w", err)
@@ -90,16 +93,15 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		return nil
 	})
 
-	affected := make(map[string]bool)
-	for i := range mutants {
-		rel, err := w.relPath(mutants[i].Site.File.Name())
-		if err != nil {
-			return fmt.Errorf("failed to compute rel path: %w", err)
-		}
-		affected[filepath.Dir(rel)] = true
+	
+	
+	
+	allPkgs, err := collectAllPackages(absModule)
+	if err != nil {
+		return fmt.Errorf("failed to collect packages: %w", err)
 	}
 
-	for pkgRelDir := range affected {
+	for pkgRelDir := range allPkgs {
 		pkgRelDir := pkgRelDir
 		g.Go(func() error {
 			return w.copyPackage(absModule, pkgRelDir, mutatedPaths)
@@ -285,8 +287,8 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 		dst := filepath.Join(dstDir, entry.Name())
 
 		if entry.IsDir() {
-			// CRITICAL: Never symlink directories - always copy to avoid mutations
-			// being written back to the original source files
+			
+			
 			if hasGoFiles(src) {
 				if err := copyDirContents(src, dst, mutatedPaths); err != nil {
 					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
@@ -298,16 +300,54 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 			continue
 		}
 
-		// Skip mutated files — they'll be written by schemata application
+		
 		if mutatedPaths[src] {
 			continue
 		}
 
-		// CRITICAL: Never symlink or hardlink files - always copy to ensure
-		// mutations are isolated to the temp workspace
+		
+		
 		if err := copyFileWithBuffer(src, dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", src, err)
 		}
 	}
 	return nil
+}
+
+
+
+func collectAllPackages(absModule string) (map[string]bool, error) {
+	pkgs := make(map[string]bool)
+
+	err := filepath.Walk(absModule, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil 
+		}
+
+		
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || strings.HasPrefix(name, "_") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			dir := filepath.Dir(path)
+			relDir, err := filepath.Rel(absModule, dir)
+			if err != nil {
+				return nil
+			}
+			pkgs[relDir] = true
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return pkgs, nil
 }

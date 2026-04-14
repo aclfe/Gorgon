@@ -1,0 +1,448 @@
+Mutation Score: 94.87%
+Killed: 4479
+Survived: 242
+Errors: 627
+Unknown: 0
+Total: 5348
+
+Error Summary by Operator:
+  zero_value_return_error             1/58 errors (1.7%)
+  switch_remove_default               8/29 errors (27.6%)
+  variable_replacement                19/428 errors (4.4%)
+  pointer_returns                     19/85 errors (22.4%)
+  boundary_value                      23/163 errors (14.1%)
+  assignment_operator                 31/403 errors (7.7%)
+  if_condition_true                   99/970 errors (10.2%)
+  interface_returns                   2/2 errors (100.0%)
+  zero_value_return_string            8/96 errors (8.3%)
+  zero_value_return_bool              48/180 errors (26.7%)
+  for_condition_false                 8/22 errors (36.4%)
+  loop_body_removal                   22/233 errors (9.4%)
+  if_condition_false                  99/970 errors (10.2%)
+  negate_condition                    87/864 errors (10.1%)
+  zero_value_return_numeric           1/15 errors (6.7%)
+  logical_operator                    58/220 errors (26.4%)
+  swap_case_bodies                    54/228 errors (23.7%)
+  for_condition_true                  8/22 errors (36.4%)
+  loop_break_first                    22/233 errors (9.4%)
+  inc_dec_flip                        10/46 errors (21.7%)
+
+Top Compilation Error Types (showing up to 20 of 43 unique error messages):
+  • compilation failed in package:
+  • syntax error: unexpected { at end of statement
+  • syntax error: unexpected keyword else after top level declaration
+  • method has no receiver
+  • syntax error: unexpected {, expected (
+  • syntax error: unexpected keyword if, expected )
+  • syntax error: unexpected semicolon or newline before {
+  • cannot use nil as string value in return statement
+  • cannot use nil as int value in return statement
+  • undefined: err
+  • invalid operation: operator + not defined on f.Targets (variable of type []string)
+  • invalid operation: operator + not defined on cfg.Operators (variable of type []string)
+  • invalid operation: operator + not defined on cfg.Exclude (variable of type []string)
+  • FAIL	github.com/aclfe/gorgon/internal/cli [build failed]
+  • FAIL
+  • invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
+  • undefined: ok
+  • undefined: cc
+  • expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  • declared and not used: ok
+  ... and 23 more unique error types
+
+Per-Mutant Compilation Errors (unlimited):
+  (for_condition_false) loop_body_removal.go:12:6: syntax error: unexpected { at end of statement
+  (for_condition_false) loop_body_removal.go:21:5: syntax error: unexpected keyword else after top level declaration
+  (for_condition_false) loop_body_removal.go:38:23: method has no receiver
+  (for_condition_false) loop_body_removal.go:38:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_body_removal.go:39:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_body_removal.go:43:9: syntax error: unexpected semicolon or newline before {
+  (for_condition_false) loop_body_removal.go:52:23: method has no receiver
+  (for_condition_false) loop_body_removal.go:52:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_body_removal.go:53:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_body_removal.go:57:9: syntax error: unexpected semicolon or newline before {
+  (for_condition_false) loop_break_first.go:12:6: syntax error: unexpected { at end of statement
+  (for_condition_false) loop_break_first.go:21:5: syntax error: unexpected keyword else after top level declaration
+  (for_condition_false) loop_break_first.go:38:23: method has no receiver
+  (for_condition_false) loop_break_first.go:38:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_break_first.go:39:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_break_first.go:43:9: syntax error: unexpected semicolon or newline before {
+  (for_condition_false) loop_break_first.go:52:23: method has no receiver
+  (for_condition_false) loop_break_first.go:52:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_break_first.go:53:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_break_first.go:57:9: syntax error: unexpected semicolon or newline before {
+  (for_condition_false) loop_break_removal.go:12:6: syntax error: unexpected { at end of statement
+  (for_condition_false) loop_break_removal.go:40:5: syntax error: unexpected keyword else after top level declaration
+  (for_condition_false) loop_break_removal.go:76:23: method has no receiver
+  (for_condition_false) loop_break_removal.go:76:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_break_removal.go:77:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_break_removal.go:81:9: syntax error: unexpected semicolon or newline before {
+  (for_condition_false) loop_break_removal.go:90:23: method has no receiver
+  (for_condition_false) loop_break_removal.go:90:28: syntax error: unexpected {, expected (
+  (for_condition_false) loop_break_removal.go:91:5: syntax error: unexpected keyword if, expected )
+  (for_condition_false) loop_break_removal.go:95:9: syntax error: unexpected semicolon or newline before {
+  (interface_returns) interface_returns.go:6:11: cannot use nil as string value in return statement
+  (interface_returns) interface_returns.go:18:11: cannot use nil as int value in return statement
+  (if_condition_false) cli.go:74:9: undefined: err
+  (if_condition_false) cli.go:75:17: undefined: err
+  (if_condition_false) cli.go:86:4: invalid operation: operator + not defined on f.Targets (variable of type []string)
+  (if_condition_false) cli.go:172854:7: invalid operation: operator + not defined on cfg.Operators (variable of type []string)
+  (if_condition_false) cli.go:172864:7: invalid operation: operator + not defined on cfg.Operators (variable of type []string)
+  (if_condition_false) cli.go:172874:7: invalid operation: operator + not defined on cfg.Operators (variable of type []string)
+  (if_condition_false) cli.go:172884:7: invalid operation: operator + not defined on cfg.Operators (variable of type []string)
+  (if_condition_false) cli.go:172919:7: invalid operation: operator + not defined on cfg.Exclude (variable of type []string)
+  (if_condition_false) cli.go:172929:7: invalid operation: operator + not defined on cfg.Exclude (variable of type []string)
+  (if_condition_false) cli.go:172939:7: invalid operation: operator + not defined on cfg.Exclude (variable of type []string)
+  (if_condition_false) ast.go:145:4: invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
+  (if_condition_false) ast.go:392:9: undefined: ok
+  (if_condition_false) ast.go:419:28: undefined: cc
+  (if_condition_false) ast.go:421:28: undefined: cc
+  (if_condition_false) ast.go:424:29: undefined: cc
+  (if_condition_false) ast.go:426:27: undefined: cc
+  (if_condition_false) ast.go:431:27: undefined: cc
+  (if_condition_false) ast.go:433:27: undefined: cc
+  (if_condition_false) ast.go:436:28: undefined: cc
+  (if_condition_false) ast.go:438:26: undefined: cc
+  (zero_value_return_string) assignment_operator.go:117:26: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:119:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:120:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:124:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:126:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:127:23: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:136:26: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:138:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:139:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (zero_value_return_string) assignment_operator.go:146:23: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+  (pointer_returns) common.go:98:14: declared and not used: ok
+  (pointer_returns) common.go:102:14: declared and not used: ok
+  (pointer_returns) common.go:116:14: declared and not used: ok
+  (pointer_returns) common.go:120:14: declared and not used: ok
+  (pointer_returns) common.go:134:14: declared and not used: ok
+  (pointer_returns) common.go:138:14: declared and not used: ok
+  (pointer_returns) common.go:152:14: declared and not used: ok
+  (pointer_returns) common.go:156:14: declared and not used: ok
+  (pointer_returns) common.go:372:29: e.X undefined (type *ast.BasicLit has no field or method X)
+  (pointer_returns) common.go:380:15: e.Op undefined (type *ast.ParenExpr has no field or method Op)
+  (zero_value_return_string) constant_replacement.go:107:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
+  (zero_value_return_string) constant_replacement.go:110:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
+  (zero_value_return_string) constant_replacement.go:133:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
+  (zero_value_return_string) constant_replacement.go:458:37: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+  (zero_value_return_string) constant_replacement.go:458:65: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
+  (zero_value_return_string) constant_replacement.go:460:36: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+  (zero_value_return_string) constant_replacement.go:460:64: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
+  (zero_value_return_string) constant_replacement.go:467:37: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+  (zero_value_return_string) constant_replacement.go:467:65: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
+  (zero_value_return_string) constant_replacement.go:469:36: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+  (zero_value_return_string) empty_body.go:667:21: t.X undefined (type *ast.Ident has no field or method X)
+  (zero_value_return_string) empty_body.go:676:21: t.X undefined (type *ast.Ident has no field or method X)
+  (zero_value_return_string) empty_body.go:685:10: undefined: ok
+  (zero_value_return_string) empty_body.go:688:16: undefined: id
+  (zero_value_return_string) empty_body.go:690:15: undefined: id
+  (zero_value_return_string) empty_body.go:694:21: t.X undefined (type *ast.Ident has no field or method X)
+  (zero_value_return_string) empty_body.go:734:11: undefined: ok
+  (zero_value_return_string) empty_body.go:737:17: undefined: id
+  (zero_value_return_string) empty_body.go:739:16: undefined: id
+  (zero_value_return_string) empty_body.go:756:15: t.Name undefined (type *ast.StarExpr has no field or method Name)
+  (zero_value_return_string) loop_body_removal.go:95:19: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+  (zero_value_return_string) loop_body_removal.go:96:19: stmt.Value undefined (type *ast.ForStmt has no field or method Value)
+  (zero_value_return_string) loop_body_removal.go:97:19: stmt.TokPos undefined (type *ast.ForStmt has no field or method TokPos)
+  (zero_value_return_string) loop_body_removal.go:98:19: stmt.Tok undefined (type *ast.ForStmt has no field or method Tok)
+  (zero_value_return_string) loop_body_removal.go:99:19: stmt.Range undefined (type *ast.ForStmt has no field or method Range)
+  (zero_value_return_string) loop_body_removal.go:100:19: stmt.X undefined (type *ast.ForStmt has no field or method X)
+  (zero_value_return_string) loop_body_removal.go:142:17: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+  (zero_value_return_string) loop_body_removal.go:143:17: stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
+  (zero_value_return_string) loop_body_removal.go:144:17: stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
+  (zero_value_return_string) loop_break_first.go:124:6: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
+  (zero_value_return_string) loop_break_first.go:141:19: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+  (zero_value_return_string) loop_break_first.go:142:19: stmt.Value undefined (type *ast.ForStmt has no field or method Value)
+  (zero_value_return_string) loop_break_first.go:143:19: stmt.TokPos undefined (type *ast.ForStmt has no field or method TokPos)
+  (zero_value_return_string) loop_break_first.go:144:19: stmt.Tok undefined (type *ast.ForStmt has no field or method Tok)
+  (zero_value_return_string) loop_break_first.go:145:19: stmt.Range undefined (type *ast.ForStmt has no field or method Range)
+  (zero_value_return_string) loop_break_first.go:146:19: stmt.X undefined (type *ast.ForStmt has no field or method X)
+  (zero_value_return_string) loop_break_first.go:184:5: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
+  (zero_value_return_string) loop_break_first.go:243:7: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
+  (zero_value_return_string) loop_break_first.go:303:6: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
+  (zero_value_return_string) channel_returns.go:105:7: declared and not used: ident
+  (zero_value_return_string) channel_returns.go:141:7: declared and not used: ident
+  (zero_value_return_string) channel_returns.go:179:19: undefined: ident
+  (zero_value_return_string) channel_returns.go:181:18: undefined: ident
+  (zero_value_return_string) interface_returns.go:235:32: e.X undefined (type *ast.Ident has no field or method X)
+  (total: 116 error lines)
+
+Error Count by Operator:
+  boundary_value: 23 errors
+  zero_value_return_string: 8 errors
+  logical_operator: 58 errors
+  zero_value_return_bool: 48 errors
+  for_condition_false: 8 errors
+  zero_value_return_numeric: 1 errors
+  loop_body_removal: 22 errors
+  inc_dec_flip: 10 errors
+  if_condition_false: 99 errors
+  if_condition_true: 99 errors
+  interface_returns: 2 errors
+  variable_replacement: 19 errors
+  for_condition_true: 8 errors
+  assignment_operator: 31 errors
+  negate_condition: 87 errors
+  zero_value_return_error: 1 errors
+  swap_case_bodies: 54 errors
+  switch_remove_default: 8 errors
+  pointer_returns: 19 errors
+  loop_break_first: 22 errors
+
+Top Killing Tests:
+  (compilation/runtime error)                        3928 kills
+  TestSumUntilLimit                                  16 kills
+  TestLoopWithCondition                              12 kills
+  TestMax                                            10 kills
+  TestGetGrade                                       10 kills
+  TestSign                                           8 kills
+  (test output non-empty)                            8 kills
+  TestGetDayName                                     8 kills
+  TestProcessValues                                  6 kills
+  TestCheckAccess                                    6 kills
+
+Survived Mutants:
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:17:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:13 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:13 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:17 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/assignment_operator/assignment_operator.go:18:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/assignment_operator/assignment_operator.go:19:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go:8:13 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go:8:16 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go:8:23 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/boundary_value/boundary_value.go:4:20 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/boundary_value/boundary_value.go:4:22 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:4:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:8:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:12:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:12:14 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:5 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:16:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:17:10 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go:19:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go:14:8 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go:14:8 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go:23:2 (Operator: for_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:4:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:4:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:7:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:11:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:14:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:19:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:19:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:19:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go:19:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:4:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:4:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:7:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:11:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:14:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:19:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:19:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:19:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go:19:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/constant_replacement/constant_replacement.go:12:2 (Operator: zero_value_return_string)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:17:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:19:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:19:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:19:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:27:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:32:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:37:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:38:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:43:13 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:44:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:45:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go:50:2 (Operator: defer_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go:4:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go:7:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go:15:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go:18:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go:28:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:4:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:4:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:4:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:7:10 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:8:10 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:11:1 (Operator: empty_body)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:13:7 (Operator: inc_dec_flip)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:15:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:18:1 (Operator: empty_body)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:20:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:23:1 (Operator: empty_body)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go:25:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:10:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:10:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:10:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:11:3 (Operator: zero_value_return_string)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:13:2 (Operator: zero_value_return_string)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:17:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:17:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:17:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:18:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:20:2 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:24:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:24:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:24:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:24:8 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:27:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:31:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:31:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:31:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:31:5 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:32:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:34:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:34:13 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:38:2 (Operator: zero_value_return_string)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:42:2 (Operator: zero_value_return_error)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:47:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:47:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:47:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:48:3 (Operator: zero_value_return_numeric)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:55:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:55:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:55:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:59:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:59:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:59:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:66:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:66:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:66:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go:95:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/logical_operator/logical_operator.go:4:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/logical_operator/logical_operator.go:8:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go:4:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go:12:11 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go:15:2 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:4:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:4:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:11:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:19:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:26:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:26:7 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go:33:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/channel_returns/channel_returns.go:4:2 (Operator: channel_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/map_returns/map_returns.go:4:2 (Operator: map_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go:5:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go:6:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go:11:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/slice_returns/slice_returns.go:4:2 (Operator: slice_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go:26:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go:28:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go:30:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go:32:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:5:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:7:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:9:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:11:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:13:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:15:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:17:2 (Operator: swap_case_bodies)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:19:2 (Operator: switch_remove_default)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:26:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:28:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:30:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go:32:13 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go:14:2 (Operator: slice_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go:18:2 (Operator: map_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go:30:4 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:6:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:6:18 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:12:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:12:5 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:12:10 (Operator: boundary_value)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:13:10 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go:15:9 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:41:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:57:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:57:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:57:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:62:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:62:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:62:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:67:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:67:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:67:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:75:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:75:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:75:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:84:11 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:85:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:85:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:85:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:89:6 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:91:2 (Operator: loop_body_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:91:2 (Operator: loop_break_first)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:91:21 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:92:6 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:93:3 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:93:15 (Operator: logical_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:95:15 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:95:24 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:99:2 (Operator: loop_body_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:99:2 (Operator: loop_break_first)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:100:3 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:100:3 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:100:3 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:103:4 (Operator: loop_body_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:103:4 (Operator: loop_break_first)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:106:4 (Operator: loop_body_removal)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:106:4 (Operator: loop_break_first)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:106:23 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:108:25 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:114:13 (Operator: assignment_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:116:14 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:123:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:123:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:123:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:124:3 (Operator: zero_value_return_error)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:126:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:126:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:126:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:127:3 (Operator: zero_value_return_error)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:20:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:21:3 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:29:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:33:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:16:2 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:21:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:21:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:22:3 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:33:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:33:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:36:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:16:2 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:21:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:21:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:22:3 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:24:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:24:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:24:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:24:24 (Operator: logical_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:25:3 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:31:11 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:41:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:41:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:41:2 (Operator: negate_condition)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:41:9 (Operator: logical_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:41:31 (Operator: logical_operator)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:44:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:44:2 (Operator: if_condition_true)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go:47:2 (Operator: pointer_returns)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:20:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:21:3 (Operator: zero_value_return_bool)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:29:2 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:33:2 (Operator: if_condition_false)

@@ -23,6 +23,10 @@ type Flags struct {
 	DryRun      bool
 	Debug       bool
 	ProgBar     bool
+	ShowKilled  bool
+	Format      string
+	Output      string
+	DebugFiles  bool
 	CPUProfile  string
 	Exclude     string
 	Include     string
@@ -33,7 +37,7 @@ type Flags struct {
 }
 
 func Parse(args []string) (*Flags, error) {
-	fs := flag.NewFlagSet("gorgon", flag.ExitOnError)
+	fs := flag.NewFlagSet("gorgon", flag.ContinueOnError)
 
 	f := &Flags{}
 	fs.StringVar(&f.ConfigFile, "config", "", "Path to YAML config file (disables all other flags)")
@@ -51,6 +55,10 @@ func Parse(args []string) (*Flags, error) {
 	fs.StringVar(&f.Tests, "tests", "", "Comma-separated relative paths to test files/folders")
 	fs.BoolVar(&f.Debug, "debug", false, "Show detailed debug output during execution")
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
+	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
+	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile)")
+	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt)")
+	fs.BoolVar(&f.DebugFiles, "debug-files", false, "Also write debug info to {output}.debug.txt")
 	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
 
 	if err := fs.Parse(args); err != nil {
@@ -109,6 +117,10 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	}
 	cfg.Debug = f.Debug
 	cfg.ProgBar = f.ProgBar
+	cfg.ShowKilled = f.ShowKilled
+	cfg.Format = f.Format
+	cfg.Output = f.Output
+	cfg.DebugFiles = f.DebugFiles
 	cfg.CPUProfile = f.CPUProfile
 	return cfg, nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestEndToEndMutationPipeline(tst *stdtesting.T) {
-	// Skip this slow test - run explicitly with: go test -run TestEndToEndMutationPipeline
+	
 	tst.Skip("Slow integration test - run explicitly if needed")
 	
 	absPath, err := filepath.Abs("../../examples/mutations/arithmetic_flip")
@@ -22,7 +22,7 @@ func TestEndToEndMutationPipeline(tst *stdtesting.T) {
 		tst.Fatal("Expected to find mutation sites, found 0")
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, false, false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, false, false)
 	if err != nil {
 		tst.Skipf("Pipeline skipped (dependency issue): %v", err)
 	}

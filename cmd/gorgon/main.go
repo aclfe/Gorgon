@@ -39,7 +39,7 @@ func main() {
 		runner.ExitWithError(err)
 	}
 
-	// If no targets provided and not using config, print usage
+	
 	if len(flags.Targets) == 0 && flags.ConfigFile == "" && flags.PkgPath == "." {
 		cli.PrintUsage()
 	}
@@ -48,7 +48,7 @@ func main() {
 		flags.Targets = []string{flags.PkgPath}
 	}
 
-	// Load configuration (from YAML or fags)
+	
 	cfg, err := flags.LoadConfig()
 	if err != nil {
 		runner.ExitWithError(err)

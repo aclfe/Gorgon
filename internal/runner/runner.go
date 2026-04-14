@@ -20,7 +20,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/config"
 )
 
-
 func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
 	if len(targets) == 0 {
 		cli.PrintUsage()
@@ -110,16 +109,26 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 
-	tests, err := extractTests(cfg.Tests)
+	tests, testPaths, err := extractTests(cfg.Tests)
 	if err != nil {
 		return err
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, cfg.Debug, cfg.ProgBar)
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, cfg.Debug, cfg.ProgBar)
 	
-	// Report statistics even if there are errors, as long as we have some mutants
+	
+	debugFilePath := ""
+	if cfg.DebugFiles {
+		if cfg.Output != "" {
+			ext := filepath.Ext(cfg.Output)
+			base := strings.TrimSuffix(cfg.Output, ext)
+			debugFilePath = base + ".debug" + ext
+		} else {
+			debugFilePath = "gorgon-debug.txt"
+		}
+	}
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug); reportErr != nil {
+		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.Output, debugFilePath); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {
@@ -278,8 +287,9 @@ func matchesAny(path string, patterns []string) bool {
 	return false
 }
 
-func extractTests(testPaths []string) ([]string, error) {
+func extractTests(testPaths []string) ([]string, []string, error) {
 	var tests []string
+	var paths []string
 	for _, p := range testPaths {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -287,11 +297,12 @@ func extractTests(testPaths []string) ([]string, error) {
 		}
 		names, err := extractTestNames(p)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse tests from %s: %w", p, err)
+			return nil, nil, fmt.Errorf("failed to parse tests from %s: %w", p, err)
 		}
 		tests = append(tests, names...)
+		paths = append(paths, p)
 	}
-	return tests, nil
+	return tests, paths, nil
 }
 
 func extractTestNames(path string) ([]string, error) {

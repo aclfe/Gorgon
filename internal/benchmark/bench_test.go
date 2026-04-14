@@ -70,7 +70,7 @@ func BenchmarkPipeline_FullSmallCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants, 0, false)
+		_ = reporter.Report(mutants, 0, false, false, "", "")
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -93,7 +93,7 @@ func BenchmarkPipeline_FullMediumCodebase(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(mutants, 0, false)
+		_ = reporter.Report(mutants, 0, false, false, "", "")
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old
@@ -146,7 +146,7 @@ func BenchmarkPipeline_PhaseBreakdown(b *testing.B) {
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
-		_ = reporter.Report(runMutants, 0, false)
+		_ = reporter.Report(runMutants, 0, false, false, "", "")
 		w.Close()
 		_, _ = io.Copy(io.Discard, r)
 		os.Stdout = old

@@ -88,9 +88,9 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
-// linkOrCopyDir creates the temp directory structure by copying unchanged files
-// and skipping mutated files (which will be written by schemata application).
-// mutatedPaths contains the original source paths of files that will be mutated.
+
+
+
 func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {
@@ -101,8 +101,8 @@ func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
 		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			// CRITICAL: Never symlink subdirectories - always copy to avoid
-			// mutations being written back to the original source files
+			
+			
 			if hasGoFiles(srcPath) {
 				if err := copyDirContents(srcPath, dstPath, mutatedPaths); err != nil {
 					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
@@ -114,13 +114,13 @@ func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
 			continue
 		}
 
-		// Skip mutated files — they'll be written by schemata application
+		
 		if mutatedPaths[srcPath] {
 			continue
 		}
 
-		// CRITICAL: Never symlink or hardlink files - always copy to ensure
-		// mutations are isolated to the temp workspace
+		
+		
 		if err := copyFileWithBuffer(srcPath, dstPath); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", entry.Name(), err)
 		}
@@ -128,7 +128,7 @@ func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
 	return nil
 }
 
-// hasGoFiles checks if a directory contains any .go files.
+
 func hasGoFiles(dir string) bool {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
@@ -139,7 +139,7 @@ func hasGoFiles(dir string) bool {
 	return false
 }
 
-// copyDirContents recursively copies a directory, respecting mutatedPaths.
+
 func copyDirContents(src, dst string, mutatedPaths map[string]bool) error {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
@@ -165,7 +165,7 @@ func copyDirContents(src, dst string, mutatedPaths map[string]bool) error {
 		if mutatedPaths[srcPath] {
 			continue
 		}
-		// CRITICAL: Always copy files, never symlink/hardlink
+		
 		if err := copyFileWithBuffer(srcPath, dstPath); err != nil {
 			return err
 		}
@@ -173,17 +173,17 @@ func copyDirContents(src, dst string, mutatedPaths map[string]bool) error {
 	return nil
 }
 
-// smartLink tries to create a symlink, then a hard link, returning error if both fail.
+
 func smartLink(src, dst string) error {
-	// Try symlink first
+	
 	if err := os.Symlink(src, dst); err == nil {
 		return nil
 	}
-	// Fall back to hard link
+	
 	if err := os.Link(src, dst); err == nil {
 		return nil
 	}
-	// Both failed — caller should fall back to copy
+	
 	return fmt.Errorf("link failed")
 }
 

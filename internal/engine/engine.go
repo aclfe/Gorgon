@@ -524,7 +524,7 @@ func (e *Engine) mergeIgnoreDirectives(absPath string, ignoreMap map[int]map[str
 func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Visitor, printAST bool) error {
 	fileCache := newContextCache()
 	defer func() {
-		// Return all cached contexts to the pool to avoid memory leak
+		
 		for _, ctx := range fileCache.contexts {
 			fileCache.pool.Put(ctx)
 		}
@@ -696,7 +696,7 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 		return fmt.Errorf("failed to load packages from %q: %w", path, err)
 	}
 
-	// Count total files upfront for progress reporting
+	
 	totalFiles := 0
 	for _, pkg := range pkgs {
 		totalFiles += len(pkg.Syntax)

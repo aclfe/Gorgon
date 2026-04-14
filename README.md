@@ -34,6 +34,11 @@ gorgon -cache ./path                # cache results between runs
 | `-skip-func` | `""` | Comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc) |
 | `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
 | `-debug` | `false` | Show detailed debug output during execution |
+| `-show-killed` | `false` | Show killed mutants with test attribution |
+| `-format` | `textfile` | Output format for report file |
+| `-output` | `""` | Write report to file (e.g. `report.txt`) |
+| `-debug-files` | `false` | Also write debug info to `{output}.debug.txt` |
+| `-cpu-profile` | `""` | Write CPU profile to file (analyzable with `go tool pprof`) |
 
 ## Config
 
@@ -47,6 +52,10 @@ threshold: 80
 cache: true
 progbar: false
 dry_run: false
+show_killed: false
+format: textfile
+output: "report.txt"
+debug_files: false
 exclude:
   - "*_test.go"
 include: []
@@ -57,6 +66,7 @@ skip_func:
 tests: []
 debug: false
 base: ""
+cpu_profile: ""
 ```
 
 ```
@@ -184,3 +194,75 @@ Statement
 - Extensible: implement Operator or ContextualOperator interface
 - Schemata-based for fast testing
 - Parallel test execution: mutants run concurrently across CPU cores
+
+## Kill Attribution
+
+When a mutant is killed, Gorgon tracks which test detected it:
+
+```
+Top Killing Tests:
+  TestMainHandlesFlagErrors                        42 kills
+  TestMainHandlesValidationErrors                  115 kills
+
+Killed Mutants:
+- #12 cmd/gorgon/main.go:34:5 (if_condition_false) killed by TestMainHandlesFlagErrors (12ms)
+- #15 cmd/gorgon/main.go:38:9 (negate_condition) killed by TestMainHandlesValidationErrors (8ms)
+...
+```
+
+Use `-show-killed` or `show_killed: true` in config to display killed mutants. The output includes:
+- **Which test** killed the mutant (parsed from `--- FAIL: TestName`)
+- **How long** it took to detect (duration from test start to failure)
+- **Compiler kills**: mutations that cause compilation failures are also tracked as kills (attributed to `(compiler)`)
+
+## Test Isolation
+
+When `-tests` is specified, Gorgon only tests mutants in the packages covered by those test files. Mutants in other packages are marked as **survived** since no tests target them.
+
+For example, with `tests: [cmd/gorgon/main_test.go]`:
+- Mutants in `cmd/gorgon/` are tested (the tests target this package)
+- Mutants in `pkg/config/`, `examples/`, etc. are marked **survived** (no tests cover them)
+
+This prevents false "kill" counts where tests appear to kill mutants they don't actually test.
+
+## Output Files
+
+Write the report to a file instead of (or in addition to) stdout:
+
+```
+gorgon -output=report.txt ./path
+```
+
+This writes the full report (mutation score, top killers, killed/survived mutants) to `report.txt` while still printing to stdout.
+
+### Debug Files
+
+Enable `-debug-files` to also write detailed debug information:
+
+```
+gorgon -output=report.txt -debug-files ./path
+```
+
+This creates two files:
+- `report.txt` — the standard report (stats, killed mutants, survived mutants)
+- `report.debug.txt` — detailed debug info (error summaries, per-mutant compilation errors)
+
+### Config
+
+```yaml
+format: textfile
+output: "report.txt"
+debug_files: true
+```
+
+Currently only `textfile` format is supported.
+
+## CPU Profiling
+
+Use `-cpu-profile=file.out` or `cpu_profile: "file.out"` to write a CPU profile. Analyze it with:
+
+```
+go tool pprof -http=:8080 file.out
+```
+
+Use `cpu_profile: "true"` to write to `gorgon.cpuprofile` in the current directory.

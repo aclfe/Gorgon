@@ -1,4 +1,4 @@
-// Package analysis provides AST traversal, position checking, and node cloning
+
 // utilities used by mutation operators.
 package analysis
 

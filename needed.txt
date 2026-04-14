@@ -1,2 +1,4 @@
 go test ./internal/testing -run TestMutationCounts -v 
 go tool pprof -top gorgon.cpuprofile
+
+there's some serious issue with the project right now. Before I had put some files excluded in Gorgon.yml and it was showing me 236 killed mutations. I removed those files and it's still showing 236 killed, whereas I know it hsould be more because I removed files whic hwere arleady killing mutations. so I know for a huge fact that more than 236 should have been killed but that number isn't being displayed, now it's only 236? THis means the mutation testing enginge isn't correctly reporting which one is killed and which one isn't. It's proabably just groupping together errors, if not the schemeta or other files are not working properly. 

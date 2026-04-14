@@ -105,7 +105,7 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	buf.Reset()
 	if err := format.Node(buf, fset, file); err != nil {
 		formatBufPool.Put(buf)
-		// Safeguard: only restore original source if it's non-empty
+		
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
 		} else {
@@ -114,7 +114,7 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		return nil
 	}
 
-	// Safeguard: don't write empty files
+	
 	if buf.Len() == 0 {
 		formatBufPool.Put(buf)
 		if len(src) > 0 {
@@ -153,7 +153,7 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 		}
 		info.files = append(info.files, tempFile)
 
-		// Extract package name from AST instead of re-parsing
+		
 		if info.pkgName == "" {
 			for _, m := range mutants {
 				if m.Site.FileAST != nil && m.Site.FileAST.Name != nil {
@@ -346,8 +346,8 @@ func isValidReplacement(original, replacement ast.Node) bool {
 
 
 
-// fixUnusedImports converts unused imports to blank imports (_ "pkg") to avoid
-// "imported and not used" compilation errors after mutation.
+
+
 func fixUnusedImports(file *ast.File) {
 	used := make(map[string]bool)
 
@@ -367,7 +367,7 @@ func fixUnusedImports(file *ast.File) {
 		}
 		pkgName := getPackageNameFromImport(imp)
 		if !used[pkgName] {
-			// Convert to blank import instead of removing
+			
 			if imp.Name == nil {
 				imp.Name = &ast.Ident{Name: "_", NamePos: imp.Path.Pos()}
 			}
@@ -375,9 +375,9 @@ func fixUnusedImports(file *ast.File) {
 	}
 }
 
-// fixUnusedLoopVarsAfterMutationFast fixes unused loop variables in a single pass.
+
 func fixUnusedLoopVarsAfterMutationFast(file *ast.File) {
-	// Handle range statements
+	
 	for _, decl := range file.Decls {
 		processDeclForLoopVars(decl)
 	}
@@ -391,7 +391,7 @@ func processDeclForLoopVars(decl ast.Decl) {
 		}
 		processStmtsForLoopVars(d.Body.List)
 	case *ast.GenDecl:
-		// No loops in gen decls
+		
 	}
 }
 
@@ -426,7 +426,7 @@ func fixRangeStmt(rangeStmt *ast.RangeStmt) {
 	if rangeStmt.Body == nil {
 		return
 	}
-	// Process nested statements first
+	
 	processStmtsForLoopVars(rangeStmt.Body.List)
 
 	var loopVars []*ast.Ident
@@ -453,7 +453,7 @@ func fixForStmt(forStmt *ast.ForStmt) {
 	if forStmt.Body == nil {
 		return
 	}
-	// Process nested statements first
+	
 	processStmtsForLoopVars(forStmt.Body.List)
 
 	var loopVars []*ast.Ident
@@ -477,7 +477,7 @@ func fixForStmt(forStmt *ast.ForStmt) {
 	}
 }
 
-// isVariableUsedInBlockFast checks if a variable is used in the block, excluding the declaration itself.
+
 func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast.Ident) bool {
 	if block == nil {
 		return false
@@ -486,7 +486,7 @@ func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast
 	used := false
 	ast.Inspect(block, func(n ast.Node) bool {
 		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
-			// Skip the declaration itself
+			
 			if declIdent != nil && ident.Pos() == declIdent.Pos() {
 				return true
 			}
