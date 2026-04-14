@@ -433,43 +433,29 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, debug)
 			result := executor.compileWithAttribution(compileCtx, mutantIDsForPkg, mutantSites)
 
-			// Check if ALL mutants have compilation errors (nil means no error, can proceed to testing)
-			hasAnyMutationDetected := false
-			hasNilError := false
+			hasUnrelatedError := false
 			for _, err := range result.perMutant {
-				if err != nil {
-					if strings.Contains(err.Error(), "mutation detected") {
-						hasAnyMutationDetected = true
-					}
-				} else {
-					hasNilError = true
+				if err != nil && !strings.Contains(err.Error(), "mutation detected") {
+					hasUnrelatedError = true
+					break
 				}
 			}
 
-			if hasAnyMutationDetected || (!hasNilError && len(result.perMutant) > 0) {
-				// All mutants have compilation errors - set status for all
-				hasUnrelatedError := false
-				for _, err := range result.perMutant {
-					if err != nil && !strings.Contains(err.Error(), "mutation detected") {
-						hasUnrelatedError = true
-						break
-					}
-				}
+			if hasUnrelatedError {
+				compErrsMu.Lock()
+				compErrors[pkgDir] = fmt.Errorf("compilation failed: %s", result.compilerOutput)
+				compErrsMu.Unlock()
+			}
 
-				if hasUnrelatedError {
-					compErrsMu.Lock()
-					compErrors[pkgDir] = fmt.Errorf("compilation failed: %s", result.compilerOutput)
-					compErrsMu.Unlock()
-				}
-
-				for _, mutantID := range mutantIDsForPkg {
-					err := result.perMutant[mutantID]
+			for _, mutantID := range mutantIDsForPkg {
+				err := result.perMutant[mutantID]
+				if err != nil {
 					status := "killed"
 					killedBy := ""
 					killOutput := ""
-					if err != nil && !strings.Contains(err.Error(), "mutation detected") {
+					if !strings.Contains(err.Error(), "mutation detected") {
 						status = "error"
-					} else if err != nil {
+					} else {
 						killedBy = "(compiler)"
 						killOutput = fmt.Sprintf("compilation failed: %s", err.Error()[:min(200, len(err.Error()))])
 					}
@@ -485,35 +471,9 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 						prog.Record()
 					}
 				}
-				return nil
 			}
 
-			// Some mutants have no compilation errors - they can proceed to testing
-			// First, emit results for mutants that DO have errors
-			for _, mutantID := range mutantIDsForPkg {
-				err := result.perMutant[mutantID]
-				if err != nil {
-					status := "error"
-					if strings.Contains(err.Error(), "mutation detected") {
-						status = "killed"
-					}
-					resultsChan <- mutantResult{
-						id:           mutantID,
-						status:       status,
-						err:          err,
-						killedBy:     "",
-						killDuration: 0,
-						killOutput:   "",
-					}
-					if prog != nil {
-						prog.Record()
-					}
-				}
-			}
-
-			// Then run tests for mutants without errors
 			baseline, baselineOK := executor.measureBaseline(testCtx)
-
 
 			if baselineOK {
 				_, _ = executor.timeoutFor(baseline)
@@ -525,7 +485,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			for _, mutantID := range mutantIDsForPkg {
 				err := result.perMutant[mutantID]
 				if err == nil {
-					// No compilation error for this mutant - run tests
+
 					mutantID := mutantID
 					testGroup.Go(func() error {
 						result := executor.runMutant(testCtx, mutantID)
