@@ -18,7 +18,7 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled bool, outputFile string, debugFile string) error {
+func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
 	total := len(mutants)
 	killed := 0
 	survived := 0
@@ -38,10 +38,8 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 		}
 	}
 
-
 	fileCache := make(map[string][]byte)
 
-	
 	var outWriters []io.Writer
 	outWriters = append(outWriters, os.Stdout)
 
@@ -58,7 +56,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 
 	out := io.MultiWriter(outWriters...)
 
-	
 	if debugFile != "" {
 		if err := writeDebugInfo(mutants, killed, survived, errors, debugFile); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to write debug file: %v\n", err)
@@ -67,7 +64,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 
 	if debug {
 		fmt.Fprintln(out, "=== Debug Information ===")
-
 
 		if errors > 0 {
 			fmt.Fprintf(out, "\nError Summary by Operator:\n")
@@ -85,7 +81,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 				fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 			}
 
-
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
 				fmt.Fprintf(out, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
@@ -98,8 +93,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 				}
 			}
 
-
-
 			fmt.Fprintf(out, "\nPer-Mutant Compilation Errors:\n")
 			shownCount := writePerMutantErrors(out, mutants, 200)
 			if shownCount > 200 {
@@ -107,7 +100,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 			} else if shownCount == 0 {
 				fmt.Fprintln(out, "  (no detailed errors available)")
 			}
-
 
 			fmt.Fprintf(out, "\nError Count by Operator:\n")
 			opErrorCount := make(map[string]int)
@@ -141,7 +133,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 		return fmt.Errorf("failed to flush writer: %w", err)
 	}
 
-	
 	if killed > 0 {
 		fmt.Fprintln(out, "\nTop Killing Tests:")
 		testKills := make(map[string]int)
@@ -151,7 +142,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 			}
 		}
 
-		
 		type testKill struct {
 			name  string
 			count int
@@ -164,7 +154,6 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 			return sortedTests[i].count > sortedTests[j].count
 		})
 
-		
 		maxShow := 10
 		if len(sortedTests) < maxShow {
 			maxShow = len(sortedTests)
@@ -174,14 +163,13 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 		}
 	}
 
-	
-	if killed > 0 && (showKilled || debug) {
+	if killed > 0 && showKilled {
 		fmt.Fprintln(out, "\nKilled Mutants:")
-		
+
 		shownCount := 0
-		maxShow := 50
+		maxShow := 0
 		for _, mutant := range mutants {
-			if mutant.Status == "killed" && shownCount < maxShow {
+			if mutant.Status == "killed" && (maxShow == 0 || shownCount < maxShow) {
 				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
 				killedBy := mutant.KilledBy
 				if killedBy == "" {
@@ -202,35 +190,35 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 				shownCount++
 			}
 		}
-		if killed > maxShow {
+		if maxShow > 0 && killed > maxShow {
 			fmt.Fprintf(out, "  ... and %d more killed mutants\n", killed-maxShow)
 		}
 	}
 
-
-	fmt.Fprintln(out, "\nSurvived Mutants:")
-	hasSurvived := false
-	for _, mutant := range mutants {
-		if mutant.Status == "survived" {
-			hasSurvived = true
-			col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
-			fmt.Fprintf(out, "- %s in %s:%d:%d (Operator: %s)\n",
-				mutant.Status,
-				mutant.Site.File.Name(),
-				mutant.Site.Line,
-				col,
-				mutant.Operator.Name())
+	if showSurvived {
+		fmt.Fprintln(out, "\nSurvived Mutants:")
+		hasSurvived := false
+		for _, mutant := range mutants {
+			if mutant.Status == "survived" {
+				hasSurvived = true
+				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
+				fmt.Fprintf(out, "- %s in %s:%d:%d (Operator: %s)\n",
+					mutant.Status,
+					mutant.Site.File.Name(),
+					mutant.Site.Line,
+					col,
+					mutant.Operator.Name())
+			}
 		}
-	}
-	if !hasSurvived {
-		fmt.Fprintln(out, "  (none)")
+		if !hasSurvived {
+			fmt.Fprintln(out, "  (none)")
+		}
 	}
 
 	if threshold > 0 && effectiveTotal > 0 && score < threshold {
 		return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
 	}
 
-	
 	_ = outFile
 
 	return nil
@@ -257,9 +245,8 @@ func extractUniqueCompilerErrors(mutants []testing.Mutant) []string {
 	return unique
 }
 
-
 func extractCompilerOutput(errMsg string) string {
-	
+
 	prefixes := []string{
 		"compilation failed (mutation detected):\n",
 		"compilation failed in package:\n",
@@ -274,8 +261,6 @@ func extractCompilerOutput(errMsg string) string {
 	}
 	return errMsg
 }
-
-
 
 func writePerMutantErrors(out io.Writer, mutants []testing.Mutant, maxLines int) int {
 	seen := make(map[string]bool)
@@ -359,7 +344,6 @@ func getVisualColumn(fileCache map[string][]byte, fileName string, line, col int
 	}
 	return col
 }
-
 
 func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debugFile string) error {
 	f, err := os.Create(debugFile)
@@ -466,23 +450,6 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debu
 			fmt.Fprintf(out, "  %-50s %d kills\n", sortedTests[i].name, sortedTests[i].count)
 		}
 		fmt.Fprintln(out)
-	}
-
-	// Write survived mutants (always useful for understanding test gaps)
-	fmt.Fprintf(out, "Survived Mutants:\n")
-	hasSurvived := false
-	for _, mutant := range mutants {
-		if mutant.Status == "survived" {
-			hasSurvived = true
-			fmt.Fprintf(out, "- survived in %s:%d:%d (Operator: %s)\n",
-				mutant.Site.File.Name(),
-				mutant.Site.Line,
-				mutant.Site.Column,
-				mutant.Operator.Name())
-		}
-	}
-	if !hasSurvived {
-		fmt.Fprintln(out, "  (none)")
 	}
 
 	return nil

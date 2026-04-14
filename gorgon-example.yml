@@ -7,8 +7,9 @@ dry_run: false
 debug: false
 progbar: true
 show_killed: true
+show_survived: true
 format: textfile
-output: ""
+output: "output.txt"
 debug_files: true
 cpu_profile: ""
 exclude:

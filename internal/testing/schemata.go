@@ -1,4 +1,3 @@
-
 package testing
 
 import (
@@ -17,8 +16,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-
-
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, debug bool, progbar bool) ([]Mutant, error) {
 
 	mutants := GenerateMutants(sites, operators)
@@ -26,17 +23,15 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return nil, nil
 	}
 
-	
-	
-	
 	if len(testPaths) > 0 {
 		filterMutantsByTestPackages(mutants, testPaths)
+	} else {
+		filterMutantsWithoutTests(mutants, baseDir)
 	}
-
 
 	uncachedIndices, fileHashes, err := ResolveCache(mutants, baseDir, cache)
 	if err != nil {
-		
+
 		for i := range mutants {
 			mutants[i].Status = "error"
 			mutants[i].Error = fmt.Errorf("cache resolution failed: %w", err)
@@ -47,16 +42,14 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, nil
 	}
 
-
 	baseDirAbs, _ := filepath.Abs(baseDir)
 	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
 		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, testPaths, progbar, fileHashes, debug)
 	}
 
-
 	ws, err := NewModuleWorkspace()
 	if err != nil {
-		
+
 		for i := range mutants {
 			mutants[i].Status = "error"
 			mutants[i].Error = fmt.Errorf("workspace creation failed: %w", err)
@@ -66,7 +59,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	defer ws.Cleanup()
 
 	if err := ws.setup(baseDir, mutants); err != nil {
-		
+
 		for i := range mutants {
 			mutants[i].Status = "error"
 			mutants[i].Error = fmt.Errorf("workspace setup failed: %w", err)
@@ -78,7 +71,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	_, hasNonStdlib, err := ws.applySchemata(mutants)
 	if err != nil {
-		
+
 		for i := range mutants {
 			mutants[i].Status = "error"
 			mutants[i].Error = fmt.Errorf("schemata application failed: %w", err)
@@ -86,13 +79,11 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, err
 	}
 
-
 	ws.simplifyGoMod(hasNonStdlib)
 
-	
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
-		
+
 		for i := range mutants {
 			mutants[i].Status = "error"
 			mutants[i].Error = fmt.Errorf("build package map failed: %w", err)
@@ -117,25 +108,21 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		prog = NewProgressTracker(len(mutants))
 	}
 	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, mutantSites, concurrent, tests, prog, debug)
-	
-	
+
 	if len(results) > 0 {
 		collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
 	}
-	
+
 	if err != nil {
-		
+
 		SaveCache(mutants, baseDir, cache, fileHashes)
 		return mutants, err
 	}
-
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return mutants, nil
 }
-
-
 
 func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, testPaths []string, progbar bool, fileHashes map[string]string, debug bool) ([]Mutant, error) {
 
@@ -161,7 +148,6 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(concurrent)
 
-	
 	parentTempDir, err := os.MkdirTemp("", "gorgon-standalone-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parent temp dir: %w", err)
@@ -172,7 +158,6 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 		pkgMutants := pkgToMutants[pkgDir]
 		pkgDir := pkgDir
 
-		
 		workerTempDir := filepath.Join(parentTempDir, fmt.Sprintf("pkg-%d", i))
 		if err := os.MkdirAll(workerTempDir, 0o755); err != nil {
 			return nil, fmt.Errorf("failed to create package temp dir: %w", err)
@@ -203,7 +188,6 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 
 	return mutants, nil
 }
-
 
 func MakeSelfContained(tempDir string) error {
 	goModPath := filepath.Join(tempDir, "go.mod")
@@ -241,6 +225,9 @@ func isStdlib(path string) bool {
 func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex map[int]int, tempDir string) {
 	for _, result := range results {
 		idx := mutantIDToIndex[result.id]
+		if mutants[idx].Status == "survived" {
+			continue
+		}
 		mutants[idx].Status = result.status
 		mutants[idx].Error = result.err
 		mutants[idx].TempDir = tempDir
@@ -250,29 +237,23 @@ func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex ma
 	}
 }
 
-
-
-
-
 func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
-	
+
 	coveredPackages := make(map[string]bool)
 	for _, testPath := range testPaths {
 		absPath, err := filepath.Abs(testPath)
 		if err != nil {
 			continue
 		}
-		
+
 		pkgDir := filepath.Dir(absPath)
 		coveredPackages[pkgDir] = true
 	}
 
-	
 	if len(coveredPackages) == 0 {
 		return
 	}
 
-	
 	for i := range mutants {
 		m := &mutants[i]
 		if m.Site.File == nil {
@@ -282,17 +263,15 @@ func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
 		mutantFile := m.Site.File.Name()
 		absMutantPath, err := filepath.Abs(mutantFile)
 		if err != nil {
-			
+
 			continue
 		}
 
 		mutantPkg := filepath.Dir(absMutantPath)
 
-		
 		isCovered := false
 		for pkgDir := range coveredPackages {
-			
-			
+
 			if mutantPkg == pkgDir || strings.HasPrefix(mutantPkg+string(filepath.Separator), pkgDir+string(filepath.Separator)) {
 				isCovered = true
 				break
@@ -300,8 +279,69 @@ func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
 		}
 
 		if !isCovered {
-			
+
 			m.Status = "survived"
 		}
 	}
+}
+
+func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
+	absBase, _ := filepath.Abs(baseDir)
+	testPackages := collectPackagesWithTests(absBase)
+
+	if len(testPackages) == 0 {
+		return
+	}
+
+	for i := range mutants {
+		m := &mutants[i]
+		if m.Site.File == nil {
+			continue
+		}
+
+		mutantFile := m.Site.File.Name()
+		absMutantPath, err := filepath.Abs(mutantFile)
+		if err != nil {
+			continue
+		}
+
+		mutantDir := filepath.Dir(absMutantPath)
+		relDir, err := filepath.Rel(absBase, mutantDir)
+		if err != nil {
+			continue
+		}
+
+		if !testPackages[relDir] {
+			m.Status = "survived"
+		}
+	}
+}
+
+func collectPackagesWithTests(absModule string) map[string]bool {
+	pkgs := make(map[string]bool)
+
+	filepath.Walk(absModule, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || strings.HasPrefix(name, "_") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if strings.HasSuffix(path, "_test.go") {
+			dir := filepath.Dir(path)
+			relDir, err := filepath.Rel(absModule, dir)
+			if err != nil {
+				return nil
+			}
+			pkgs[relDir] = true
+		}
+		return nil
+	})
+
+	return pkgs
 }

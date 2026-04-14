@@ -18,18 +18,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-
 type ProgressTracker struct {
-	total      int
+	total       int
 	lastPrinted int
-	mu         sync.Mutex
-	done       int
+	mu          sync.Mutex
+	done        int
 }
 
 func NewProgressTracker(total int) *ProgressTracker {
 	return &ProgressTracker{total: total}
 }
-
 
 func (p *ProgressTracker) Record() {
 	p.mu.Lock()
@@ -56,7 +54,7 @@ func (p *ProgressTracker) Finish() {
 }
 
 type MutantSite struct {
-	File string 
+	File string
 	Line int
 	Col  int
 }
@@ -74,8 +72,7 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 
 	errors := ParseCompilerErrors(output)
 	if len(errors) == 0 {
-		
-		
+
 		for _, id := range mutantIDs {
 			result.perMutant[id] = fmt.Errorf("compilation failed (unparseable errors):\n%s", output)
 		}
@@ -93,7 +90,7 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 		if !ok {
 			continue
 		}
-		
+
 		relPath, _ := filepath.Rel(projectRoot, site.File)
 		tempFile := filepath.Join(tempDir, relPath)
 		positions = append(positions, pos{file: tempFile, line: site.Line, id: id})
@@ -101,8 +98,6 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 
 	mutantErrors := make(map[int][]string, len(mutantIDs))
 
-	
-	
 	// Collect all files that have compilation errors (for fallback attribution)
 	// Store both the cleaned absolute path AND basenames for matching
 	errorFiles := make(map[string]bool)
@@ -138,8 +133,6 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 			mutantErrors[bestID] = append(mutantErrors[bestID], line)
 		}
 	}
-
-
 
 	if len(mutantErrors) == 0 {
 		// No errors could be matched to specific mutants.
@@ -200,14 +193,14 @@ func absInt(x int) int {
 }
 
 type testExecutor struct {
-	tempDir    string
-	testBinary string
-	pkgDir     string
-	tests      []string
-	timeout    time.Duration
-	baseEnv    []string
-	mutantEnv  []string
-	debug      bool
+	tempDir     string
+	testBinary  string
+	pkgDir      string
+	tests       []string
+	timeout     time.Duration
+	baseEnv     []string
+	mutantEnv   []string
+	debug       bool
 	projectRoot string
 }
 
@@ -222,14 +215,11 @@ func newTestExecutor(tempDir, pkgDir, projectRoot string, tests []string, debug 
 		tests:       tests,
 		baseEnv:     baseEnv,
 		mutantEnv:   mutantEnv,
-		timeout:     30 * time.Second, 
+		timeout:     30 * time.Second,
 		debug:       debug,
 		projectRoot: projectRoot,
 	}
 }
-
-
-
 
 func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []int, sites map[int]MutantSite) compileResultWithAttribution {
 	e.testBinary = filepath.Join(e.pkgDir, "package.test")
@@ -241,7 +231,7 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 	if err != nil {
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
-	
+
 	result := compileResultWithAttribution{
 		perMutant: make(map[int]error, len(mutantIDs)),
 	}
@@ -252,7 +242,6 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 }
 
 func (e *testExecutor) measureBaseline(ctx context.Context) (time.Duration, bool) {
-
 
 	var durations []time.Duration
 	maxAttempts := 2
@@ -286,9 +275,7 @@ func (e *testExecutor) measureBaseline(ctx context.Context) (time.Duration, bool
 }
 
 func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration) {
-	
-	
-	
+
 	if baseline > maxBaselineCap {
 		baseline = maxBaselineCap
 	}
@@ -296,15 +283,13 @@ func (e *testExecutor) timeoutFor(baseline time.Duration) (string, time.Duration
 	if timeout > maxTimeout*time.Second {
 		timeout = maxTimeout * time.Second
 	}
-	
+
 	if timeout < minMutantTimeout {
 		timeout = minMutantTimeout
 	}
 	e.timeout = timeout
 	return fmt.Sprintf("%.0fs", timeout.Seconds()), timeout
 }
-
-
 
 func (e *testExecutor) hardTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, e.timeout+hardTimeoutMargin)
@@ -318,13 +303,11 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	cmd := exec.CommandContext(hardCtx, e.testBinary, args...)
 	cmd.Dir = e.pkgDir
 
-	
 	cmdEnv := make([]string, len(e.mutantEnv))
 	copy(cmdEnv, e.mutantEnv)
 	cmdEnv[len(e.baseEnv)] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
 	cmd.Env = cmdEnv
 
-	
 	start := time.Now()
 	out, err := cmd.CombinedOutput()
 	duration := time.Since(start)
@@ -333,15 +316,14 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	killedBy := ""
 	killOutput := ""
 
-	if err != nil {
+	outStr := string(out)
+	if hasNoTestsToRun(outStr, err) {
+		status = "survived"
+		killedBy = ""
+		killOutput = ""
+	} else if err != nil {
 		status = "killed"
-		outStr := string(out)
-
-		
-		
 		killedBy = parseFailedTest(outStr)
-
-		
 		if len(outStr) > 300 {
 			killOutput = outStr[:300]
 		} else {
@@ -349,7 +331,6 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 		}
 	}
 
-	
 	if e.debug {
 		fmt.Fprintf(os.Stderr, "[DEBUG] Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s\n",
 			mutantID, status, e.pkgDir, e.timeout, killedBy, duration, e.testBinary, args, killOutput)
@@ -365,15 +346,13 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	}
 }
 
-
-
 func parseFailedTest(output string) string {
 	for _, line := range strings.Split(output, "\n") {
 		if strings.HasPrefix(line, "--- FAIL: ") {
-			
+
 			parts := strings.SplitN(line, " ", 3)
 			if len(parts) >= 3 {
-				
+
 				testName := parts[2]
 				if idx := strings.Index(testName, " ("); idx > 0 {
 					testName = testName[:idx]
@@ -382,11 +361,45 @@ func parseFailedTest(output string) string {
 			}
 		}
 	}
-	
+
 	if output != "" {
 		return "(test output non-empty)"
 	}
 	return "(compilation/runtime error)"
+}
+
+func hasNoTestsToRun(output string, runErr error) bool {
+	outputLower := strings.ToLower(output)
+
+	noTestsPatterns := []string{
+		"no test files",
+	}
+
+	for _, pattern := range noTestsPatterns {
+		if strings.Contains(outputLower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+
+	if runErr == nil {
+		return false
+	}
+
+	noTestErrorPatterns := []string{
+		"no test files",
+		"no tests to run",
+	}
+
+	if exitErr, ok := runErr.(*exec.ExitError); ok {
+		stderrLower := strings.ToLower(string(exitErr.Stderr))
+		for _, pattern := range noTestErrorPatterns {
+			if strings.Contains(stderrLower, strings.ToLower(pattern)) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (e *testExecutor) relPath() string {
@@ -411,10 +424,8 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	var compErrsMu sync.Mutex
 	var compErrors = make(map[string]error)
 
-
 	var compileGroup, compileCtx = errgroup.WithContext(ctx)
 	compileGroup.SetLimit(concurrent)
-
 
 	pkgDirs := make([]string, 0, len(pkgToMutantIDs))
 	for pkgDir := range pkgToMutantIDs {
@@ -501,23 +512,20 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		})
 	}
 
-
 	_ = compileGroup.Wait()
 
-
 	if err := testGroup.Wait(); err != nil {
-		
+
 		close(resultsChan)
 		var allResults []mutantResult
 		for result := range resultsChan {
 			allResults = append(allResults, result)
 		}
-		
+
 		if prog != nil {
 			prog.Finish()
 		}
-		
-		
+
 		return allResults, fmt.Errorf("test execution failed: %w", err)
 	}
 	close(resultsChan)
@@ -526,7 +534,6 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	for result := range resultsChan {
 		allResults = append(allResults, result)
 	}
-
 
 	sort.Slice(allResults, func(i, j int) bool {
 		return allResults[i].id < allResults[j].id
@@ -547,10 +554,6 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	return allResults, nil
 }
 
-
-
-
-
 func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 	return filepath.Walk(srcRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -561,7 +564,7 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 			if name == "vendor" || name == ".git" || strings.HasPrefix(name, "_") {
 				return filepath.SkipDir
 			}
-			
+
 			relPath, err := filepath.Rel(srcRoot, path)
 			if err != nil {
 				return nil
@@ -570,15 +573,15 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 			os.MkdirAll(dstPath, 0o755)
 			return nil
 		}
-		
+
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		
+
 		if skipFiles[path] {
 			return nil
 		}
-		
+
 		relPath, err := filepath.Rel(srcRoot, path)
 		if err != nil {
 			return nil
@@ -590,7 +593,6 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 
 func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, testPaths []string, workerTempDir string, progbar bool, prog *ProgressTracker, debug bool) error {
 
-	
 	entries, _ := os.ReadDir(workerTempDir)
 	for _, e := range entries {
 		os.RemoveAll(filepath.Join(workerTempDir, e.Name()))
@@ -598,7 +600,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 	tempDir := workerTempDir
 
-	
 	projectRoot := pkgDir
 	for {
 		parent := filepath.Dir(projectRoot)
@@ -612,7 +613,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		projectRoot = parent
 	}
 
-	
 	modulePath := filepath.Base(projectRoot)
 	if goModData, err := os.ReadFile(filepath.Join(projectRoot, "go.mod")); err == nil {
 		for _, line := range strings.Split(string(goModData), "\n") {
@@ -623,32 +623,29 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 			}
 		}
 	}
-	
+
 	if modulePath == "" {
 		modulePath = filepath.Base(pkgDir)
 	}
-	
-	
+
 	if goModData, err := os.ReadFile(filepath.Join(projectRoot, "go.mod")); err == nil {
 		if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), goModData, filePermissions); err != nil {
 			return fmt.Errorf("failed to copy go.mod: %w", err)
 		}
 	} else {
-		
+
 		goMod := fmt.Sprintf("module %s\n\ngo %s\n", modulePath, goVersion)
 		if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), filePermissions); err != nil {
 			return fmt.Errorf("failed to write go.mod: %w", err)
 		}
 	}
-	
-	
+
 	if goSumData, err := os.ReadFile(filepath.Join(projectRoot, "go.sum")); err == nil {
 		if err := os.WriteFile(filepath.Join(tempDir, "go.sum"), goSumData, filePermissions); err != nil {
 			return fmt.Errorf("failed to copy go.sum: %w", err)
 		}
 	}
 
-	
 	mutatedOrigPaths := make(map[string]bool, len(pkgMutants))
 	for _, m := range pkgMutants {
 		if m.Site.File != nil {
@@ -656,14 +653,10 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	
-	
-	
 	if err := copyAllPackages(projectRoot, tempDir, mutatedOrigPaths); err != nil {
 		return fmt.Errorf("failed to copy packages: %w", err)
 	}
 
-	
 	tempFileToMutants := make(map[string][]*Mutant, len(pkgMutants))
 	for _, m := range pkgMutants {
 		if m.Site.File == nil {
@@ -678,16 +671,12 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		tempFileToMutants[tempFile] = append(tempFileToMutants[tempFile], m)
 	}
 
-
-	
 	tempFiles := make([]string, 0, len(tempFileToMutants))
 	for tempFile := range tempFileToMutants {
 		tempFiles = append(tempFiles, tempFile)
 	}
 	sort.Strings(tempFiles)
 
-
-	
 	astToFileMutants := make(map[*ast.File][]*Mutant)
 	for _, tempFile := range tempFiles {
 		mutants := tempFileToMutants[tempFile]
@@ -698,8 +687,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-
-	
 	type astEntry struct {
 		astFile *ast.File
 		mutants []*Mutant
@@ -722,7 +709,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 			continue
 		}
 		origPath := mutants[0].Site.File.Name()
-		rel, _ := filepath.Rel(projectRoot, origPath)  
+		rel, _ := filepath.Rel(projectRoot, origPath)
 		tempFile := filepath.Join(tempDir, rel)
 		src, _ := os.ReadFile(origPath)
 		if err := ApplySchemataToAST(astFile, mutants[0].Site.Fset, tempFile, src, mutants); err != nil {
@@ -730,8 +717,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-
-	
 	for _, tempFile := range tempFiles {
 		mutants := tempFileToMutants[tempFile]
 		hasAST := false
@@ -752,23 +737,17 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return err
 	}
 
-	
-	
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = tempDir
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	_ = cmd.Run() 
+	_ = cmd.Run()
 
-
-	
 	pkgRelPath, _ := filepath.Rel(projectRoot, pkgDir)
 	pkgTempDir := filepath.Join(tempDir, pkgRelPath)
 
-	
 	executor := newTestExecutor(tempDir, pkgTempDir, projectRoot, tests, debug)
 
-	
 	sites := make(map[int]MutantSite, len(pkgMutants))
 	mutantIDs := make([]int, len(pkgMutants))
 	for i, m := range pkgMutants {
@@ -818,9 +797,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return nil
 	}
 
-
 	baseline, baselineOK := executor.measureBaseline(context.Background())
-
 
 	if baselineOK {
 		_, _ = executor.timeoutFor(baseline)
@@ -833,9 +810,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	resultsChan := make(chan mutantResult, len(testableIDs))
 	sort.Ints(testableIDs)
 
-
 	executor.runMutantsConcurrent(context.Background(), testableIDs, concurrent, resultsChan, prog)
-
 
 	idToMutant := make(map[int]*Mutant, len(pkgMutants))
 	for _, m := range pkgMutants {
@@ -854,9 +829,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 	return nil
 }
-
-
-
 
 func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int, concurrent int, results chan mutantResult, prog *ProgressTracker) {
 	defer close(results)
@@ -892,10 +864,8 @@ func (e *testExecutor) runMutantsConcurrent(ctx context.Context, mutantIDs []int
 	wg.Wait()
 }
 
-
-
 func testArgs(timeout string, tests []string) []string {
-	
+
 	if timeout == "0s" || timeout == "" {
 		timeout = "5s"
 	}

@@ -35,7 +35,6 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	eng := engine.NewEngine(flags.PrintAST)
 	eng.SetOperators(ops)
 
-
 	projectRoot := findProjectRoot(targets[0], cfg.Base)
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
@@ -115,8 +114,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	}
 
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, cfg.Debug, cfg.ProgBar)
-	
-	
+
 	debugFilePath := ""
 	if cfg.DebugFiles {
 		if cfg.Output != "" {
@@ -128,7 +126,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.Output, debugFilePath); reportErr != nil {
+		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {
@@ -138,7 +136,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			return reportErr
 		}
 	}
-	
+
 	if err != nil {
 		return err
 	}
@@ -154,13 +152,11 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	return nil
 }
 
-
 func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, skipFunc []string) []engine.Site {
 	if len(exclude) == 0 && len(include) == 0 && len(skip) == 0 && len(skipFunc) == 0 {
 		return sites
 	}
 
-	
 	skipFuncMap := make(map[string]map[string]bool)
 	for _, sf := range skipFunc {
 		parts := strings.SplitN(sf, ":", 2)
@@ -177,7 +173,6 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 	for _, site := range sites {
 		filePath := site.File.Name()
 
-		
 		relPath := filePath
 		cwdRel := filePath
 
@@ -196,22 +191,18 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 			}
 		}
 
-		
 		if shouldSkip(relPath, cwdRel, skip) {
 			continue
 		}
 
-		
 		if shouldSkipFunc(site.FunctionName, relPath, cwdRel, skipFuncMap) {
 			continue
 		}
 
-		
 		if len(include) > 0 && !matchesAny(relPath, include) {
 			continue
 		}
 
-		
 		if matchesAny(relPath, exclude) {
 			continue
 		}
@@ -232,7 +223,7 @@ func shouldSkip(relPath, cwdRel string, skipPatterns []string) bool {
 		if ok, _ := filepath.Match(s, cwdRel); ok {
 			return true
 		}
-		
+
 		if matchParentDirs(relPath, s) || matchParentDirs(cwdRel, s) {
 			return true
 		}
@@ -261,12 +252,10 @@ func shouldSkipFunc(funcName, relPath, cwdRel string, skipFuncMap map[string]map
 		return false
 	}
 
-	
 	if files[""] {
 		return true
 	}
 
-	
 	for file := range files {
 		if relPath == file || cwdRel == file || filepath.Base(relPath) == file {
 			return true
@@ -357,8 +346,6 @@ func parseTestNamesFromFile(filePath string) []string {
 	return names
 }
 
-
-
 func findProjectRoot(target string, configBase string) string {
 	if configBase != "" {
 		if abs, err := filepath.Abs(configBase); err == nil {
@@ -384,7 +371,6 @@ func findProjectRoot(target string, configBase string) string {
 	}
 	return startPath
 }
-
 
 func ExitWithError(err error) {
 	_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)

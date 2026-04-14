@@ -13,27 +13,28 @@ import (
 )
 
 type Flags struct {
-	ConfigFile  string
-	PrintAST    bool
-	PkgPath     string
-	Operators   string
-	Concurrent  string
-	Threshold   float64
-	UseCache    bool
-	DryRun      bool
-	Debug       bool
-	ProgBar     bool
-	ShowKilled  bool
-	Format      string
-	Output      string
-	DebugFiles  bool
-	CPUProfile  string
-	Exclude     string
-	Include     string
-	Skip        string
-	SkipFunc    string
-	Tests       string
-	Targets     []string
+	ConfigFile   string
+	PrintAST     bool
+	PkgPath      string
+	Operators    string
+	Concurrent   string
+	Threshold    float64
+	UseCache     bool
+	DryRun       bool
+	Debug        bool
+	ProgBar      bool
+	ShowKilled   bool
+	ShowSurvived bool
+	Format       string
+	Output       string
+	DebugFiles   bool
+	CPUProfile   string
+	Exclude      string
+	Include      string
+	Skip         string
+	SkipFunc     string
+	Tests        string
+	Targets      []string
 }
 
 func Parse(args []string) (*Flags, error) {
@@ -56,6 +57,7 @@ func Parse(args []string) (*Flags, error) {
 	fs.BoolVar(&f.Debug, "debug", false, "Show detailed debug output during execution")
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
+	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
 	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile)")
 	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt)")
 	fs.BoolVar(&f.DebugFiles, "debug-files", false, "Also write debug info to {output}.debug.txt")
@@ -118,6 +120,7 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	cfg.Debug = f.Debug
 	cfg.ProgBar = f.ProgBar
 	cfg.ShowKilled = f.ShowKilled
+	cfg.ShowSurvived = f.ShowSurvived
 	cfg.Format = f.Format
 	cfg.Output = f.Output
 	cfg.DebugFiles = f.DebugFiles

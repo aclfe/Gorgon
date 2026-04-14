@@ -13,8 +13,6 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-
-
 func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant {
 
 	type siteKey struct {
@@ -61,19 +59,17 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 	return mutants
 }
 
-
-
 func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int, fileHashes map[string]string, err error) {
 	if c == nil {
-		
-		indices := make([]int, len(mutants))
+		indices := make([]int, 0, len(mutants))
 		for i := range mutants {
-			indices[i] = i
+			if mutants[i].Status == "" {
+				indices = append(indices, i)
+			}
 		}
 		return indices, nil, nil
 	}
 
-	
 	fileHashes = make(map[string]string)
 	for i := range mutants {
 		f := mutants[i].Site.File.Name()
@@ -91,7 +87,7 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 		m := &mutants[i]
 		fh := fileHashes[m.Site.File.Name()]
 		if fh == "" {
-			continue 
+			continue
 		}
 
 		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
@@ -104,10 +100,9 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 
 	if cachedCount == len(mutants) {
 		_ = c.Save(baseDir)
-		return nil, fileHashes, nil 
+		return nil, fileHashes, nil
 	}
 
-	
 	toRun = make([]int, 0, len(mutants)-cachedCount)
 	for i := range mutants {
 		if mutants[i].Status == "" {
@@ -117,14 +112,11 @@ func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int
 	return toRun, fileHashes, nil
 }
 
-
-
 func SaveCache(mutants []Mutant, baseDir string, c *cache.Cache, fileHashes map[string]string) {
 	if c == nil {
 		return
 	}
 
-	
 	if fileHashes == nil {
 		fileHashes = make(map[string]string)
 		for i := range mutants {

@@ -8,33 +8,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
-
 type SuppressEntry struct {
-	Location  string   `yaml:"location"`  
-	Operators []string `yaml:"operators,omitempty"` 
+	Location  string   `yaml:"location"`
+	Operators []string `yaml:"operators,omitempty"`
 }
 
 type Config struct {
-	Operators   []string        `yaml:"operators"`
-	Concurrent  string          `yaml:"concurrent"`
-	Threshold   float64         `yaml:"threshold"`
-	Cache       bool            `yaml:"cache"`
-	DryRun      bool            `yaml:"dry_run"`
-	Debug       bool            `yaml:"debug"`
-	ProgBar     bool            `yaml:"progbar"`
-	ShowKilled  bool            `yaml:"show_killed"`
-	Format      string          `yaml:"format"`
-	Output      string          `yaml:"output"`
-	DebugFiles  bool            `yaml:"debug_files"`
-	CPUProfile  string          `yaml:"cpu_profile"`
-	Exclude     []string        `yaml:"exclude"`
-	Include     []string        `yaml:"include"`
-	Skip        []string        `yaml:"skip"`
-	SkipFunc    []string        `yaml:"skip_func"`
-	Tests       []string        `yaml:"tests"`
-	Base        string          `yaml:"base"`
-	Suppress    []SuppressEntry `yaml:"suppress"`
+	Operators    []string        `yaml:"operators"`
+	Concurrent   string          `yaml:"concurrent"`
+	Threshold    float64         `yaml:"threshold"`
+	Cache        bool            `yaml:"cache"`
+	DryRun       bool            `yaml:"dry_run"`
+	Debug        bool            `yaml:"debug"`
+	ProgBar      bool            `yaml:"progbar"`
+	ShowKilled   bool            `yaml:"show_killed"`
+	ShowSurvived bool            `yaml:"show_survived"`
+	Format       string          `yaml:"format"`
+	Output       string          `yaml:"output"`
+	DebugFiles   bool            `yaml:"debug_files"`
+	CPUProfile   string          `yaml:"cpu_profile"`
+	Exclude      []string        `yaml:"exclude"`
+	Include      []string        `yaml:"include"`
+	Skip         []string        `yaml:"skip"`
+	SkipFunc     []string        `yaml:"skip_func"`
+	Tests        []string        `yaml:"tests"`
+	Base         string          `yaml:"base"`
+	Suppress     []SuppressEntry `yaml:"suppress"`
 }
 
 func Default() *Config {
@@ -78,14 +77,12 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-
-
 func (c *Config) AddSuppression(location string, operators []string) {
 	location = strings.TrimSpace(location)
 	if location == "" {
 		return
 	}
-	
+
 	var normalized []string
 	seen := make(map[string]bool)
 	for _, op := range operators {
@@ -98,7 +95,7 @@ func (c *Config) AddSuppression(location string, operators []string) {
 
 	for _, existing := range c.Suppress {
 		if existing.Location == location {
-			
+
 			existingOps := make(map[string]bool)
 			for _, op := range existing.Operators {
 				existingOps[op] = true
@@ -116,7 +113,6 @@ func (c *Config) AddSuppression(location string, operators []string) {
 		Operators: normalized,
 	})
 }
-
 
 func (c *Config) Save(path string) error {
 	data, err := yaml.Marshal(c)
