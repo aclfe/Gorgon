@@ -1,27 +1,36 @@
-Mutation Score: 61.41%
-Killed: 3085
+Mutation Score: 0.62%
+Killed: 12
 Survived: 1939
-Errors: 355
+Errors: 3511
 Unknown: 0
-Total: 5379
+Total: 5462
 
 Error Summary by Operator:
-  zero_value_return_string            5/96 errors (5.2%)
-  if_condition_false                  62/979 errors (6.3%)
-  zero_value_return_bool              42/184 errors (22.8%)
-  variable_replacement                19/427 errors (4.4%)
-  loop_body_removal                   7/233 errors (3.0%)
-  loop_break_first                    7/233 errors (3.0%)
-  swap_case_bodies                    37/228 errors (16.2%)
-  pointer_returns                     16/85 errors (18.8%)
-  switch_remove_default               3/29 errors (10.3%)
-  if_condition_true                   62/979 errors (6.3%)
-  negate_condition                    52/873 errors (6.0%)
-  logical_operator                    27/220 errors (12.3%)
-  boundary_value                      9/163 errors (5.5%)
-  assignment_operator                 7/403 errors (1.7%)
+  loop_body_removal                   181/237 errors (76.4%)
+  boundary_value                      99/164 errors (60.4%)
+  for_condition_true                  7/22 errors (31.8%)
+  swap_case_bodies                    102/228 errors (44.7%)
+  switch_remove_default               10/29 errors (34.5%)
+  binary_math                         2/7 errors (28.6%)
+  sign_toggle                         2/7 errors (28.6%)
+  if_condition_false                  666/997 errors (66.8%)
+  negate_condition                    636/892 errors (71.3%)
+  assignment_operator                 273/410 errors (66.6%)
+  for_condition_false                 7/22 errors (31.8%)
+  zero_value_return_string            60/97 errors (61.9%)
+  empty_body                          18/22 errors (81.8%)
+  variable_replacement                229/427 errors (53.6%)
+  zero_value_return_error             50/58 errors (86.2%)
+  if_condition_true                   666/997 errors (66.8%)
+  logical_operator                    145/228 errors (63.6%)
+  pointer_returns                     27/85 errors (31.8%)
+  inc_dec_flip                        27/46 errors (58.7%)
+  loop_break_first                    181/237 errors (76.4%)
+  defer_removal                       22/33 errors (66.7%)
+  zero_value_return_bool              101/187 errors (54.0%)
 
-Top Compilation Error Types (showing up to 20 of 21 unique error messages):
+Top Compilation Error Types (showing up to 20 of 22 unique error messages):
+  • no such file or directory
   • compilation failed in package:
   • invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
   • undefined: ok
@@ -41,10 +50,13 @@ Top Compilation Error Types (showing up to 20 of 21 unique error messages):
   • stmt.X undefined (type *ast.ForStmt has no field or method X)
   • stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
   • stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
-  • stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
-  ... and 1 more unique error types
+  ... and 2 more unique error types
 
 Per-Mutant Compilation Errors (unlimited):
+  (if_condition_false) fork/exec /tmp/gorgon-schemata-2517585315/cmd/gorgon/package.test: no such file or directory
+  (pointer_returns) fork/exec /tmp/gorgon-schemata-2517585315/internal/engine/package.test: no such file or directory
+  (loop_body_removal) fork/exec /tmp/gorgon-schemata-2517585315/internal/reporter/package.test: no such file or directory
+  (pointer_returns) fork/exec /tmp/gorgon-schemata-2517585315/internal/testing/package.test: no such file or directory
   (if_condition_false) ast.go:145:4: invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
   (if_condition_false) ast.go:392:9: undefined: ok
   (if_condition_false) ast.go:419:28: undefined: cc
@@ -55,6 +67,8 @@ Per-Mutant Compilation Errors (unlimited):
   (if_condition_false) ast.go:433:27: undefined: cc
   (if_condition_false) ast.go:436:28: undefined: cc
   (if_condition_false) ast.go:438:26: undefined: cc
+  (swap_case_bodies) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/analysis/package.test: no such file or directory
+  (if_condition_false) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/package.test: no such file or directory
   (zero_value_return_string) assignment_operator.go:117:26: expr.Name undefined (type *ast.BasicLit has no field or method Name)
   (zero_value_return_string) assignment_operator.go:119:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
   (zero_value_return_string) assignment_operator.go:120:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
@@ -104,32 +118,42 @@ Per-Mutant Compilation Errors (unlimited):
   (zero_value_return_string) loop_break_first.go:184:5: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
   (zero_value_return_string) loop_break_first.go:243:7: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
   (zero_value_return_string) loop_break_first.go:303:6: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
-  (total: 59 error lines)
+  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/loop_break_removal/package.test: no such file or directory
+  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/negate_condition/package.test: no such file or directory
+  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/variable_replacement/package.test: no such file or directory
+  (total: 68 error lines)
 
 Error Count by Operator:
-  variable_replacement: 19 errors
-  loop_body_removal: 7 errors
-  swap_case_bodies: 37 errors
-  pointer_returns: 16 errors
-  if_condition_true: 62 errors
-  negate_condition: 52 errors
-  zero_value_return_bool: 42 errors
-  loop_break_first: 7 errors
-  zero_value_return_string: 5 errors
-  switch_remove_default: 3 errors
-  if_condition_false: 62 errors
-  logical_operator: 27 errors
-  boundary_value: 9 errors
-  assignment_operator: 7 errors
+  logical_operator: 145 errors
+  for_condition_true: 7 errors
+  defer_removal: 22 errors
+  sign_toggle: 2 errors
+  zero_value_return_string: 60 errors
+  empty_body: 18 errors
+  switch_remove_default: 10 errors
+  zero_value_return_bool: 101 errors
+  zero_value_return_error: 50 errors
+  inc_dec_flip: 27 errors
+  if_condition_false: 666 errors
+  if_condition_true: 666 errors
+  assignment_operator: 273 errors
+  for_condition_false: 7 errors
+  binary_math: 2 errors
+  negate_condition: 636 errors
+  pointer_returns: 27 errors
+  loop_body_removal: 181 errors
+  loop_break_first: 181 errors
+  boundary_value: 99 errors
+  swap_case_bodies: 102 errors
+  variable_replacement: 229 errors
 
 Top Killing Tests:
-  (compilation/runtime error)                        3073 kills
   TestBoundaryValue_Mutate                           3 kills
   TestLogicalOperator_Mutate                         3 kills
-  TestBoundaryValue_CanApply                         1 kills
-  TestDeferRemoval_Name                              1 kills
   TestEarlyReturnRemoval_Name                        1 kills
   TestLogicalOperator_Name                           1 kills
-  TestBoundaryValue_Name                             1 kills
   TestLogicalOperator_CanApply                       1 kills
+  TestBoundaryValue_Name                             1 kills
+  TestBoundaryValue_CanApply                         1 kills
+  TestDeferRemoval_Name                              1 kills
 

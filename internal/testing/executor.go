@@ -317,7 +317,22 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	killOutput := ""
 
 	outStr := string(out)
-	if hasNoTestsToRun(outStr, err) {
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		outStr += string(exitErr.Stderr)
+	}
+
+	isCompErr := isCompilationError(outStr)
+
+	if isCompErr || outStr != "" && isCompilationError(outStr) {
+		status = "error"
+		killedBy = extractErrorType(outStr)
+		killOutput = outStr
+	} else if err != nil && outStr == "" {
+		status = "error"
+		killedBy = "runtime error"
+		killOutput = err.Error()
+	} else if hasNoTestsToRun(outStr, err) {
 		status = "survived"
 		killedBy = ""
 		killOutput = ""
@@ -363,9 +378,105 @@ func parseFailedTest(output string) string {
 	}
 
 	if output != "" {
+		if isCompilationError(output) {
+			return extractErrorType(output)
+		}
 		return "(test output non-empty)"
 	}
 	return "(compilation/runtime error)"
+}
+
+func isCompilationError(output string) bool {
+	outputLower := strings.ToLower(output)
+	compPatterns := []string{
+		"compilation failed",
+		"build failed",
+		"syntax error",
+		"undefined:",
+		"undefined (name",
+		"cannot range over",
+		"invalid operation:",
+		"type *ast.",
+		"has no field or method",
+		"mismatched types",
+		"cannot assign",
+		"undefined label",
+		"cannot use",
+		"not declared",
+		"redeclared",
+		"no function",
+		"non-type",
+		"panic:",
+		"runtime error:",
+		"index out of range",
+		"nil pointer",
+		"invalid memory address",
+	}
+	for _, pattern := range compPatterns {
+		if strings.Contains(outputLower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "=== ") && !strings.HasPrefix(line, "---") {
+			return true
+		}
+	}
+	return false
+}
+
+func extractErrorType(output string) string {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.Contains(line, "compilation failed") {
+			return extractFirstError(line)
+		}
+		if strings.Contains(line, "syntax error") {
+			return "syntax error: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "undefined:") {
+			return "undefined: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "invalid operation:") {
+			return "invalid operation: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "has no field or method") {
+			return "field/method not found: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "mismatched types") {
+			return "type mismatch: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "panic:") {
+			return "panic: " + extractFirstError(line)
+		}
+		if strings.Contains(line, "runtime error:") {
+			return "runtime error: " + extractFirstError(line)
+		}
+	}
+	return extractFirstError(output)
+}
+
+func extractFirstError(output string) string {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "---") && !strings.HasPrefix(line, "===") {
+			if len(line) > 100 {
+				return line[:100]
+			}
+			return line
+		}
+	}
+	return "unknown error"
 }
 
 func hasNoTestsToRun(output string, runErr error) bool {
@@ -461,14 +572,12 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			for _, mutantID := range mutantIDsForPkg {
 				err := result.perMutant[mutantID]
 				if err != nil {
-					status := "killed"
+					status := "error"
 					killedBy := ""
 					killOutput := ""
-					if !strings.Contains(err.Error(), "mutation detected") {
-						status = "error"
-					} else {
+					if strings.Contains(err.Error(), "mutation detected") {
 						killedBy = "(compiler)"
-						killOutput = fmt.Sprintf("compilation failed: %s", err.Error()[:min(200, len(err.Error()))])
+						killOutput = fmt.Sprintf("compilation failed: %s", err.Error())
 					}
 					resultsChan <- mutantResult{
 						id:           mutantID,
@@ -765,14 +874,10 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	for _, m := range pkgMutants {
 		err := result.perMutant[m.ID]
 		if err != nil {
+			m.Status = "error"
 			if strings.Contains(err.Error(), "mutation detected") {
-
-				m.Status = "killed"
 				m.KilledBy = "(compiler)"
-				m.KillOutput = fmt.Sprintf("compilation failed: %s", err.Error()[:min(200, len(err.Error()))])
-			} else {
-
-				m.Status = "error"
+				m.KillOutput = fmt.Sprintf("compilation failed: %s", err.Error())
 			}
 			m.Error = err
 			m.TempDir = tempDir
