@@ -12,9 +12,11 @@ type Mutant struct {
 	Site         engine.Site
 	Operator     mutator.Operator
 	TempDir      string
+	TempLine     int
+	TempCol      int
 	Status       string
 	Error        error
-	KilledBy     string        
-	KillDuration time.Duration 
-	KillOutput   string        
+	KilledBy     string
+	KillDuration time.Duration
+	KillOutput   string
 }

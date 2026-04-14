@@ -1,159 +1,100 @@
-Mutation Score: 0.62%
-Killed: 12
-Survived: 1939
-Errors: 3511
-Unknown: 0
-Total: 5462
+Mutation Score: 15.07%
+Killed: 11
+Survived: 62
+Errors: 3731
+Untested: 1812
+Total: 5616
 
 Error Summary by Operator:
-  loop_body_removal                   181/237 errors (76.4%)
-  boundary_value                      99/164 errors (60.4%)
-  for_condition_true                  7/22 errors (31.8%)
-  swap_case_bodies                    102/228 errors (44.7%)
-  switch_remove_default               10/29 errors (34.5%)
-  binary_math                         2/7 errors (28.6%)
-  sign_toggle                         2/7 errors (28.6%)
-  if_condition_false                  666/997 errors (66.8%)
-  negate_condition                    636/892 errors (71.3%)
-  assignment_operator                 273/410 errors (66.6%)
-  for_condition_false                 7/22 errors (31.8%)
-  zero_value_return_string            60/97 errors (61.9%)
-  empty_body                          18/22 errors (81.8%)
-  variable_replacement                229/427 errors (53.6%)
   zero_value_return_error             50/58 errors (86.2%)
-  if_condition_true                   666/997 errors (66.8%)
-  logical_operator                    145/228 errors (63.6%)
-  pointer_returns                     27/85 errors (31.8%)
-  inc_dec_flip                        27/46 errors (58.7%)
-  loop_break_first                    181/237 errors (76.4%)
+  if_condition_false                  708/1021 errors (69.3%)
+  loop_break_first                    207/262 errors (79.0%)
+  for_condition_true                  8/23 errors (34.8%)
+  zero_value_return_string            61/97 errors (62.9%)
+  empty_body                          18/22 errors (81.8%)
   defer_removal                       22/33 errors (66.7%)
-  zero_value_return_bool              101/187 errors (54.0%)
+  binary_math                         2/7 errors (28.6%)
+  pointer_returns                     28/85 errors (32.9%)
+  boundary_value                      107/171 errors (62.6%)
+  switch_remove_default               10/28 errors (35.7%)
+  inc_dec_flip                        29/48 errors (60.4%)
+  if_condition_true                   708/1021 errors (69.3%)
+  logical_operator                    156/234 errors (66.7%)
+  sign_toggle                         2/7 errors (28.6%)
+  negate_condition                    684/927 errors (73.8%)
+  assignment_operator                 277/412 errors (67.2%)
+  loop_body_removal                   207/262 errors (79.0%)
+  for_condition_false                 8/23 errors (34.8%)
+  swap_case_bodies                    103/227 errors (45.4%)
+  variable_replacement                231/430 errors (53.7%)
+  zero_value_return_bool              105/188 errors (55.9%)
 
-Top Compilation Error Types (showing up to 20 of 22 unique error messages):
-  • no such file or directory
-  • compilation failed in package:
-  • invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
-  • undefined: ok
-  • undefined: cc
-  • expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  • parent.Results undefined (type *ast.AssignStmt has no field or method Results)
-  • parent.X undefined (type *ast.ReturnStmt has no field or method X)
-  • parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
-  • t.X undefined (type *ast.Ident has no field or method X)
-  • undefined: id
-  • t.Name undefined (type *ast.StarExpr has no field or method Name)
-  • stmt.Key undefined (type *ast.ForStmt has no field or method Key)
-  • stmt.Value undefined (type *ast.ForStmt has no field or method Value)
-  • stmt.TokPos undefined (type *ast.ForStmt has no field or method TokPos)
-  • stmt.Tok undefined (type *ast.ForStmt has no field or method Tok)
-  • stmt.Range undefined (type *ast.ForStmt has no field or method Range)
-  • stmt.X undefined (type *ast.ForStmt has no field or method X)
-  • stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
-  • stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
-  ... and 2 more unique error types
+Untested by Operator (binary missing - package failed to compile):
+  empty_body                          4/22 untested (18.2%)
+  zero_value_return_error             6/58 untested (10.3%)
+  channel_returns                     3/3 untested (100.0%)
+  map_returns                         5/5 untested (100.0%)
+  zero_value_return_numeric           15/15 untested (100.0%)
+  binary_math                         5/7 untested (71.4%)
+  switch_remove_default               18/28 untested (64.3%)
+  if_condition_false                  297/1021 untested (29.1%)
+  assignment_operator                 130/412 untested (31.6%)
+  logical_operator                    77/234 untested (32.9%)
+  loop_body_removal                   51/262 untested (19.5%)
+  loop_break_first                    51/262 untested (19.5%)
+  zero_value_return_string            33/97 untested (34.0%)
+  zero_value_return_bool              79/188 untested (42.0%)
+  interface_returns                   2/2 untested (100.0%)
+  if_condition_true                   297/1021 untested (29.1%)
+  negate_condition                    234/927 untested (25.2%)
+  boundary_value                      64/171 untested (37.4%)
+  defer_removal                       11/33 untested (33.3%)
+  pointer_returns                     53/85 untested (62.4%)
+  slice_returns                       5/5 untested (100.0%)
+  sign_toggle                         5/7 untested (71.4%)
+  swap_case_bodies                    124/227 untested (54.6%)
+  inc_dec_flip                        19/48 untested (39.6%)
+  variable_replacement                194/430 untested (45.1%)
+  for_condition_false                 15/23 untested (65.2%)
+  for_condition_true                  15/23 untested (65.2%)
+
+Top Compilation Error Types (showing up to 20 of 1 unique error messages):
+  • test binary missing - compilation failed
 
 Per-Mutant Compilation Errors (unlimited):
-  (if_condition_false) fork/exec /tmp/gorgon-schemata-2517585315/cmd/gorgon/package.test: no such file or directory
-  (pointer_returns) fork/exec /tmp/gorgon-schemata-2517585315/internal/engine/package.test: no such file or directory
-  (loop_body_removal) fork/exec /tmp/gorgon-schemata-2517585315/internal/reporter/package.test: no such file or directory
-  (pointer_returns) fork/exec /tmp/gorgon-schemata-2517585315/internal/testing/package.test: no such file or directory
-  (if_condition_false) ast.go:145:4: invalid operation: operator + not defined on caseClauseCache[key] (map index expression of type bool)
-  (if_condition_false) ast.go:392:9: undefined: ok
-  (if_condition_false) ast.go:419:28: undefined: cc
-  (if_condition_false) ast.go:421:28: undefined: cc
-  (if_condition_false) ast.go:424:29: undefined: cc
-  (if_condition_false) ast.go:426:27: undefined: cc
-  (if_condition_false) ast.go:431:27: undefined: cc
-  (if_condition_false) ast.go:433:27: undefined: cc
-  (if_condition_false) ast.go:436:28: undefined: cc
-  (if_condition_false) ast.go:438:26: undefined: cc
-  (swap_case_bodies) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/analysis/package.test: no such file or directory
-  (if_condition_false) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/package.test: no such file or directory
-  (zero_value_return_string) assignment_operator.go:117:26: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:119:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:120:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:124:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:126:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:127:23: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:136:26: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:138:25: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:139:24: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) assignment_operator.go:146:23: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-  (zero_value_return_string) constant_replacement.go:107:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
-  (zero_value_return_string) constant_replacement.go:110:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
-  (zero_value_return_string) constant_replacement.go:133:31: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
-  (zero_value_return_string) constant_replacement.go:458:37: parent.X undefined (type *ast.ReturnStmt has no field or method X)
-  (zero_value_return_string) constant_replacement.go:458:65: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
-  (zero_value_return_string) constant_replacement.go:460:36: parent.X undefined (type *ast.ReturnStmt has no field or method X)
-  (zero_value_return_string) constant_replacement.go:460:64: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
-  (zero_value_return_string) constant_replacement.go:467:37: parent.X undefined (type *ast.ReturnStmt has no field or method X)
-  (zero_value_return_string) constant_replacement.go:467:65: parent.Y undefined (type *ast.ReturnStmt has no field or method Y)
-  (zero_value_return_string) constant_replacement.go:469:36: parent.X undefined (type *ast.ReturnStmt has no field or method X)
-  (zero_value_return_string) empty_body.go:667:21: t.X undefined (type *ast.Ident has no field or method X)
-  (zero_value_return_string) empty_body.go:676:21: t.X undefined (type *ast.Ident has no field or method X)
-  (zero_value_return_string) empty_body.go:685:10: undefined: ok
-  (zero_value_return_string) empty_body.go:688:16: undefined: id
-  (zero_value_return_string) empty_body.go:690:15: undefined: id
-  (zero_value_return_string) empty_body.go:694:21: t.X undefined (type *ast.Ident has no field or method X)
-  (zero_value_return_string) empty_body.go:734:11: undefined: ok
-  (zero_value_return_string) empty_body.go:737:17: undefined: id
-  (zero_value_return_string) empty_body.go:739:16: undefined: id
-  (zero_value_return_string) empty_body.go:756:15: t.Name undefined (type *ast.StarExpr has no field or method Name)
-  (zero_value_return_string) loop_body_removal.go:95:19: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
-  (zero_value_return_string) loop_body_removal.go:96:19: stmt.Value undefined (type *ast.ForStmt has no field or method Value)
-  (zero_value_return_string) loop_body_removal.go:97:19: stmt.TokPos undefined (type *ast.ForStmt has no field or method TokPos)
-  (zero_value_return_string) loop_body_removal.go:98:19: stmt.Tok undefined (type *ast.ForStmt has no field or method Tok)
-  (zero_value_return_string) loop_body_removal.go:99:19: stmt.Range undefined (type *ast.ForStmt has no field or method Range)
-  (zero_value_return_string) loop_body_removal.go:100:19: stmt.X undefined (type *ast.ForStmt has no field or method X)
-  (zero_value_return_string) loop_body_removal.go:142:17: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
-  (zero_value_return_string) loop_body_removal.go:143:17: stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
-  (zero_value_return_string) loop_body_removal.go:144:17: stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
-  (zero_value_return_string) loop_break_first.go:124:6: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
-  (zero_value_return_string) loop_break_first.go:141:19: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
-  (zero_value_return_string) loop_break_first.go:142:19: stmt.Value undefined (type *ast.ForStmt has no field or method Value)
-  (zero_value_return_string) loop_break_first.go:143:19: stmt.TokPos undefined (type *ast.ForStmt has no field or method TokPos)
-  (zero_value_return_string) loop_break_first.go:144:19: stmt.Tok undefined (type *ast.ForStmt has no field or method Tok)
-  (zero_value_return_string) loop_break_first.go:145:19: stmt.Range undefined (type *ast.ForStmt has no field or method Range)
-  (zero_value_return_string) loop_break_first.go:146:19: stmt.X undefined (type *ast.ForStmt has no field or method X)
-  (zero_value_return_string) loop_break_first.go:184:5: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
-  (zero_value_return_string) loop_break_first.go:243:7: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
-  (zero_value_return_string) loop_break_first.go:303:6: invalid operation: newBody[len(newBody) - 1] += &ast.BranchStmt{…} (mismatched types ast.Stmt and *ast.BranchStmt)
-  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/loop_break_removal/package.test: no such file or directory
-  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/negate_condition/package.test: no such file or directory
-  (zero_value_return_string) fork/exec /tmp/gorgon-schemata-2517585315/pkg/mutator/operators/variable_replacement/package.test: no such file or directory
-  (total: 68 error lines)
+  (if_condition_false) test binary missing - compilation failed
+  (total: 1 error lines)
 
 Error Count by Operator:
-  logical_operator: 145 errors
-  for_condition_true: 7 errors
-  defer_removal: 22 errors
-  sign_toggle: 2 errors
-  zero_value_return_string: 60 errors
+  zero_value_return_string: 61 errors
   empty_body: 18 errors
+  swap_case_bodies: 103 errors
   switch_remove_default: 10 errors
-  zero_value_return_bool: 101 errors
+  defer_removal: 22 errors
+  negate_condition: 684 errors
+  pointer_returns: 28 errors
+  zero_value_return_bool: 105 errors
   zero_value_return_error: 50 errors
-  inc_dec_flip: 27 errors
-  if_condition_false: 666 errors
-  if_condition_true: 666 errors
-  assignment_operator: 273 errors
-  for_condition_false: 7 errors
+  sign_toggle: 2 errors
+  if_condition_false: 708 errors
+  assignment_operator: 277 errors
+  loop_break_first: 207 errors
+  inc_dec_flip: 29 errors
   binary_math: 2 errors
-  negate_condition: 636 errors
-  pointer_returns: 27 errors
-  loop_body_removal: 181 errors
-  loop_break_first: 181 errors
-  boundary_value: 99 errors
-  swap_case_bodies: 102 errors
-  variable_replacement: 229 errors
+  logical_operator: 156 errors
+  loop_body_removal: 207 errors
+  boundary_value: 107 errors
+  variable_replacement: 231 errors
+  if_condition_true: 708 errors
+  for_condition_false: 8 errors
+  for_condition_true: 8 errors
 
 Top Killing Tests:
-  TestBoundaryValue_Mutate                           3 kills
   TestLogicalOperator_Mutate                         3 kills
-  TestEarlyReturnRemoval_Name                        1 kills
-  TestLogicalOperator_Name                           1 kills
+  TestBoundaryValue_Mutate                           3 kills
   TestLogicalOperator_CanApply                       1 kills
   TestBoundaryValue_Name                             1 kills
   TestBoundaryValue_CanApply                         1 kills
   TestDeferRemoval_Name                              1 kills
+  TestLogicalOperator_Name                           1 kills
 

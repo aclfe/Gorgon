@@ -1,4 +1,3 @@
-
 package testing_test
 
 import (
@@ -134,7 +133,7 @@ func BenchmarkSchemata_ApplyToFile(b *testing.B) {
 			fileMutants[j] = &mutants[j]
 		}
 
-		if err := gtest.ApplySchemataToFile(targetFile, fileMutants); err != nil {
+		if _, err := gtest.ApplySchemataToFile(targetFile, fileMutants); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -354,7 +353,7 @@ func BenchmarkSchemata_FullPipelineSmall(b *testing.B) {
 
 		// Apply schemata
 		for tempFile, fileMutants := range fileToMutants {
-			if err := gtest.ApplySchemataToFile(tempFile, fileMutants); err != nil {
+			if _, err := gtest.ApplySchemataToFile(tempFile, fileMutants); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -428,7 +427,7 @@ func BenchmarkSchemata_PhaseBreakdown(b *testing.B) {
 		}
 
 		for tempFile, fileMutants := range fileToMutants {
-			if err := gtest.ApplySchemataToFile(tempFile, fileMutants); err != nil {
+			if _, err := gtest.ApplySchemataToFile(tempFile, fileMutants); err != nil {
 				b.Fatal(err)
 			}
 		}

@@ -31,11 +31,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	uncachedIndices, fileHashes, err := ResolveCache(mutants, baseDir, cache)
 	if err != nil {
-
-		for i := range mutants {
-			mutants[i].Status = "error"
-			mutants[i].Error = fmt.Errorf("cache resolution failed: %w", err)
-		}
+		setMutantErrors(mutants, fmt.Errorf("cache resolution failed: %w", err))
 		return mutants, err
 	}
 	if uncachedIndices == nil {
@@ -44,26 +40,18 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	baseDirAbs, _ := filepath.Abs(baseDir)
 	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
-		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, testPaths, progbar, fileHashes, debug)
+		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, debug)
 	}
 
 	ws, err := NewModuleWorkspace()
 	if err != nil {
-
-		for i := range mutants {
-			mutants[i].Status = "error"
-			mutants[i].Error = fmt.Errorf("workspace creation failed: %w", err)
-		}
+		setMutantErrors(mutants, fmt.Errorf("workspace creation failed: %w", err))
 		return mutants, err
 	}
 	defer ws.Cleanup()
 
 	if err := ws.setup(baseDir, mutants); err != nil {
-
-		for i := range mutants {
-			mutants[i].Status = "error"
-			mutants[i].Error = fmt.Errorf("workspace setup failed: %w", err)
-		}
+		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
 		return mutants, err
 	}
 
@@ -71,11 +59,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	_, hasNonStdlib, err := ws.applySchemata(mutants)
 	if err != nil {
-
-		for i := range mutants {
-			mutants[i].Status = "error"
-			mutants[i].Error = fmt.Errorf("schemata application failed: %w", err)
-		}
+		setMutantErrors(mutants, fmt.Errorf("schemata application failed: %w", err))
 		return mutants, err
 	}
 
@@ -83,11 +67,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
-
-		for i := range mutants {
-			mutants[i].Status = "error"
-			mutants[i].Error = fmt.Errorf("build package map failed: %w", err)
-		}
+		setMutantErrors(mutants, fmt.Errorf("build package map failed: %w", err))
 		return mutants, err
 	}
 
@@ -95,19 +75,43 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	for i := range mutants {
 		m := &mutants[i]
 		if m.Site.File != nil {
+			line := m.TempLine
+			col := m.TempCol
+			if line == 0 {
+				line = m.Site.Line
+			}
+			if col == 0 {
+				col = m.Site.Column
+			}
 			mutantSites[m.ID] = MutantSite{
 				File: m.Site.File.Name(),
-				Line: m.Site.Line,
-				Col:  m.Site.Column,
+				Line: line,
+				Col:  col,
 			}
 		}
+	}
+
+	pkgToMutants := make(map[string][]*Mutant, len(mutants))
+	for i := range mutants {
+		m := &mutants[i]
+		if m.Site.File == nil {
+			continue
+		}
+		rel, err := filepath.Rel(ws.absModule, m.Site.File.Name())
+		if err != nil {
+			continue
+		}
+		pkgDir := filepath.Join(ws.TempDir, filepath.Dir(rel))
+		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
 	}
 
 	var prog *ProgressTracker
 	if progbar {
 		prog = NewProgressTracker(len(mutants))
 	}
-	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, mutantSites, concurrent, tests, prog, debug)
+
+	
+	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, debug)
 
 	if len(results) > 0 {
 		collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
@@ -124,7 +128,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	return mutants, nil
 }
 
-func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, testPaths []string, progbar bool, fileHashes map[string]string, debug bool) ([]Mutant, error) {
+func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, debug bool) ([]Mutant, error) {
 
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
@@ -169,7 +173,7 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 				return ctx.Err()
 			default:
 			}
-			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, testPaths, workerTempDir, progbar, prog, debug)
+			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, debug)
 		})
 	}
 
@@ -220,6 +224,13 @@ func isStdlib(path string) bool {
 	dot := strings.IndexByte(path, '.')
 	slash := strings.IndexByte(path, '/')
 	return dot < 0 || (slash >= 0 && slash < dot)
+}
+
+func setMutantErrors(mutants []Mutant, err error) {
+	for i := range mutants {
+		mutants[i].Status = "error"
+		mutants[i].Error = err
+	}
 }
 
 func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex map[int]int, tempDir string) {
@@ -280,7 +291,7 @@ func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
 
 		if !isCovered {
 
-			m.Status = "survived"
+			m.Status = "untested"
 		}
 	}
 }
@@ -311,8 +322,9 @@ func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
 			continue
 		}
 
-		if !testPackages[relDir] {
-			m.Status = "survived"
+		
+		if !testPackages[relDir] || strings.Contains(relDir, "examples/mutations") {
+			m.Status = "untested"
 		}
 	}
 }

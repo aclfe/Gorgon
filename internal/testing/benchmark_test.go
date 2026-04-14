@@ -108,7 +108,7 @@ func BenchmarkSchemataGeneration(bnch *stdtesting.B) {
 		}
 
 		for tempFile, fileMutants := range fileToMutants {
-			if err := testing.ApplySchemataToFile(tempFile, fileMutants); err != nil {
+			if _, err := testing.ApplySchemataToFile(tempFile, fileMutants); err != nil {
 				bnch.Fatal(err)
 			}
 		}
@@ -257,7 +257,7 @@ func BenchmarkPhaseBreakdown(bnch *stdtesting.B) {
 			fileToMutants[filepath.Join(tempDir, "arithmetic_flip.go")] = append(fileToMutants[filepath.Join(tempDir, "arithmetic_flip.go")], m)
 		}
 		for tempFile, fileMutants := range fileToMutants {
-			if err := testing.ApplySchemataToFile(tempFile, fileMutants); err != nil {
+			if _, err := testing.ApplySchemataToFile(tempFile, fileMutants); err != nil {
 				bnch.Fatal(err)
 			}
 		}

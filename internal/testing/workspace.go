@@ -16,14 +16,12 @@ import (
 
 func maxConcurrency() int { return runtime.NumCPU() }
 
-
 type ModuleWorkspace struct {
-	TempDir   string
-	absModule string
+	TempDir      string
+	absModule    string
 	fileRelPaths map[string]string
-	mu         sync.Mutex
+	mu           sync.Mutex
 }
-
 
 func NewModuleWorkspace() (*ModuleWorkspace, error) {
 	tempDir, err := os.MkdirTemp("", "gorgon-schemata-*")
@@ -35,7 +33,6 @@ func NewModuleWorkspace() (*ModuleWorkspace, error) {
 		fileRelPaths: make(map[string]string),
 	}, nil
 }
-
 
 func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
 	w.mu.Lock()
@@ -51,11 +48,9 @@ func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
 	return rel, nil
 }
 
-
 func (w *ModuleWorkspace) Cleanup() {
 	_ = os.RemoveAll(w.TempDir)
 }
-
 
 func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	modDir := FindGoModDir(baseDir)
@@ -69,7 +64,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	}
 	w.absModule = absModule
 
-
 	mutatedPaths := make(map[string]bool, len(mutants))
 	for i := range mutants {
 		if mutants[i].Site.File != nil {
@@ -79,7 +73,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
-
 
 	g.Go(func() error {
 		if err := copyFileWithBuffer(filepath.Join(absModule, "go.mod"), filepath.Join(w.TempDir, "go.mod")); err != nil {
@@ -93,9 +86,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		return nil
 	})
 
-	
-	
-	
 	allPkgs, err := collectAllPackages(absModule)
 	if err != nil {
 		return fmt.Errorf("failed to collect packages: %w", err)
@@ -114,8 +104,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	return nil
 }
 
-
-
 func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, bool, error) {
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
@@ -128,7 +116,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		}
 	}
 
-	
 	hasNonStdlib := false
 	for astFile := range astToMutants {
 		for _, imp := range astFile.Imports {
@@ -170,7 +157,7 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		}
 
 		g.Go(func() error {
-			
+
 			cacheMu.Lock()
 			src, cached := sourceCache[origPath]
 			cacheMu.Unlock()
@@ -192,8 +179,15 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 			}
 			tempFile := filepath.Join(w.TempDir, rel)
 
-			if err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants); err != nil {
+			posMap, err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants)
+			if err != nil {
 				return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+			}
+			for _, m := range entryMutants {
+				if pm, ok := posMap[m.ID]; ok {
+					m.TempLine = pm.TempLine
+					m.TempCol = pm.TempCol
+				}
 			}
 			return nil
 		})
@@ -203,7 +197,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		return nil, false, err
 	}
 
-	
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
 
 	sortedMutants := make([]*Mutant, len(mutants))
@@ -230,7 +223,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	return fileToMutants, hasNonStdlib, nil
 }
 
-
 func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[int]int, error) {
 	pkgToIDs := make(map[string][]int, len(mutants))
 	idToIndex := make(map[int]int, len(mutants))
@@ -248,7 +240,6 @@ func (w *ModuleWorkspace) buildPkgMap(mutants []Mutant) (map[string][]int, map[i
 
 	return pkgToIDs, idToIndex, nil
 }
-
 
 func (w *ModuleWorkspace) simplifyGoMod(hasNonStdlib bool) {
 	if hasNonStdlib {
@@ -287,8 +278,7 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 		dst := filepath.Join(dstDir, entry.Name())
 
 		if entry.IsDir() {
-			
-			
+
 			if hasGoFiles(src) {
 				if err := copyDirContents(src, dst, mutatedPaths); err != nil {
 					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
@@ -300,13 +290,10 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 			continue
 		}
 
-		
 		if mutatedPaths[src] {
 			continue
 		}
 
-		
-		
 		if err := copyFileWithBuffer(src, dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", src, err)
 		}
@@ -314,17 +301,14 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 	return nil
 }
 
-
-
 func collectAllPackages(absModule string) (map[string]bool, error) {
 	pkgs := make(map[string]bool)
 
 	err := filepath.Walk(absModule, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil 
+			return nil
 		}
 
-		
 		if info.IsDir() {
 			name := info.Name()
 			if name == "vendor" || name == ".git" || strings.HasPrefix(name, "_") {
@@ -333,7 +317,6 @@ func collectAllPackages(absModule string) (map[string]bool, error) {
 			return nil
 		}
 
-		
 		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
 			dir := filepath.Dir(path)
 			relDir, err := filepath.Rel(absModule, dir)

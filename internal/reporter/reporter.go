@@ -23,6 +23,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 	killed := 0
 	survived := 0
 	errors := 0
+	untested := 0
 	unknown := 0
 
 	for _, mutant := range mutants {
@@ -33,6 +34,8 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 			survived++
 		case "error":
 			errors++
+		case "untested":
+			untested++
 		default:
 			unknown++
 		}
@@ -57,7 +60,7 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 	out := io.MultiWriter(outWriters...)
 
 	if debugFile != "" {
-		if err := writeDebugInfo(mutants, killed, survived, errors, debugFile); err != nil {
+		if err := writeDebugInfo(mutants, killed, survived, errors, untested, debugFile); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to write debug file: %v\n", err)
 		}
 	}
@@ -123,10 +126,10 @@ func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled 
 	}
 
 	writer := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tUnknown\tTotal"); err != nil {
+	if _, err := fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tUntested\tTotal"); err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
-	if _, err := fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, unknown, total); err != nil {
+	if _, err := fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, untested, total); err != nil {
 		return fmt.Errorf("failed to write stats: %w", err)
 	}
 	if err := writer.Flush(); err != nil {
@@ -345,7 +348,7 @@ func getVisualColumn(fileCache map[string][]byte, fileName string, line, col int
 	return col
 }
 
-func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debugFile string) error {
+func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested int, debugFile string) error {
 	f, err := os.Create(debugFile)
 	if err != nil {
 		return fmt.Errorf("failed to create debug file: %w", err)
@@ -355,23 +358,22 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debu
 	out := f
 
 	total := len(mutants)
-	unknown := total - killed - survived - errors
 	score := 0.0
 	effectiveTotal := killed + survived
 	if effectiveTotal > 0 {
 		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
 	}
 
-	// Always write basic stats
+	
 	fmt.Fprintf(out, "Mutation Score: %.2f%%\n", score)
 	fmt.Fprintf(out, "Killed: %d\n", killed)
 	fmt.Fprintf(out, "Survived: %d\n", survived)
 	fmt.Fprintf(out, "Errors: %d\n", errors)
-	fmt.Fprintf(out, "Unknown: %d\n", unknown)
+	fmt.Fprintf(out, "Untested: %d\n", untested)
 	fmt.Fprintf(out, "Total: %d\n\n", total)
 
-	// Write error details (only when there are errors)
-	if errors > 0 {
+	
+	if errors > 0 || untested > 0 {
 		fmt.Fprintf(out, "Error Summary by Operator:\n")
 		opErrors := make(map[string]int)
 		opTotal := make(map[string]int)
@@ -385,6 +387,25 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debu
 			total := opTotal[op]
 			pct := float64(errCount) / float64(total) * 100
 			fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
+		}
+
+		
+		if untested > 0 {
+			fmt.Fprintf(out, "\nUntested by Operator (binary missing - package failed to compile):\n")
+			opUntested := make(map[string]int)
+			for _, mutant := range mutants {
+				if mutant.Status == "untested" {
+					opUntested[mutant.Operator.Name()]++
+				}
+			}
+			for op, untestCount := range opUntested {
+				total := opTotal[op]
+				if total == 0 {
+					total = 1
+				}
+				pct := float64(untestCount) / float64(total) * 100
+				fmt.Fprintf(out, "  %-35s %d/%d untested (%.1f%%)\n", op, untestCount, total, pct)
+			}
 		}
 
 		uniqueErrors := extractUniqueCompilerErrors(mutants)
@@ -420,7 +441,7 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors int, debu
 		fmt.Fprintln(out)
 	}
 
-	// Write top killing tests (always useful)
+	
 	if killed > 0 {
 		fmt.Fprintf(out, "Top Killing Tests:\n")
 		testKills := make(map[string]int)

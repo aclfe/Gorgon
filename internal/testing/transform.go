@@ -23,13 +23,7 @@ var formatBufPool = sync.Pool{
 	New: func() any { return new(bytes.Buffer) },
 }
 
-
-
-
 //
-
-
-
 
 var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.NodeType{
 	schemata_nodes.NTBinaryExpr:     {schemata_nodes.NTBinaryExpr, schemata_nodes.NTCallExpr},
@@ -60,61 +54,144 @@ var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.Nod
 	schemata_nodes.NTFuncDecl:       {schemata_nodes.NTFuncDecl},
 }
 
-
-
-func ApplySchemataToFile(filePath string, fileMutants []*Mutant) error {
+func ApplySchemataToFile(filePath string, fileMutants []*Mutant) (map[int]PositionMapping, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", filePath, err)
+		return nil, fmt.Errorf("read %s: %w", filePath, err)
 	}
 
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
 	if err != nil {
-		return fmt.Errorf("parse %s: %w", filePath, err)
+		return nil, fmt.Errorf("parse %s: %w", filePath, err)
 	}
 
 	return applySchemataToAST(file, fset, filePath, src, fileMutants)
 }
 
+type PositionMapping struct {
+	OriginalLine int
+	OriginalCol  int
+	TempLine     int
+	TempCol      int
+}
 
-
-
-func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
+func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) (map[int]PositionMapping, error) {
 	return applySchemataToAST(fileAST, fset, filePath, src, fileMutants)
 }
 
-func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) error {
+func buildPositionMapping(mutants []*Mutant, fset *token.FileSet) map[int]PositionMapping {
+	result := make(map[int]PositionMapping, len(mutants))
+	for _, m := range mutants {
+		if m.Site.Node == nil {
+			continue
+		}
+		origPos := fset.Position(m.Site.Node.Pos())
+		tempNode := findNodeByID(mutants, m.ID)
+		if tempNode != nil {
+			tempPos := fset.Position(tempNode.Pos())
+			result[m.ID] = PositionMapping{
+				OriginalLine: origPos.Line,
+				OriginalCol:  origPos.Column,
+				TempLine:     tempPos.Line,
+				TempCol:      tempPos.Column,
+			}
+		} else {
+			result[m.ID] = PositionMapping{
+				OriginalLine: origPos.Line,
+				OriginalCol:  origPos.Column,
+				TempLine:     origPos.Line,
+				TempCol:      origPos.Column,
+			}
+		}
+	}
+	return result
+}
+
+func findNodeByID(mutants []*Mutant, id int) ast.Node {
+	for _, m := range mutants {
+		if m.ID == id {
+			return m.Site.Node
+		}
+	}
+	return nil
+}
+
+func extractMutantIDs(mutants []*Mutant) []int {
+	ids := make([]int, len(mutants))
+	for i, m := range mutants {
+		ids[i] = m.ID
+	}
+	return ids
+}
+
+
+
+
+//
+//	if activeMutantID == 42 {
+//
+
+func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositions map[int]PositionMapping) map[int]PositionMapping {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return originalPositions
+	}
+	lines := bytes.Split(content, []byte{'\n'})
+
+	result := make(map[int]PositionMapping, len(mutantIDs))
+
+	
+	for id, pos := range originalPositions {
+		result[id] = pos
+	}
+
+	for _, id := range mutantIDs {
+		pattern := []byte(fmt.Sprintf("activeMutantID == %d", id))
+		for lineNum, line := range lines {
+			if bytes.Contains(line, pattern) {
+				
+				
+				result[id] = PositionMapping{
+					OriginalLine: originalPositions[id].OriginalLine,
+					OriginalCol:  originalPositions[id].OriginalCol,
+					TempLine:     lineNum + 1, 
+					TempCol:      bytes.Index(line, pattern) + 1,
+				}
+				break
+			}
+		}
+	}
+
+	return result
+}
+
+func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) (map[int]PositionMapping, error) {
 
 	posToMutants := buildPositionToMutantsMap(fileMutants)
 
-
 	constNodes := findConstNodes(file)
 
-
 	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file)
+		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
 	})
-
 
 	fixUnusedImports(file)
 	fixUnusedLoopVarsAfterMutationFast(file)
-
 
 	buf := formatBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	if err := format.Node(buf, fset, file); err != nil {
 		formatBufPool.Put(buf)
-		
+
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
 		} else {
 			log.Printf("[WARN] format.Node failed for %s and original source is empty, skipping restore", filePath)
 		}
-		return nil
+		return nil, nil
 	}
 
-	
 	if buf.Len() == 0 {
 		formatBufPool.Put(buf)
 		if len(src) > 0 {
@@ -123,25 +200,29 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		} else {
 			log.Printf("[WARN] formatted output for %s is empty and no original source available", filePath)
 		}
-		return nil
+		return nil, nil
 	}
 
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
 		formatBufPool.Put(buf)
-		return fmt.Errorf("write failed: %w", err)
+		return nil, fmt.Errorf("write failed: %w", err)
 	}
 	formatBufPool.Put(buf)
 
-	return nil
+	
+	
+	
+	origPositions := buildPositionMapping(fileMutants, fset)
+	mutantIDs := extractMutantIDs(fileMutants)
+	positionMap := findMutantPositionsInFile(filePath, mutantIDs, origPositions)
+	return positionMap, nil
 }
-
-
 
 func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 
 	type pkgInfo struct {
-		files     []string
-		pkgName   string
+		files   []string
+		pkgName string
 	}
 	pkgToInfo := make(map[string]*pkgInfo, len(fileToMutants))
 	for tempFile, mutants := range fileToMutants {
@@ -153,7 +234,6 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 		}
 		info.files = append(info.files, tempFile)
 
-		
 		if info.pkgName == "" {
 			for _, m := range mutants {
 				if m.Site.FileAST != nil && m.Site.FileAST.Name != nil {
@@ -163,7 +243,6 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 			}
 		}
 	}
-
 
 	dirs := make([]string, 0, len(pkgToInfo))
 	for dir := range pkgToInfo {
@@ -182,7 +261,10 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 			pkgName = filepath.Base(dir)
 		}
 
+		const helperSentinel = "
+
 		helper := fmt.Sprintf(`package %s
+
 
 import (
 	"os"
@@ -198,7 +280,15 @@ func init() {
 }
 `, pkgName)
 
-		if err := os.WriteFile(filepath.Join(dir, "gorgon_schemata.go"), []byte(helper), filePermissions); err != nil {
+		helperFile := filepath.Join(dir, "gorgon_schemata.go")
+		existing, _ := os.ReadFile(helperFile)
+		if bytes.Contains(existing, []byte(helperSentinel)) {
+			if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
+				return fmt.Errorf("failed to overwrite helper: %w", err)
+			}
+			continue
+		}
+		if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
 			return fmt.Errorf("failed to write helper: %w", err)
 		}
 	}
@@ -255,25 +345,22 @@ func findConstNodes(file *ast.File) map[ast.Node]bool {
 	return constNodes
 }
 
-func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMutants map[posKey][]schemata_nodes.MutantForSite, constNodes map[ast.Node]bool, file *ast.File) bool {
+func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMutants map[posKey][]schemata_nodes.MutantForSite, constNodes map[ast.Node]bool, file *ast.File, visitedNodes map[*ast.Decl]bool) bool {
 	node := cursor.Node()
 	if node == nil {
 		return true
 	}
 
-	
 	if cursor.Parent() != nil {
 		if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
 			return true
 		}
 	}
 
-	
 	if constNodes[node] {
 		return true
 	}
 
-	
 	newPos := schemata_nodes.GetNodePosition(node, fset)
 	key := posKey{Line: newPos.Line, Column: newPos.Column, Type: schemata_nodes.NodeTypeToUint8(node)}
 	mutants, ok := posToMutants[key]
@@ -291,7 +378,6 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 		return true
 	}
 
-	
 	if _, isExpr := node.(ast.Expr); isExpr {
 		if _, ok := schemata.(ast.Expr); ok {
 			safeReplace(cursor, schemata)
@@ -344,10 +430,6 @@ func isValidReplacement(original, replacement ast.Node) bool {
 	return false
 }
 
-
-
-
-
 func fixUnusedImports(file *ast.File) {
 	used := make(map[string]bool)
 
@@ -367,7 +449,7 @@ func fixUnusedImports(file *ast.File) {
 		}
 		pkgName := getPackageNameFromImport(imp)
 		if !used[pkgName] {
-			
+
 			if imp.Name == nil {
 				imp.Name = &ast.Ident{Name: "_", NamePos: imp.Path.Pos()}
 			}
@@ -375,9 +457,8 @@ func fixUnusedImports(file *ast.File) {
 	}
 }
 
-
 func fixUnusedLoopVarsAfterMutationFast(file *ast.File) {
-	
+
 	for _, decl := range file.Decls {
 		processDeclForLoopVars(decl)
 	}
@@ -391,7 +472,7 @@ func processDeclForLoopVars(decl ast.Decl) {
 		}
 		processStmtsForLoopVars(d.Body.List)
 	case *ast.GenDecl:
-		
+
 	}
 }
 
@@ -426,7 +507,7 @@ func fixRangeStmt(rangeStmt *ast.RangeStmt) {
 	if rangeStmt.Body == nil {
 		return
 	}
-	
+
 	processStmtsForLoopVars(rangeStmt.Body.List)
 
 	var loopVars []*ast.Ident
@@ -453,7 +534,7 @@ func fixForStmt(forStmt *ast.ForStmt) {
 	if forStmt.Body == nil {
 		return
 	}
-	
+
 	processStmtsForLoopVars(forStmt.Body.List)
 
 	var loopVars []*ast.Ident
@@ -477,7 +558,6 @@ func fixForStmt(forStmt *ast.ForStmt) {
 	}
 }
 
-
 func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast.Ident) bool {
 	if block == nil {
 		return false
@@ -486,7 +566,7 @@ func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast
 	used := false
 	ast.Inspect(block, func(n ast.Node) bool {
 		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
-			
+
 			if declIdent != nil && ident.Pos() == declIdent.Pos() {
 				return true
 			}

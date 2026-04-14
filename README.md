@@ -192,7 +192,6 @@ Statement
 
 - Context-aware: passes type info to mutators
 - Extensible: implement Operator or ContextualOperator interface
-- Schemata-based for fast testing
 - Parallel test execution: mutants run concurrently across CPU cores
 
 ## Kill Attribution
