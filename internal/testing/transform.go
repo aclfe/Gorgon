@@ -125,9 +125,6 @@ func extractMutantIDs(mutants []*Mutant) []int {
 	return ids
 }
 
-
-
-
 //
 //	if activeMutantID == 42 {
 //
@@ -141,7 +138,6 @@ func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositio
 
 	result := make(map[int]PositionMapping, len(mutantIDs))
 
-	
 	for id, pos := range originalPositions {
 		result[id] = pos
 	}
@@ -150,12 +146,11 @@ func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositio
 		pattern := []byte(fmt.Sprintf("activeMutantID == %d", id))
 		for lineNum, line := range lines {
 			if bytes.Contains(line, pattern) {
-				
-				
+
 				result[id] = PositionMapping{
 					OriginalLine: originalPositions[id].OriginalLine,
 					OriginalCol:  originalPositions[id].OriginalCol,
-					TempLine:     lineNum + 1, 
+					TempLine:     lineNum + 1,
 					TempCol:      bytes.Index(line, pattern) + 1,
 				}
 				break
@@ -209,9 +204,6 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	}
 	formatBufPool.Put(buf)
 
-	
-	
-	
 	origPositions := buildPositionMapping(fileMutants, fset)
 	mutantIDs := extractMutantIDs(fileMutants)
 	positionMap := findMutantPositionsInFile(filePath, mutantIDs, origPositions)
@@ -261,7 +253,7 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 			pkgName = filepath.Base(dir)
 		}
 
-		const helperSentinel = "
+		const helperSentinel = "// GORGON_SCHEMATA"
 
 		helper := fmt.Sprintf(`package %s
 

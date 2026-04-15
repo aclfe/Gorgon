@@ -6,57 +6,57 @@ Untested: 1812
 Total: 5616
 
 Error Summary by Operator:
-  zero_value_return_error             50/58 errors (86.2%)
-  if_condition_false                  708/1021 errors (69.3%)
-  loop_break_first                    207/262 errors (79.0%)
-  for_condition_true                  8/23 errors (34.8%)
-  zero_value_return_string            61/97 errors (62.9%)
-  empty_body                          18/22 errors (81.8%)
-  defer_removal                       22/33 errors (66.7%)
-  binary_math                         2/7 errors (28.6%)
-  pointer_returns                     28/85 errors (32.9%)
-  boundary_value                      107/171 errors (62.6%)
-  switch_remove_default               10/28 errors (35.7%)
-  inc_dec_flip                        29/48 errors (60.4%)
-  if_condition_true                   708/1021 errors (69.3%)
   logical_operator                    156/234 errors (66.7%)
+  swap_case_bodies                    103/227 errors (45.4%)
+  switch_remove_default               10/28 errors (35.7%)
+  zero_value_return_bool              105/188 errors (55.9%)
+  inc_dec_flip                        29/48 errors (60.4%)
   sign_toggle                         2/7 errors (28.6%)
-  negate_condition                    684/927 errors (73.8%)
-  assignment_operator                 277/412 errors (67.2%)
+  if_condition_true                   708/1021 errors (69.3%)
   loop_body_removal                   207/262 errors (79.0%)
   for_condition_false                 8/23 errors (34.8%)
-  swap_case_bodies                    103/227 errors (45.4%)
+  binary_math                         2/7 errors (28.6%)
+  pointer_returns                     28/85 errors (32.9%)
+  for_condition_true                  8/23 errors (34.8%)
+  empty_body                          18/22 errors (81.8%)
+  negate_condition                    684/927 errors (73.8%)
+  assignment_operator                 277/412 errors (67.2%)
+  loop_break_first                    207/262 errors (79.0%)
+  boundary_value                      107/171 errors (62.6%)
+  zero_value_return_string            61/97 errors (62.9%)
+  defer_removal                       22/33 errors (66.7%)
   variable_replacement                231/430 errors (53.7%)
-  zero_value_return_bool              105/188 errors (55.9%)
+  zero_value_return_error             50/58 errors (86.2%)
+  if_condition_false                  708/1021 errors (69.3%)
 
 Untested by Operator (binary missing - package failed to compile):
-  empty_body                          4/22 untested (18.2%)
-  zero_value_return_error             6/58 untested (10.3%)
-  channel_returns                     3/3 untested (100.0%)
-  map_returns                         5/5 untested (100.0%)
   zero_value_return_numeric           15/15 untested (100.0%)
-  binary_math                         5/7 untested (71.4%)
-  switch_remove_default               18/28 untested (64.3%)
-  if_condition_false                  297/1021 untested (29.1%)
   assignment_operator                 130/412 untested (31.6%)
-  logical_operator                    77/234 untested (32.9%)
-  loop_body_removal                   51/262 untested (19.5%)
-  loop_break_first                    51/262 untested (19.5%)
-  zero_value_return_string            33/97 untested (34.0%)
-  zero_value_return_bool              79/188 untested (42.0%)
-  interface_returns                   2/2 untested (100.0%)
+  empty_body                          4/22 untested (18.2%)
+  slice_returns                       5/5 untested (100.0%)
+  swap_case_bodies                    124/227 untested (54.6%)
+  if_condition_false                  297/1021 untested (29.1%)
   if_condition_true                   297/1021 untested (29.1%)
   negate_condition                    234/927 untested (25.2%)
+  binary_math                         5/7 untested (71.4%)
+  for_condition_false                 15/23 untested (65.2%)
+  loop_body_removal                   51/262 untested (19.5%)
+  zero_value_return_string            33/97 untested (34.0%)
+  channel_returns                     3/3 untested (100.0%)
+  variable_replacement                194/430 untested (45.1%)
+  for_condition_true                  15/23 untested (65.2%)
+  zero_value_return_error             6/58 untested (10.3%)
+  zero_value_return_bool              79/188 untested (42.0%)
+  interface_returns                   2/2 untested (100.0%)
+  map_returns                         5/5 untested (100.0%)
   boundary_value                      64/171 untested (37.4%)
+  logical_operator                    77/234 untested (32.9%)
+  loop_break_first                    51/262 untested (19.5%)
+  inc_dec_flip                        19/48 untested (39.6%)
   defer_removal                       11/33 untested (33.3%)
   pointer_returns                     53/85 untested (62.4%)
-  slice_returns                       5/5 untested (100.0%)
   sign_toggle                         5/7 untested (71.4%)
-  swap_case_bodies                    124/227 untested (54.6%)
-  inc_dec_flip                        19/48 untested (39.6%)
-  variable_replacement                194/430 untested (45.1%)
-  for_condition_false                 15/23 untested (65.2%)
-  for_condition_true                  15/23 untested (65.2%)
+  switch_remove_default               18/28 untested (64.3%)
 
 Top Compilation Error Types (showing up to 20 of 1 unique error messages):
   • test binary missing - compilation failed
@@ -66,35 +66,35 @@ Per-Mutant Compilation Errors (unlimited):
   (total: 1 error lines)
 
 Error Count by Operator:
-  zero_value_return_string: 61 errors
-  empty_body: 18 errors
-  swap_case_bodies: 103 errors
-  switch_remove_default: 10 errors
-  defer_removal: 22 errors
-  negate_condition: 684 errors
+  if_condition_true: 708 errors
   pointer_returns: 28 errors
-  zero_value_return_bool: 105 errors
+  switch_remove_default: 10 errors
+  variable_replacement: 231 errors
   zero_value_return_error: 50 errors
+  inc_dec_flip: 29 errors
   sign_toggle: 2 errors
   if_condition_false: 708 errors
-  assignment_operator: 277 errors
+  negate_condition: 684 errors
   loop_break_first: 207 errors
-  inc_dec_flip: 29 errors
+  boundary_value: 107 errors
+  empty_body: 18 errors
+  defer_removal: 22 errors
   binary_math: 2 errors
+  assignment_operator: 277 errors
+  for_condition_true: 8 errors
+  zero_value_return_string: 61 errors
+  swap_case_bodies: 103 errors
   logical_operator: 156 errors
   loop_body_removal: 207 errors
-  boundary_value: 107 errors
-  variable_replacement: 231 errors
-  if_condition_true: 708 errors
   for_condition_false: 8 errors
-  for_condition_true: 8 errors
+  zero_value_return_bool: 105 errors
 
 Top Killing Tests:
-  TestLogicalOperator_Mutate                         3 kills
   TestBoundaryValue_Mutate                           3 kills
+  TestLogicalOperator_Mutate                         3 kills
+  TestDeferRemoval_Name                              1 kills
+  TestLogicalOperator_Name                           1 kills
   TestLogicalOperator_CanApply                       1 kills
   TestBoundaryValue_Name                             1 kills
   TestBoundaryValue_CanApply                         1 kills
-  TestDeferRemoval_Name                              1 kills
-  TestLogicalOperator_Name                           1 kills
 

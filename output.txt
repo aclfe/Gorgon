@@ -2,26 +2,26 @@ Mutation Score  Killed  Survived  Errors  Untested  Total
 15.07%          11      62        3731    1812      5616
 
 Top Killing Tests:
-  TestBoundaryValue_Mutate                           3 kills
   TestLogicalOperator_Mutate                         3 kills
+  TestBoundaryValue_Mutate                           3 kills
+  TestLogicalOperator_CanApply                       1 kills
   TestBoundaryValue_Name                             1 kills
   TestBoundaryValue_CanApply                         1 kills
   TestDeferRemoval_Name                              1 kills
   TestLogicalOperator_Name                           1 kills
-  TestLogicalOperator_CanApply                       1 kills
 
 Killed Mutants:
-- #4866 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:15:5 (zero_value_return_string) killed by TestBoundaryValue_Name (10ms)
-- #4868 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:20:5 (if_condition_true) killed by TestBoundaryValue_CanApply (11ms)
-- #4871 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:29:5 (if_condition_true) killed by TestBoundaryValue_Mutate (11ms)
-- #4873 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:33:5 (if_condition_true) killed by TestBoundaryValue_Mutate (8ms)
-- #4874 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:36:5 (pointer_returns) killed by TestBoundaryValue_Mutate (13ms)
-- #5051 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:12:5 (zero_value_return_string) killed by TestDeferRemoval_Name (5ms)
-- #5291 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:15:5 (zero_value_return_string) killed by TestLogicalOperator_Name (5ms)
-- #5293 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:20:5 (if_condition_true) killed by TestLogicalOperator_CanApply (7ms)
-- #5296 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:29:5 (if_condition_true) killed by TestLogicalOperator_Mutate (6ms)
-- #5298 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:33:5 (if_condition_true) killed by TestLogicalOperator_Mutate (5ms)
-- #5299 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:36:5 (pointer_returns) killed by TestLogicalOperator_Mutate (3ms)
+- #4866 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:15:5 (zero_value_return_string) killed by TestBoundaryValue_Name (9ms)
+- #4868 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:20:5 (if_condition_true) killed by TestBoundaryValue_CanApply (7ms)
+- #4871 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:29:5 (if_condition_true) killed by TestBoundaryValue_Mutate (12ms)
+- #4873 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:33:5 (if_condition_true) killed by TestBoundaryValue_Mutate (18ms)
+- #4874 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:36:5 (pointer_returns) killed by TestBoundaryValue_Mutate (17ms)
+- #5051 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:12:5 (zero_value_return_string) killed by TestDeferRemoval_Name (12ms)
+- #5291 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:15:5 (zero_value_return_string) killed by TestLogicalOperator_Name (13ms)
+- #5293 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:20:5 (if_condition_true) killed by TestLogicalOperator_CanApply (8ms)
+- #5296 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:29:5 (if_condition_true) killed by TestLogicalOperator_Mutate (11ms)
+- #5298 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:33:5 (if_condition_true) killed by TestLogicalOperator_Mutate (13ms)
+- #5299 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:36:5 (pointer_returns) killed by TestLogicalOperator_Mutate (11ms)
 
 Survived Mutants:
 - survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:40:5 (Operator: pointer_returns)
