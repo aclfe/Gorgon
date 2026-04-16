@@ -14,7 +14,7 @@ func (EmptyBody) Name() string {
 }
 
 func (EmptyBody) CanApply(n ast.Node) bool {
-	return false 
+	return false
 }
 
 func (EmptyBody) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
@@ -23,13 +23,10 @@ func (EmptyBody) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 		return false
 	}
 
-	
 	if fn.Body == nil || len(fn.Body.List) == 0 {
 		return false
 	}
 
-	
-	
 	if fn.Name != nil {
 		switch fn.Name.Name {
 		case "init", "main":
@@ -37,32 +34,11 @@ func (EmptyBody) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 		}
 	}
 
-	
-	
-	if fn.Name != nil && isExported(fn.Name.Name) {
-		return false
-	}
-
-	
 	if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 {
 		return false
 	}
 
-	
-	
-	
-	if len(fn.Body.List) < 2 {
-		return false
-	}
-
-	
-	
-	
-	
-	
 	if fn.Recv != nil && fn.Name != nil && !isExported(fn.Name.Name) {
-		
-		
 		if !hasConcretReceiver(fn) {
 			return false
 		}
@@ -72,7 +48,7 @@ func (EmptyBody) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 }
 
 func (EmptyBody) Mutate(n ast.Node) ast.Node {
-	return nil 
+	return nil
 }
 
 func (EmptyBody) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
@@ -96,7 +72,6 @@ func (EmptyBody) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	}
 }
 
-
 func isExported(name string) bool {
 	if name == "" {
 		return false
@@ -107,7 +82,6 @@ func isExported(name string) bool {
 	return false
 }
 
- 
 func hasConcretReceiver(fn *ast.FuncDecl) bool {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 {
 		return false

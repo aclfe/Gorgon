@@ -51,10 +51,7 @@ func (VariableReplacement) MutateWithContext(n ast.Node, ctx mutator.Context) as
 
 func isExcludedParent(ident *ast.Ident, parent ast.Node) bool {
 	switch parent.(type) {
-	case *ast.FuncDecl, *ast.File, *ast.Field,
-		*ast.StarExpr, *ast.ArrayType, *ast.MapType, *ast.ChanType,
-		*ast.InterfaceType, *ast.StructType, *ast.FuncType,
-		*ast.IncDecStmt:
+	case *ast.IncDecStmt:
 		return true
 	}
 	switch p := parent.(type) {

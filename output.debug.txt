@@ -1,9 +1,53 @@
-Mutation Score: 86.96%
+Mutation Score: 58.82%
 Killed: 20
-Survived: 3
+Survived: 14
 Errors: 0
-Untested: 0
-Total: 23
+Untested: 7715
+Total: 7749
+
+Error Summary by Operator:
+
+Untested by Operator (binary missing - package failed to compile):
+  if_condition_false                  1048/1049 untested (99.9%)
+  if_condition_true                   1048/1049 untested (99.9%)
+  negate_condition                    955/956 untested (99.9%)
+  empty_body                          78/78 untested (100.0%)
+  goroutine_removal                   9/9 untested (100.0%)
+  loop_break_first                    273/273 untested (100.0%)
+  inc_dec_flip                        51/51 untested (100.0%)
+  function_call_removal               408/408 untested (100.0%)
+  sign_toggle                         7/7 untested (100.0%)
+  binary_math                         7/7 untested (100.0%)
+  map_returns                         5/5 untested (100.0%)
+  for_condition_true                  23/23 untested (100.0%)
+  zero_value_return_string            97/97 untested (100.0%)
+  logical_operator                    239/239 untested (100.0%)
+  arithmetic_flip                     162/168 untested (96.4%)
+  nil_check_removal                   62/62 untested (100.0%)
+  panic_removal                       6/6 untested (100.0%)
+  for_condition_false                 23/23 untested (100.0%)
+  error_check_removal                 76/76 untested (100.0%)
+  defer_removal                       33/33 untested (100.0%)
+  switch_remove_default               28/28 untested (100.0%)
+  error_return_nil                    42/42 untested (100.0%)
+  interface_returns                   2/2 untested (100.0%)
+  zero_value_return_bool              198/198 untested (100.0%)
+  condition_negation                  995/996 untested (99.9%)
+  variable_replacement                582/605 untested (96.2%)
+  pointer_returns                     72/72 untested (100.0%)
+  zero_value_return_numeric           14/15 untested (93.3%)
+  channel_returns                     3/3 untested (100.0%)
+  loop_body_removal                   273/273 untested (100.0%)
+  assignment_operator                 433/433 untested (100.0%)
+  zero_value_return_error             58/58 untested (100.0%)
+  swap_case_bodies                    228/228 untested (100.0%)
+  slice_returns                       5/5 untested (100.0%)
+  boundary_value                      172/172 untested (100.0%)
+
+Per-Mutant Compilation Errors (unlimited):
+  (no detailed errors available)
+
+Error Count by Operator:
 
 Top Killing Tests:
   TestDivide                                         6 kills

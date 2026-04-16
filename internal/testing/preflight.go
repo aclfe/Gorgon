@@ -27,11 +27,21 @@ func quickStaticFilter(mutants []Mutant) ([]Mutant, []PreflightResult) {
 
 	for i := range mutants {
 		m := &mutants[i]
+
 		if m.Site.Node == nil {
 			invalid = append(invalid, PreflightResult{
 				MutantID:    m.ID,
 				Status:      StatusInvalid,
 				ErrorReason: "nil node",
+			})
+			m.Status = StatusInvalid
+			continue
+		}
+		if m.Site.File == nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    m.ID,
+				Status:      StatusInvalid,
+				ErrorReason: "nil file",
 			})
 			m.Status = StatusInvalid
 			continue
@@ -64,10 +74,8 @@ func PreflightFilterWithResults(mutants []Mutant) ([]Mutant, []PreflightResult) 
 		return nil, nil
 	}
 
-	// Level 1 - fast static filter
 	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
 
-	// Level 2 - group by file/package and do AST integrity check
 	validFinal, level2Invalid := level2PackagePreflight(validAfterLevel1)
 
 	allInvalid := append(level1Invalid, level2Invalid...)
@@ -82,7 +90,6 @@ func level2PackagePreflight(mutants []Mutant) ([]Mutant, []PreflightResult) {
 		return nil, nil
 	}
 
-	// Group mutants by source file (schemata is applied per file)
 	groups := make(map[string][]Mutant)
 	for _, m := range mutants {
 		if m.Site.File == nil {
@@ -104,131 +111,91 @@ func level2PackagePreflight(mutants []Mutant) ([]Mutant, []PreflightResult) {
 	return valid, invalid
 }
 
-// checkFileWithSchemata applies schemata to one file and validates the
-// resulting AST using format.Node (no subprocess, no isolated module).
-// Any mutation that makes the AST un-formattable is marked invalid.
-// Real type errors are caught downstream by compileWithSurgicalRetry.
 func checkFileWithSchemata(filePath string, mutants []Mutant) ([]Mutant, []PreflightResult) {
 	if len(mutants) == 0 {
 		return nil, nil
 	}
 
-	// 1. Parse the original source
-	fset := token.NewFileSet()
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return makeAllInvalid(mutants, fmt.Sprintf("cannot read source file: %v", err))
 	}
 
-	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-	if err != nil {
-		return makeAllInvalid(mutants, fmt.Sprintf("parse error: %v", err))
-	}
+	var valid []Mutant
+	var invalid []PreflightResult
 
-	// Convert to pointer slice for ApplySchemataToAST
-	mutantsPtr := make([]*Mutant, len(mutants))
-	for i := range mutants {
-		mutantsPtr[i] = &mutants[i]
-	}
+	for j := range mutants {
+		mutant := mutants[j] // struct copy (safe for &mutant pointer)
 
-	// 2. Apply schemata — this modifies `file` in place and writes to filePath.
-	//    We restore the original source in all cases immediately after.
-	posMap, schemataErr := ApplySchemataToAST(file, fset, filePath, src, mutantsPtr)
-
-	// Always restore original source — schemata writes to disk as a side-effect.
-	if len(src) > 0 {
-		_ = os.WriteFile(filePath, src, 0644)
-	}
-
-	if schemataErr != nil {
-		return makeAllInvalid(mutants, fmt.Sprintf("schemata apply failed: %v", schemataErr))
-	}
-
-	// ApplySchemataToAST returns nil posMap (and nil error) when format.Node
-	// fails on the modified AST — treat this as an AST integrity failure.
-	if posMap == nil {
-		return makeAllInvalid(mutants, "schemata produced an un-formattable AST")
-	}
-
-	// 3. Update TempLine/TempCol on mutants from position map
-	for i := range mutants {
-		if pm, ok := posMap[mutants[i].ID]; ok {
-			mutants[i].TempLine = pm.TempLine
-			mutants[i].TempCol = pm.TempCol
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+		if err != nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    mutant.ID,
+				Status:      StatusCompileError,
+				ErrorReason: fmt.Sprintf("parse error: %v", err),
+			})
+			continue
 		}
+
+		tmpf, err := os.CreateTemp("", "gorgon-preflight-*.go")
+		if err != nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    mutant.ID,
+				Status:      StatusCompileError,
+				ErrorReason: fmt.Sprintf("cannot create temp file for preflight: %v", err),
+			})
+			continue
+		}
+		tmpPath := tmpf.Name()
+		tmpf.Close()
+
+		mutantsPtr := []*Mutant{&mutant}
+		posMap, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutantsPtr)
+
+		_ = os.Remove(tmpPath)
+
+		if schemataErr != nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    mutant.ID,
+				Status:      StatusCompileError,
+				ErrorReason: fmt.Sprintf("schemata apply failed: %v", schemataErr),
+			})
+			continue
+		}
+
+		if posMap == nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    mutant.ID,
+				Status:      StatusCompileError,
+				ErrorReason: "schemata produced an un-formattable AST",
+			})
+			continue
+		}
+
+		if pm, ok := posMap[mutant.ID]; ok {
+			mutant.TempLine = pm.TempLine
+			mutant.TempCol = pm.TempCol
+		}
+
+		valid = append(valid, mutant)
 	}
 
-	// All mutants passed the AST integrity check — mark as valid for preflight.
-	return mutants, nil
+	return valid, invalid
 }
 
 // Helper to mark every mutant in a group as invalid
 func makeAllInvalid(mutants []Mutant, reason string) ([]Mutant, []PreflightResult) {
 	invalid := make([]PreflightResult, len(mutants))
-	for i, m := range mutants {
+	for i := range mutants {
 		invalid[i] = PreflightResult{
-			MutantID:    m.ID,
+			MutantID:    mutants[i].ID,
 			Status:      StatusCompileError,
 			ErrorReason: reason,
 		}
-		m.Status = StatusCompileError
+		mutants[i].Status = StatusCompileError
 	}
 	return nil, invalid
-}
-
-// Lightweight version of attribute errors for preflight
-func attributeCompileErrorsForPreflight(filePath string, mutants []Mutant, compilerOutput string) map[int]bool {
-	bad := make(map[int]bool)
-
-	errors := ParseCompilerErrors(compilerOutput)
-	if len(errors) == 0 {
-		// If we couldn't parse errors, mark all as bad (safe fallback)
-		for _, m := range mutants {
-			bad[m.ID] = true
-		}
-		return bad
-	}
-
-	// Build position map for mutants
-	type pos struct {
-		line int
-		col  int
-		id   int
-	}
-	var positions []pos
-	for _, m := range mutants {
-		positions = append(positions, pos{line: m.TempLine, col: m.TempCol, id: m.ID})
-	}
-
-	// For each error, find the closest mutant
-	for _, err := range errors {
-		bestID := -1
-		bestDist := 1000000
-
-		for _, p := range positions {
-			if err.Line == p.line {
-				dist := absInt(err.Col - p.col)
-				if dist < bestDist {
-					bestDist = dist
-					bestID = p.id
-				}
-			}
-		}
-
-		// If error is within reasonable distance, mark that mutant
-		if bestID >= 0 && bestDist <= 5 {
-			bad[bestID] = true
-		}
-	}
-
-	// If no errors could be attributed, mark all as bad (safe fallback)
-	if len(bad) == 0 {
-		for _, m := range mutants {
-			bad[m.ID] = true
-		}
-	}
-
-	return bad
 }
 
 func isObviouslyUnsafeMutation(m *Mutant) bool {
