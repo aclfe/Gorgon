@@ -127,9 +127,10 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	}
 
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, logger.New(cfg.Debug), cfg.ProgBar)
+	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
+		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {

@@ -17,6 +17,10 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
+var lastTotalMutants int
+
+func GetTotalMutants() int { return lastTotalMutants }
+
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool) ([]Mutant, error) {
 
 	mutants := GenerateMutants(sites, operators)
@@ -35,6 +39,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	totalMutants := len(mutants)
+	lastTotalMutants = totalMutants
 
 	// === Level 1: Quick static filter ===
 	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)

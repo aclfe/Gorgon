@@ -18,8 +18,8 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, threshold float64, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
-	total := len(mutants)
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
+	total := totalMutants
 	killed := 0
 	survived := 0
 	errors := 0
@@ -364,7 +364,6 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested
 		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
 	}
 
-	
 	fmt.Fprintf(out, "Mutation Score: %.2f%%\n", score)
 	fmt.Fprintf(out, "Killed: %d\n", killed)
 	fmt.Fprintf(out, "Survived: %d\n", survived)
@@ -372,7 +371,6 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested
 	fmt.Fprintf(out, "Untested: %d\n", untested)
 	fmt.Fprintf(out, "Total: %d\n\n", total)
 
-	
 	if errors > 0 || untested > 0 {
 		fmt.Fprintf(out, "Error Summary by Operator:\n")
 		opErrors := make(map[string]int)
@@ -389,7 +387,6 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested
 			fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 		}
 
-		
 		if untested > 0 {
 			fmt.Fprintf(out, "\nUntested by Operator (binary missing - package failed to compile):\n")
 			opUntested := make(map[string]int)
@@ -441,7 +438,6 @@ func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested
 		fmt.Fprintln(out)
 	}
 
-	
 	if killed > 0 {
 		fmt.Fprintf(out, "Top Killing Tests:\n")
 		testKills := make(map[string]int)
