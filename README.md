@@ -1,6 +1,6 @@
-## Gorgon v0.5.2
+## Gorgon v0.6
 
-Go mutation testing tool.
+Go mutation testing tool. Onto version 0.6 now!
 
 Benchmarks: [benchmarks/current_benchmark.txt](benchmarks/current_benchmark.txt)
 
@@ -35,6 +35,7 @@ gorgon -cache ./path                # cache results between runs
 | `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
 | `-debug` | `false` | Show detailed debug output during execution |
 | `-show-killed` | `false` | Show killed mutants with test attribution |
+| `-show-survived` | `false` | Show survived mutants in output |
 | `-format` | `textfile` | Output format for report file |
 | `-output` | `""` | Write report to file (e.g. `report.txt`) |
 | `-debug-files` | `false` | Also write debug info to `{output}.debug.txt` |
@@ -53,6 +54,7 @@ cache: true
 progbar: false
 dry_run: false
 show_killed: false
+show_survived: false
 format: textfile
 output: "report.txt"
 debug_files: false

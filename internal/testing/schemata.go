@@ -39,7 +39,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	totalMutants := len(mutants)
-	lastTotalMutants = totalMutants
 
 	// === Level 1: Quick static filter ===
 	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
@@ -65,6 +64,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	mutants = validMutants
+	lastTotalMutants = len(mutants)
 
 	if len(mutants) == 0 {
 		return nil, nil

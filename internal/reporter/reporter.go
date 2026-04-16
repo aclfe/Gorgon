@@ -66,10 +66,10 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug
 	}
 
 	if debug {
-		fmt.Fprintln(out, "=== Debug Information ===")
+		fmt.Fprintln(os.Stdout, "=== Debug Information ===")
 
 		if errors > 0 {
-			fmt.Fprintf(out, "\nError Summary by Operator:\n")
+			fmt.Fprintf(os.Stdout, "\nError Summary by Operator:\n")
 			opErrors := make(map[string]int)
 			opTotal := make(map[string]int)
 			for _, mutant := range mutants {
@@ -81,30 +81,30 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug
 			for op, errCount := range opErrors {
 				total := opTotal[op]
 				pct := float64(errCount) / float64(total) * 100
-				fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
+				fmt.Fprintf(os.Stdout, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 			}
 
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
-				fmt.Fprintf(out, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
+				fmt.Fprintf(os.Stdout, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
 				for i, errMsg := range uniqueErrors {
 					if i >= 20 {
-						fmt.Fprintf(out, "  ... and %d more unique error types\n", len(uniqueErrors)-20)
+						fmt.Fprintf(os.Stdout, "  ... and %d more unique error types\n", len(uniqueErrors)-20)
 						break
 					}
-					fmt.Fprintf(out, "  • %s\n", errMsg)
+					fmt.Fprintf(os.Stdout, "  • %s\n", errMsg)
 				}
 			}
 
-			fmt.Fprintf(out, "\nPer-Mutant Compilation Errors:\n")
-			shownCount := writePerMutantErrors(out, mutants, 200)
+			fmt.Fprintf(os.Stdout, "\nPer-Mutant Compilation Errors:\n")
+			shownCount := writePerMutantErrors(os.Stdout, mutants, 200)
 			if shownCount > 200 {
-				fmt.Fprintf(out, "  ... and %d more unique error lines (total: %d)\n", shownCount-200, shownCount)
+				fmt.Fprintf(os.Stdout, "  ... and %d more unique error lines (total: %d)\n", shownCount-200, shownCount)
 			} else if shownCount == 0 {
-				fmt.Fprintln(out, "  (no detailed errors available)")
+				fmt.Fprintln(os.Stdout, "  (no detailed errors available)")
 			}
 
-			fmt.Fprintf(out, "\nError Count by Operator:\n")
+			fmt.Fprintf(os.Stdout, "\nError Count by Operator:\n")
 			opErrorCount := make(map[string]int)
 			for _, mutant := range mutants {
 				if mutant.Status == "error" {
@@ -112,15 +112,15 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug
 				}
 			}
 			for op, count := range opErrorCount {
-				fmt.Fprintf(out, "  %s: %d errors\n", op, count)
+				fmt.Fprintf(os.Stdout, "  %s: %d errors\n", op, count)
 			}
 		}
 
-		fmt.Fprintln(out, "\n=== End Debug Information ===")
+		fmt.Fprintln(os.Stdout, "\n=== End Debug Information ===")
 	}
 
 	score := 0.0
-	effectiveTotal := killed + survived
+	effectiveTotal := killed + survived + untested
 	if effectiveTotal > 0 {
 		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
 	}
@@ -349,9 +349,9 @@ func getVisualColumn(fileCache map[string][]byte, fileName string, line, col int
 }
 
 func writeDebugInfo(mutants []testing.Mutant, killed, survived, errors, untested int, debugFile string) error {
-	f, err := os.Create(debugFile)
+	f, err := os.OpenFile(debugFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("failed to create debug file: %w", err)
+		return fmt.Errorf("failed to open debug file: %w", err)
 	}
 	defer f.Close()
 

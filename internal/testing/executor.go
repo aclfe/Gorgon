@@ -61,6 +61,18 @@ type MutantSite struct {
 	Col  int
 }
 
+func rebuildMutantSites(mutants []*Mutant) map[int]MutantSite {
+	sites := make(map[int]MutantSite, len(mutants))
+	for _, m := range mutants {
+		sites[m.ID] = MutantSite{
+			File: m.Site.File.Name(),
+			Line: m.Site.Line,
+			Col:  m.Site.Column,
+		}
+	}
+	return sites
+}
+
 type compileResultWithAttribution struct {
 	compilerOutput string
 	perMutant      map[int]error
@@ -495,7 +507,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 			currentSites := rebuildMutantSites(pkgMuts)
 
-			result := compileWithSurgicalRetry(compileCtx, executor, mutantIDsForPkg, currentSites, pkgMuts, tempDir)
+			result := executor.compileWithAttribution(compileCtx, mutantIDsForPkg, currentSites)
 
 			for _, mutantID := range mutantIDsForPkg {
 				err := result.perMutant[mutantID]
@@ -841,7 +853,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 	sites := rebuildMutantSites(pkgMutants)
 
-	result := compileWithSurgicalRetry(context.Background(), executor, mutantIDs, sites, pkgMutants, projectRoot)
+	result := executor.compileWithAttribution(context.Background(), mutantIDs, sites)
 	for _, m := range pkgMutants {
 		err := result.perMutant[m.ID]
 		if err != nil {

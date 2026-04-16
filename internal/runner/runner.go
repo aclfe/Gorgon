@@ -126,7 +126,16 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		return err
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, logger.New(cfg.Debug), cfg.ProgBar)
+	log := logger.New(cfg.Debug)
+	if debugFilePath != "" {
+		f, err := os.Create(debugFilePath)
+		if err == nil {
+			log.SetDebugFile(f)
+			defer f.Close()
+		}
+	}
+
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, log, cfg.ProgBar)
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
