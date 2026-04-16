@@ -27,7 +27,6 @@ type Flags struct {
 	ShowSurvived bool
 	Format       string
 	Output       string
-	DebugFiles   bool
 	CPUProfile   string
 	Exclude      string
 	Include      string
@@ -54,13 +53,12 @@ func Parse(args []string) (*Flags, error) {
 	fs.StringVar(&f.Skip, "skip", "", "Comma-separated relative file paths to skip entirely")
 	fs.StringVar(&f.SkipFunc, "skip-func", "", "Comma-separated file:function pairs to skip")
 	fs.StringVar(&f.Tests, "tests", "", "Comma-separated relative paths to test files/folders")
-	fs.BoolVar(&f.Debug, "debug", false, "Show detailed debug output during execution")
+	fs.BoolVar(&f.Debug, "debug", false, "Enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
 	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
 	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile)")
 	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt)")
-	fs.BoolVar(&f.DebugFiles, "debug-files", false, "Also write debug info to {output}.debug.txt")
 	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
 
 	if err := fs.Parse(args); err != nil {
@@ -123,7 +121,6 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	cfg.ShowSurvived = f.ShowSurvived
 	cfg.Format = f.Format
 	cfg.Output = f.Output
-	cfg.DebugFiles = f.DebugFiles
 	cfg.CPUProfile = f.CPUProfile
 	return cfg, nil
 }
@@ -186,17 +183,15 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -skip string          comma-separated relative file paths to skip entirely")
 	fmt.Fprintln(os.Stderr, "  -skip-func string     comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc)")
 	fmt.Fprintln(os.Stderr, "  -tests string         comma-separated relative paths to test files/folders")
-	fmt.Fprintln(os.Stderr, "  -debug                show detailed debug output during execution")
+	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
 	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -debug examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -output=report.txt -debug examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=2 examples/mutations/arithmetic_flip")
-	fmt.Fprintln(os.Stderr, "  gorgon -print-ast main.go")
-	fmt.Fprintln(os.Stderr, "  gorgon -exclude=\"*_test.go,vendor/*\" ./path")
-	fmt.Fprintln(os.Stderr, "  gorgon -config=gorgon.yml ./path")
 	os.Exit(1)
 }
 

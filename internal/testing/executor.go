@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/aclfe/gorgon/internal/logger"
 )
 
 type ProgressTracker struct {
@@ -100,8 +102,6 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 
 	mutantErrors := make(map[int][]string, len(mutantIDs))
 
-	fmt.Fprintf(os.Stderr, "[ATTRIB] %d mutants, %d errors found\n", len(mutantIDs), len(errors))
-
 	for _, ce := range errors {
 		errFile := filepath.Clean(ce.File)
 		if !filepath.IsAbs(errFile) {
@@ -152,11 +152,11 @@ type testExecutor struct {
 	timeout     time.Duration
 	baseEnv     []string
 	mutantEnv   []string
-	debug       bool
+	log         *logger.Logger
 	projectRoot string
 }
 
-func newTestExecutor(tempDir, pkgDir, projectRoot string, tests []string, debug bool) *testExecutor {
+func newTestExecutor(tempDir, pkgDir, projectRoot string, tests []string, log *logger.Logger) *testExecutor {
 	baseEnv := os.Environ()
 
 	mutantEnv := make([]string, len(baseEnv)+1)
@@ -168,7 +168,7 @@ func newTestExecutor(tempDir, pkgDir, projectRoot string, tests []string, debug 
 		baseEnv:     baseEnv,
 		mutantEnv:   mutantEnv,
 		timeout:     30 * time.Second,
-		debug:       debug,
+		log:         log,
 		projectRoot: projectRoot,
 	}
 }
@@ -305,8 +305,8 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 		}
 	}
 
-	if e.debug {
-		fmt.Fprintf(os.Stderr, "[DEBUG] Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s\n",
+	if e.log.IsDebug() {
+		e.log.Debug("Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s",
 			mutantID, status, e.pkgDir, e.timeout, killedBy, duration, e.testBinary, args, killOutput)
 	}
 
@@ -468,7 +468,7 @@ func (e *testExecutor) relPath() string {
 	return "./" + filepath.ToSlash(rel)
 }
 
-func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker, debug bool) ([]mutantResult, error) {
+func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker, log *logger.Logger) ([]mutantResult, error) {
 	resultsChan := make(chan mutantResult, sumMutantIDs(pkgToMutantIDs))
 	testGroup, testCtx := errgroup.WithContext(ctx)
 	testGroup.SetLimit(concurrent)
@@ -490,7 +490,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		compileGroup.Go(func() error {
 			pkgDir := pkgDir
 			mutantIDsForPkg := mutantIDsForPkg
-			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, debug)
+			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, log)
 			pkgMuts := pkgToMutants[pkgDir]
 
 			currentSites := rebuildMutantSites(pkgMuts)
@@ -534,7 +534,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					fmt.Fprintf(os.Stderr, "[INFO] No test binary for %s \u2014 package has no test files, %d mutant(s) marked untested\n", pkg, untestedCount)
+					executor.log.Info("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
 				}
 				return nil
 			}
@@ -663,7 +663,7 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 	})
 }
 
-func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker, debug bool) error {
+func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker, log *logger.Logger) error {
 
 	entries, _ := os.ReadDir(workerTempDir)
 	for _, e := range entries {
@@ -832,7 +832,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	pkgRelPath, _ := filepath.Rel(projectRoot, pkgDir)
 	pkgTempDir := filepath.Join(tempDir, pkgRelPath)
 
-	executor := newTestExecutor(tempDir, pkgTempDir, projectRoot, tests, debug)
+	executor := newTestExecutor(tempDir, pkgTempDir, projectRoot, tests, log)
 
 	mutantIDs := make([]int, len(pkgMutants))
 	for i, m := range pkgMutants {

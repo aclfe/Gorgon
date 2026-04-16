@@ -14,6 +14,7 @@ import (
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/suppressions"
 	"github.com/aclfe/gorgon/internal/testing"
@@ -108,15 +109,8 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 
-	tests, testPaths, err := extractTests(cfg.Tests)
-	if err != nil {
-		return err
-	}
-
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, cfg.Debug, cfg.ProgBar)
-
 	debugFilePath := ""
-	if cfg.DebugFiles {
+	if cfg.Debug {
 		if cfg.Output != "" {
 			ext := filepath.Ext(cfg.Output)
 			base := strings.TrimSuffix(cfg.Output, ext)
@@ -125,6 +119,15 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			debugFilePath = "gorgon-debug.txt"
 		}
 	}
+
+	tests, testPaths, err := extractTests(cfg.Tests)
+
+	if err != nil {
+		return err
+	}
+
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, logger.New(cfg.Debug), cfg.ProgBar)
+
 	if len(mutants) > 0 {
 		if reportErr := reporter.Report(mutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
 			if cfg.Cache {

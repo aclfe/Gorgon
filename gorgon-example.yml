@@ -4,13 +4,12 @@ concurrent: all
 threshold: 80
 cache: false
 dry_run: false
-debug: false
+debug: true
 progbar: true
 show_killed: true
 show_survived: true
 format: textfile
 output: output.txt
-debug_files: true
 cpu_profile: ""
 exclude:
     - '*_test.go'

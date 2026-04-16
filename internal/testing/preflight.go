@@ -5,6 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+
+	"github.com/aclfe/gorgon/internal/logger"
 )
 
 type PreflightResult struct {
@@ -64,43 +66,36 @@ func quickStaticFilter(mutants []Mutant) ([]Mutant, []PreflightResult) {
 	return valid, invalid
 }
 
-// Level 2: Accurate per-package schemata AST check.
-// Groups mutants by file, applies schemata in-memory, and validates that the
-// resulting AST can be formatted cleanly. This replaces the old canaryBuild
-// (which tried to compile in an isolated fake module — always broken for
-// packages with real imports).
-func PreflightFilterWithResults(mutants []Mutant) ([]Mutant, []PreflightResult) {
-	if len(mutants) == 0 {
-		return nil, nil
-	}
-
-	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
-
-	validFinal, level2Invalid := level2PackagePreflight(validAfterLevel1)
-
-	allInvalid := append(level1Invalid, level2Invalid...)
-	return validFinal, allInvalid
-}
-
 // level2PackagePreflight does the AST-integrity check using schemata.
 // It groups mutants by file, applies schemata once per file, and validates
 // that the resulting AST is structurally sound.
+// Mutants with nil File are now explicitly rejected and counted in Level2
+// (no more silent drops that made the numbers not add up).
 func level2PackagePreflight(mutants []Mutant) ([]Mutant, []PreflightResult) {
 	if len(mutants) == 0 {
 		return nil, nil
 	}
 
 	groups := make(map[string][]Mutant)
-	for _, m := range mutants {
+	var invalid []PreflightResult
+
+	for i := range mutants {
+		m := &mutants[i]
 		if m.Site.File == nil {
+			invalid = append(invalid, PreflightResult{
+				MutantID:    m.ID,
+				Status:      StatusInvalid,
+				ErrorReason: "nil file",
+			})
+			m.Status = StatusInvalid
 			continue
 		}
+
 		key := m.Site.File.Name()
-		groups[key] = append(groups[key], m)
+		groups[key] = append(groups[key], *m) // copy so we don't mutate range var
 	}
 
 	var valid []Mutant
-	var invalid []PreflightResult
 
 	for filePath, fileMutants := range groups {
 		fileValid, fileInvalid := checkFileWithSchemata(filePath, fileMutants)
@@ -204,13 +199,12 @@ func isObviouslyUnsafeMutation(m *Mutant) bool {
 	return false
 }
 
-// LogPreflightResults prints a summary of filtered mutants to stderr.
-// validCount is the number of mutants that passed preflight and remain.
-func LogPreflightResults(results []PreflightResult, validCount int) {
-	if len(results) == 0 {
-		return
-	}
-
+// LogPreflightResults prints a summary of filtered mutants.
+// totalMutants is len(mutants) after GenerateMutants — NOT the site count.
+// results contains Level1 (static) and Level2 (schemata) invalid mutants.
+// validCount is the number of mutants that passed all preflight checks.
+// Invariant: Level1 + Level2 + validCount == totalMutants
+func LogPreflightResults(log *logger.Logger, totalMutants int, results []PreflightResult, validCount int) {
 	level1 := 0
 	level2 := 0
 	for _, r := range results {
@@ -221,6 +215,6 @@ func LogPreflightResults(results []PreflightResult, validCount int) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "[PREFLIGHT] Level1 filtered %d | Level2 filtered %d | Remaining valid: %d\n",
-		level1, level2, validCount)
+	log.Print("[PREFLIGHT] Level1 filtered %d | Level2 filtered %d | Remaining valid: %d (of %d mutants)",
+		level1, level2, validCount, totalMutants)
 }

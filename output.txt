@@ -1,34 +1,37 @@
+=== Debug Information ===
+
+=== End Debug Information ===
 Mutation Score  Killed  Survived  Errors  Untested  Total
-58.82%          20      14        0       7715      7749
+58.82%          20      14        0       7748      7782
 
 Top Killing Tests:
   TestDivide                                         6 kills
   TestAddCompound                                    5 kills
+  TestAdd                                            3 kills
   TestSubtract                                       3 kills
   TestMultiply                                       3 kills
-  TestAdd                                            3 kills
 
 Killed Mutants:
-- #64 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:12 (variable_replacement) killed by TestAdd (16ms)
-- #65 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:14 (arithmetic_flip) killed by TestAdd (8ms)
-- #66 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:16 (variable_replacement) killed by TestAdd (6ms)
-- #69 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:12 (variable_replacement) killed by TestSubtract (7ms)
-- #70 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:14 (arithmetic_flip) killed by TestSubtract (17ms)
-- #71 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:16 (variable_replacement) killed by TestSubtract (9ms)
-- #74 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:12 (variable_replacement) killed by TestMultiply (14ms)
-- #75 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:14 (arithmetic_flip) killed by TestMultiply (15ms)
-- #76 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:16 (variable_replacement) killed by TestMultiply (17ms)
-- #80 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (if_condition_true) killed by TestDivide (14ms)
-- #81 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (negate_condition) killed by TestDivide (12ms)
-- #83 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:10 (condition_negation) killed by TestDivide (12ms)
-- #85 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:12 (variable_replacement) killed by TestDivide (11ms)
-- #86 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:14 (arithmetic_flip) killed by TestDivide (20ms)
-- #87 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:16 (variable_replacement) killed by TestDivide (11ms)
-- #91 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:12 (variable_replacement) killed by TestAddCompound (14ms)
-- #92 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:14 (arithmetic_flip) killed by TestAddCompound (15ms)
-- #93 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:16 (variable_replacement) killed by TestAddCompound (13ms)
-- #94 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:18 (arithmetic_flip) killed by TestAddCompound (22ms)
-- #95 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:20 (variable_replacement) killed by TestAddCompound (6ms)
+- #64 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:12 (variable_replacement) killed by TestAdd (28ms)
+- #65 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:14 (arithmetic_flip) killed by TestAdd (9ms)
+- #66 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:16 (variable_replacement) killed by TestAdd (19ms)
+- #69 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:12 (variable_replacement) killed by TestSubtract (12ms)
+- #70 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:14 (arithmetic_flip) killed by TestSubtract (9ms)
+- #71 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:16 (variable_replacement) killed by TestSubtract (19ms)
+- #74 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:12 (variable_replacement) killed by TestMultiply (17ms)
+- #75 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:14 (arithmetic_flip) killed by TestMultiply (7ms)
+- #76 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:16 (variable_replacement) killed by TestMultiply (26ms)
+- #80 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (if_condition_true) killed by TestDivide (17ms)
+- #81 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (negate_condition) killed by TestDivide (15ms)
+- #83 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:10 (condition_negation) killed by TestDivide (20ms)
+- #85 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:12 (variable_replacement) killed by TestDivide (16ms)
+- #86 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:14 (arithmetic_flip) killed by TestDivide (13ms)
+- #87 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:16 (variable_replacement) killed by TestDivide (12ms)
+- #91 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:12 (variable_replacement) killed by TestAddCompound (7ms)
+- #92 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:14 (arithmetic_flip) killed by TestAddCompound (9ms)
+- #93 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:16 (variable_replacement) killed by TestAddCompound (24ms)
+- #94 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:18 (arithmetic_flip) killed by TestAddCompound (25ms)
+- #95 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:20 (variable_replacement) killed by TestAddCompound (15ms)
 
 Survived Mutants:
 - survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:3:10 (Operator: variable_replacement)

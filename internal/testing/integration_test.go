@@ -22,7 +22,7 @@ func TestEndToEndMutationPipeline(tst *stdtesting.T) {
 		tst.Fatal("Expected to find mutation sites, found 0")
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, false, false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, logger.New(false), false)
 	if err != nil {
 		tst.Skipf("Pipeline skipped (dependency issue): %v", err)
 	}

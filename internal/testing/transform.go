@@ -7,7 +7,6 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -182,7 +181,7 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
 		} else {
-			log.Printf("[WARN] format.Node failed for %s and original source is empty, skipping restore", filePath)
+			fmt.Fprintf(os.Stderr, "[WARN] format.Node failed for %s and original source is empty, skipping restore\n", filePath)
 		}
 		return nil, nil
 	}
@@ -191,9 +190,9 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		formatBufPool.Put(buf)
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
-			log.Printf("[WARN] formatted output for %s is empty, restoring original source", filePath)
+			fmt.Fprintf(os.Stderr, "[WARN] formatted output for %s is empty, restoring original source\n", filePath)
 		} else {
-			log.Printf("[WARN] formatted output for %s is empty and no original source available", filePath)
+			fmt.Fprintf(os.Stderr, "[WARN] formatted output for %s is empty and no original source available\n", filePath)
 		}
 		return nil, nil
 	}

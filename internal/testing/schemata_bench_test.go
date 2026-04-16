@@ -199,7 +199,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, benchDir, 1, nil, nil, nil, false, false)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, benchDir, 1, nil, nil, nil, logger.New(false), false)
 		cancel()
 		if err != nil {
 			b.Skipf("Schemata failed: %v", err)

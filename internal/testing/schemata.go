@@ -13,14 +13,19 @@ import (
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, debug bool, progbar bool) ([]Mutant, error) {
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool) ([]Mutant, error) {
 
 	mutants := GenerateMutants(sites, operators)
 	if len(mutants) == 0 {
 		return nil, nil
+	}
+
+	if progbar {
+		log.Print("Generated %d mutants from sites", len(mutants))
 	}
 
 	if len(testPaths) > 0 {
@@ -28,6 +33,8 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	} else {
 		filterMutantsWithoutTests(mutants, baseDir)
 	}
+
+	totalMutants := len(mutants)
 
 	// === Level 1: Quick static filter ===
 	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
@@ -37,8 +44,8 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	allInvalid := append(level1Invalid, level2Invalid...)
 
-	// Log nice stats
-	LogPreflightResults(allInvalid, len(validMutants))
+	// Log nice stats. Invariant: level1 + level2 + validCount == totalMutants.
+	LogPreflightResults(log, totalMutants, allInvalid, len(validMutants))
 
 	// Mark the bad ones on the original list
 	for _, r := range allInvalid {
@@ -53,6 +60,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	mutants = validMutants
+
 	if len(mutants) == 0 {
 		return nil, nil
 	}
@@ -68,7 +76,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	baseDirAbs, _ := filepath.Abs(baseDir)
 	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
-		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, debug)
+		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
 	}
 
 	ws, err := NewModuleWorkspace()
@@ -138,7 +146,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		prog = NewProgressTracker(len(mutants))
 	}
 
-	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, debug)
+	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, log)
 
 	if len(results) > 0 {
 		collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
@@ -155,7 +163,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	return mutants, nil
 }
 
-func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, debug bool) ([]Mutant, error) {
+func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, log *logger.Logger) ([]Mutant, error) {
 
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
@@ -200,7 +208,7 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 				return ctx.Err()
 			default:
 			}
-			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, debug)
+			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, log)
 		})
 	}
 
