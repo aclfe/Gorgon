@@ -33,14 +33,12 @@ func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 
 	p := ctx.Parent
 
-	
 	switch parent := p.(type) {
 
-	
 	case *ast.AssignStmt:
 		for _, rhs := range parent.Rhs {
 			if rhs == bl {
-				
+
 				if parent.Tok == token.DEFINE || parent.Tok == token.ASSIGN {
 					return isSafeLiteral(bl)
 				}
@@ -48,7 +46,6 @@ func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 		}
 		return false
 
-	
 	case *ast.ReturnStmt:
 		for _, r := range parent.Results {
 			if r == bl {
@@ -57,14 +54,11 @@ func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 		}
 		return false
 
-	
 	case *ast.BinaryExpr:
 		if isTimeDuration(parent.X) || isTimeDuration(parent.Y) {
 			return false
 		}
-		
-		
-		
+
 		switch parent.Op {
 		case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ,
 			token.ADD, token.SUB, token.MUL, token.QUO, token.REM:
@@ -72,27 +66,23 @@ func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 		}
 		return false
 
-	
 	case *ast.ValueSpec:
 		for _, v := range parent.Values {
 			if v == bl {
-				
-				
+
 				if parent.Type == nil {
 					return isSafeLiteral(bl)
 				}
-				
+
 				return false
 			}
 		}
 		return false
 
-	
-	
 	case *ast.CompositeLit:
 		for _, elt := range parent.Elts {
 			if kv, ok := elt.(*ast.KeyValueExpr); ok {
-				
+
 				if kv.Value == bl {
 					return isSafeLiteral(bl)
 				}
@@ -102,22 +92,18 @@ func (ConstantReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) 
 		}
 		return false
 
-	
 	case *ast.ExprStmt:
-		return false 
+		return false
 
 	default:
 		return false
 	}
 }
 
-
-
 func isSafeLiteral(bl *ast.BasicLit) bool {
 	switch bl.Kind {
 	case token.INT:
-		
-		
+
 		return true
 	case token.FLOAT:
 		return true
@@ -204,3 +190,7 @@ func init() {
 
 var _ mutator.Operator = ConstantReplacement{}
 var _ mutator.ContextualOperator = ConstantReplacement{}
+
+func (ConstantReplacement) RequiresTypeCheck() bool {
+	return true
+}

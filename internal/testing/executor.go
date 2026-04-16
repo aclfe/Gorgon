@@ -207,18 +207,22 @@ func (e *testExecutor) measureBaseline(ctx context.Context) (time.Duration, bool
 
 	for i := 0; i < 2 && len(durations) < 2; i++ {
 		start := time.Now()
-		cmd := exec.CommandContext(ctx, e.testBinary, testArgs("5s", e.tests)...)
+		cmd := exec.CommandContext(ctx, e.testBinary, testArgs("10s", e.tests)...)
 		cmd.Dir = e.tempDir
-		err := cmd.Run()
+		_ = cmd.Run() // ignore pass/fail — we only need the elapsed time
 
-		if err == nil {
-			duration := time.Since(start)
-			durations = append(durations, duration)
+		elapsed := time.Since(start)
+		// A run that completes in <50ms is an immediate exit (binary missing,
+		// crashed, or no tests at all) — not useful for timeout estimation.
+		if elapsed >= 50*time.Millisecond {
+			durations = append(durations, elapsed)
 		}
 	}
 
 	if len(durations) == 0 {
-		return minBaselineDuration * time.Millisecond, false
+		// Binary exited too fast (no tests to run, or binary doesn't exist).
+		// Return false so callers fall back to defaultMutantTimeout.
+		return defaultMutantTimeout, false
 	}
 
 	slices.Sort(durations)
@@ -533,7 +537,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			if baselineOK {
 				_, _ = executor.timeoutFor(baseline)
 			} else {
-				executor.timeout = minMutantTimeout
+				// No meaningful baseline (e.g. package has no tests, or binary exits
+				// instantly). Use a generous fixed timeout so mutants aren't falsely
+				// killed by a too-short deadline.
+				executor.timeout = defaultMutantTimeout
 			}
 
 			
@@ -869,8 +876,9 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	if baselineOK {
 		_, _ = executor.timeoutFor(baseline)
 	} else {
-		fmt.Fprintf(os.Stderr, "Warning: baseline measurement failed, using default timeout\n")
-		executor.timeout = minMutantTimeout
+		// No meaningful baseline — package may have no test files or they
+		// exit immediately. Use the default per-mutant timeout.
+		executor.timeout = defaultMutantTimeout
 	}
 
 	resultsChan := make(chan mutantResult, len(testableIDs))

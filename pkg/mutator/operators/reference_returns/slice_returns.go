@@ -44,3 +44,7 @@ func init() {
 
 var _ mutator.Operator = SliceReturns{}
 var _ mutator.ContextualOperator = SliceReturns{}
+
+func (SliceReturns) RequiresTypeCheck() bool {
+	return true
+}

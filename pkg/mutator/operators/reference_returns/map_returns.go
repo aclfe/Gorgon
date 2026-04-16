@@ -35,3 +35,7 @@ func init() {
 }
 
 var _ mutator.Operator = MapReturns{}
+
+func (MapReturns) RequiresTypeCheck() bool {
+	return true
+}

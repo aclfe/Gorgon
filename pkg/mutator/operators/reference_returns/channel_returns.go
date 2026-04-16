@@ -40,3 +40,7 @@ func init() {
 }
 
 var _ mutator.Operator = ChannelReturns{}
+
+func (ChannelReturns) RequiresTypeCheck() bool {
+	return true
+}

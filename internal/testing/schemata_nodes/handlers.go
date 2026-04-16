@@ -195,17 +195,23 @@ func applySingleMutant(original ast.Node, mutant MutantForSite, returnType strin
 	if mutated == nil {
 		return original
 	}
-	return wrapWithSchemata(original, mutated, mutant.ID, returnType)
+	// Build a type map from the enclosing function so wrapExprWithIf can infer
+	// the expression's actual type (not just the function's return type).
+	var typeMap map[string]string
+	if mutant.EnclosingFunc != nil {
+		typeMap = analysis.BuildTypeMap(mutant.EnclosingFunc)
+	}
+	return wrapWithSchemata(original, mutated, mutant.ID, returnType, typeMap)
 }
 
-func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType string) ast.Node {
+func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType string, typeMap map[string]string) ast.Node {
 	switch orig := original.(type) {
 	case ast.Expr:
 		mutExpr, ok := mutated.(ast.Expr)
 		if !ok {
 			return original
 		}
-		return wrapExprWithIf(mutExpr, orig, mutantID, returnType)
+		return wrapExprWithIf(mutExpr, orig, mutantID, returnType, typeMap)
 
 	case ast.Stmt:
 		mutStmt, ok := mutated.(ast.Stmt)
@@ -223,12 +229,17 @@ func wrapWithSchemata(original, mutated ast.Node, mutantID int, returnType strin
 	}
 }
 
-func wrapExprWithIf(mutated, original ast.Expr, mutantID int, returnType string) ast.Expr {
+func wrapExprWithIf(mutated, original ast.Expr, mutantID int, returnType string, typeMap map[string]string) ast.Expr {
+	// Use the expression's own type, not the enclosing function's return type.
+	// Example: `n > min` is always `bool` even inside a func returning `int`.
+	// Using the wrong type produces closures like `func() int { return n >= min }`
+	// where `n >= min` is bool — a compile error in every branch.
+	exprType := inferExprType(original, returnType, typeMap)
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
 			Type: &ast.FuncType{
 				Results: &ast.FieldList{
-					List: []*ast.Field{{Type: buildTypeExpr(returnType)}},
+					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
 				},
 			},
 			Body: &ast.BlockStmt{
@@ -250,6 +261,15 @@ func wrapExprWithIf(mutated, original ast.Expr, mutantID int, returnType string)
 
 func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
 	origExpr := original.(ast.Expr)
+
+	// Build typeMap from the first mutant's enclosing function so we can infer
+	// the expression's actual type (not the function's return type).
+	var typeMap map[string]string
+	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
+		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
+	}
+	exprType := inferExprType(origExpr, returnType, typeMap)
+
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
 
 	for _, m := range mutants {
@@ -277,7 +297,7 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 		Fun: &ast.FuncLit{
 			Type: &ast.FuncType{
 				Results: &ast.FieldList{
-					List: []*ast.Field{{Type: buildTypeExpr(returnType)}},
+					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
 				},
 			},
 			Body: &ast.BlockStmt{List: stmts},
@@ -381,17 +401,17 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 			return original
 		}
 		if retStmt, ok := mutated.(*ast.ReturnStmt); ok && len(retStmt.Results) > 0 {
-			return wrapReturnWithSchemata(originalRet, retStmt.Results[0], mutant.ID, returnType, nil)
+			expr := retStmt.Results[0]
+			// Skip type-unsafe nil mutations (e.g. nil returned as string or int).
+			if isNilExpr(expr) && !isNilableType(returnType) {
+				return original
+			}
+			return wrapReturnWithSchemata(originalRet, expr, mutant.ID, returnType)
 		}
 		return mutated
 	}
 
-	
-	var typeMap map[string]string
-	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
-		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
-	}
-
+	// Multi-mutant path
 	type mutantResult struct {
 		id   int
 		expr ast.Expr
@@ -413,7 +433,13 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 			continue
 		}
 
-		mutResults = append(mutResults, mutantResult{id: mutant.ID, expr: mutatedRet.Results[0]})
+		expr := mutatedRet.Results[0]
+		// Skip type-unsafe nil mutations before they poison the package.
+		if isNilExpr(expr) && !isNilableType(returnType) {
+			continue
+		}
+
+		mutResults = append(mutResults, mutantResult{id: mutant.ID, expr: expr})
 	}
 
 	if len(mutResults) == 0 {
@@ -421,16 +447,14 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 
 	if len(mutResults) == 1 {
-		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType, typeMap)
+		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType)
 	}
 
 	origExpr := originalRet.Results[0]
-	resultType := returnType
-	if resultType == "" || resultType == "interface{}" {
-		resultType = inferExprType(origExpr, returnType, typeMap)
-	}
+	// Always use the declared function return type for the closure.
+	// Do NOT narrow away from interface{} — nil is valid in interface{} context.
+	typeExpr := buildTypeExpr(returnType)
 
-	typeExpr := buildTypeExpr(resultType)
 
 	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
 	for _, mr := range mutResults {
@@ -459,12 +483,15 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 }
 
-func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, mutantID int, returnType string, typeMap map[string]string) ast.Node {
-	resultType := returnType
-	if resultType == "" || resultType == "interface{}" {
-		resultType = inferExprType(mutatedExpr, returnType, typeMap)
+func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, mutantID int, returnType string) ast.Node {
+	// Always use the declared function return type for the closure.
+	// Do NOT narrow the type (e.g. from interface{} to string) based on what the
+	// expression looks like — nil is valid in interface{} but not in string/int.
+	typeExpr := buildTypeExpr(returnType)
+	if returnType == "" {
+		// Fallback only when there is genuinely no return type info.
+		typeExpr = &ast.Ident{Name: "interface{}"}
 	}
-	typeExpr := buildTypeExpr(resultType)
 	return &ast.ReturnStmt{
 		Results: []ast.Expr{
 			&ast.CallExpr{
@@ -742,4 +769,42 @@ func formatNode(expr ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+// isNilExpr reports whether expr is the nil identifier.
+func isNilExpr(expr ast.Expr) bool {
+	if ident, ok := expr.(*ast.Ident); ok {
+		return ident.Name == "nil"
+	}
+	return false
+}
+
+// isNilableType reports whether a Go type can legally hold nil.
+// Nilable: pointers (*T), slices ([]T), maps (map[K]V), channels (chan T),
+// interfaces (interface{}), and function types (func ...).
+// Non-nilable: bool, int, float, string, byte, rune, and named numeric types.
+func isNilableType(t string) bool {
+	if t == "" {
+		return true // unknown — assume nilable to be safe
+	}
+	switch t {
+	case "bool",
+		"int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"float32", "float64",
+		"complex64", "complex128",
+		"string", "byte", "rune":
+		return false
+	}
+	// Pointers, slices, maps, channels, interfaces, funcs are all nilable.
+	if strings.HasPrefix(t, "*") ||
+		strings.HasPrefix(t, "[]") ||
+		strings.HasPrefix(t, "map[") ||
+		strings.HasPrefix(t, "chan ") ||
+		strings.HasPrefix(t, "func") ||
+		t == "interface{}" {
+		return true
+	}
+	// Named/custom types — assume nilable to avoid false positives.
+	return true
 }

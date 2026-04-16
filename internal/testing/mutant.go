@@ -19,4 +19,5 @@ type Mutant struct {
 	KilledBy     string
 	KillDuration time.Duration
 	KillOutput   string
+	ErrorReason  string
 }

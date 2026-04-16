@@ -66,3 +66,7 @@ func init() {
 
 var _ mutator.Operator = InterfaceReturns{}
 var _ mutator.ContextualOperator = InterfaceReturns{}
+
+func (InterfaceReturns) RequiresTypeCheck() bool {
+	return true
+}

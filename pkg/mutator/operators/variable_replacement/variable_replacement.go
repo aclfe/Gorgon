@@ -9,8 +9,8 @@ import (
 
 type VariableReplacement struct{}
 
-func (VariableReplacement) Name() string { return "variable_replacement" }
-func (VariableReplacement) CanApply(ast.Node) bool { return false }
+func (VariableReplacement) Name() string             { return "variable_replacement" }
+func (VariableReplacement) CanApply(ast.Node) bool   { return false }
 func (VariableReplacement) Mutate(ast.Node) ast.Node { return nil }
 
 func (VariableReplacement) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
@@ -84,3 +84,7 @@ func init() { mutator.Register(VariableReplacement{}) }
 
 var _ mutator.Operator = VariableReplacement{}
 var _ mutator.ContextualOperator = VariableReplacement{}
+
+func (VariableReplacement) RequiresTypeCheck() bool {
+	return true
+}

@@ -29,6 +29,10 @@ type ContextualOperator interface {
 	MutateWithContext(node ast.Node, ctx Context) ast.Node
 }
 
+type TypeAwareOperator interface {
+	RequiresTypeCheck() bool
+}
+
 func ApplyOperator(op Operator, node ast.Node, returnType string, file *ast.File, enclosingFunc *ast.FuncDecl) ast.Node {
 	ctx := Context{
 		ReturnType:    returnType,

@@ -1,88 +1,29 @@
 Mutation Score  Killed  Survived  Errors  Untested  Total
-15.07%          11      62        3731    1812      5616
+81.25%          13      3         0       0         16
 
 Top Killing Tests:
-  TestLogicalOperator_Mutate                         3 kills
-  TestBoundaryValue_Mutate                           3 kills
-  TestLogicalOperator_CanApply                       1 kills
-  TestBoundaryValue_Name                             1 kills
-  TestBoundaryValue_CanApply                         1 kills
-  TestDeferRemoval_Name                              1 kills
-  TestLogicalOperator_Name                           1 kills
+  TestDivide                                         4 kills
+  TestAddCompound                                    3 kills
+  TestAdd                                            2 kills
+  TestSubtract                                       2 kills
+  TestMultiply                                       2 kills
 
 Killed Mutants:
-- #4866 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:15:5 (zero_value_return_string) killed by TestBoundaryValue_Name (9ms)
-- #4868 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:20:5 (if_condition_true) killed by TestBoundaryValue_CanApply (7ms)
-- #4871 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:29:5 (if_condition_true) killed by TestBoundaryValue_Mutate (12ms)
-- #4873 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:33:5 (if_condition_true) killed by TestBoundaryValue_Mutate (18ms)
-- #4874 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:36:5 (pointer_returns) killed by TestBoundaryValue_Mutate (17ms)
-- #5051 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:12:5 (zero_value_return_string) killed by TestDeferRemoval_Name (12ms)
-- #5291 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:15:5 (zero_value_return_string) killed by TestLogicalOperator_Name (13ms)
-- #5293 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:20:5 (if_condition_true) killed by TestLogicalOperator_CanApply (8ms)
-- #5296 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:29:5 (if_condition_true) killed by TestLogicalOperator_Mutate (11ms)
-- #5298 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:33:5 (if_condition_true) killed by TestLogicalOperator_Mutate (13ms)
-- #5299 /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:36:5 (pointer_returns) killed by TestLogicalOperator_Mutate (11ms)
+- #1 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:12 (variable_replacement) killed by TestAdd (14ms)
+- #2 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:4:16 (variable_replacement) killed by TestAdd (18ms)
+- #3 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:12 (variable_replacement) killed by TestSubtract (13ms)
+- #4 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:8:16 (variable_replacement) killed by TestSubtract (12ms)
+- #5 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:12 (variable_replacement) killed by TestMultiply (14ms)
+- #6 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:12:16 (variable_replacement) killed by TestMultiply (11ms)
+- #8 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (if_condition_true) killed by TestDivide (21ms)
+- #9 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (negate_condition) killed by TestDivide (8ms)
+- #12 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:12 (variable_replacement) killed by TestDivide (12ms)
+- #13 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:19:16 (variable_replacement) killed by TestDivide (15ms)
+- #14 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:12 (variable_replacement) killed by TestAddCompound (15ms)
+- #15 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:16 (variable_replacement) killed by TestAddCompound (11ms)
+- #16 /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:23:20 (variable_replacement) killed by TestAddCompound (12ms)
 
 Survived Mutants:
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:40:5 (Operator: pointer_returns)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:56:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:56:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:56:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:61:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:61:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:61:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:66:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:66:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:66:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:74:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:74:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:74:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:81:14 (Operator: assignment_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:82:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:82:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:82:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:86:9 (Operator: variable_replacement)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:88:5 (Operator: loop_body_removal)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:88:5 (Operator: loop_break_first)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:88:24 (Operator: variable_replacement)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:89:12 (Operator: assignment_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:90:9 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:90:21 (Operator: logical_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:92:24 (Operator: assignment_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:92:33 (Operator: variable_replacement)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:96:5 (Operator: loop_body_removal)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:96:5 (Operator: loop_break_first)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:97:9 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:97:9 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:97:9 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:100:13 (Operator: loop_body_removal)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:100:13 (Operator: loop_break_first)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:103:13 (Operator: loop_body_removal)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:103:13 (Operator: loop_break_first)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:103:32 (Operator: variable_replacement)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:105:40 (Operator: assignment_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:111:16 (Operator: assignment_operator)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:113:20 (Operator: variable_replacement)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:119:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:119:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:119:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:120:9 (Operator: zero_value_return_error)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:122:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:122:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:122:5 (Operator: negate_condition)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:123:9 (Operator: zero_value_return_error)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:20:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:21:9 (Operator: zero_value_return_bool)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:29:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go:33:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:16:5 (Operator: zero_value_return_bool)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:21:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:21:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:22:9 (Operator: zero_value_return_bool)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:33:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:33:5 (Operator: if_condition_true)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:36:5 (Operator: pointer_returns)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:20:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:21:9 (Operator: zero_value_return_bool)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:29:5 (Operator: if_condition_false)
-- survived in /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go:33:5 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:5 (Operator: if_condition_false)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:16:8 (Operator: variable_replacement)
+- survived in /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go:17:9 (Operator: zero_value_return_numeric)

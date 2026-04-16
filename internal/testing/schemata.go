@@ -29,6 +29,34 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		filterMutantsWithoutTests(mutants, baseDir)
 	}
 
+	// === Level 1: Quick static filter ===
+	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
+
+	// === Level 2: Accurate schemata compile check (this is the important one) ===
+	validMutants, level2Invalid := level2PackagePreflight(validAfterLevel1)
+
+	allInvalid := append(level1Invalid, level2Invalid...)
+
+	// Log nice stats
+	LogPreflightResults(allInvalid, len(validMutants))
+
+	// Mark the bad ones on the original list
+	for _, r := range allInvalid {
+		for i := range mutants {
+			if mutants[i].ID == r.MutantID {
+				mutants[i].Status = r.Status
+				mutants[i].Error = r.Error
+				mutants[i].KillOutput = r.ErrorReason
+				break
+			}
+		}
+	}
+
+	mutants = validMutants
+	if len(mutants) == 0 {
+		return nil, nil
+	}
+
 	uncachedIndices, fileHashes, err := ResolveCache(mutants, baseDir, cache)
 	if err != nil {
 		setMutantErrors(mutants, fmt.Errorf("cache resolution failed: %w", err))
@@ -110,7 +138,6 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		prog = NewProgressTracker(len(mutants))
 	}
 
-	
 	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, debug)
 
 	if len(results) > 0 {
@@ -322,7 +349,6 @@ func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
 			continue
 		}
 
-		
 		if !testPackages[relDir] || strings.Contains(relDir, "examples/mutations") {
 			m.Status = "untested"
 		}

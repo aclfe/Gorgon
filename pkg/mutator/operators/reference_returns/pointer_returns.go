@@ -35,3 +35,7 @@ func init() {
 }
 
 var _ mutator.Operator = PointerReturns{}
+
+func (PointerReturns) RequiresTypeCheck() bool {
+	return true
+}
