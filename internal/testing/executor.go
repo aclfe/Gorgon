@@ -62,7 +62,7 @@ type MutantSite struct {
 type compileResultWithAttribution struct {
 	compilerOutput string
 	perMutant      map[int]error
-	compileFailed  bool 
+	compileFailed  bool
 }
 
 func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int, sites map[int]MutantSite, output string) compileResultWithAttribution {
@@ -73,8 +73,7 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 
 	errors := ParseCompilerErrors(output)
 	if len(errors) == 0 {
-		
-		
+
 		result.compileFailed = true
 		for _, id := range mutantIDs {
 			result.perMutant[id] = nil
@@ -99,21 +98,16 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 		positions = append(positions, pos{file: tempFile, line: site.Line, id: id})
 	}
 
-	
 	mutantErrors := make(map[int][]string, len(mutantIDs))
 
 	fmt.Fprintf(os.Stderr, "[ATTRIB] %d mutants, %d errors found\n", len(mutantIDs), len(errors))
 
-	
 	for _, ce := range errors {
 		errFile := filepath.Clean(ce.File)
 		if !filepath.IsAbs(errFile) {
 			errFile = filepath.Join(tempDir, errFile)
 		}
 
-		
-		
-		
 		bestID := -1
 		bestDist := math.MaxInt32
 		for _, p := range positions {
@@ -130,17 +124,14 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 			line := fmt.Sprintf("%s:%d:%d: %s", ce.File, ce.Line, ce.Col, ce.Message)
 			mutantErrors[bestID] = append(mutantErrors[bestID], line)
 		}
-		
-		
+
 	}
 
-	
-	
 	for _, id := range mutantIDs {
 		if errs, ok := mutantErrors[id]; ok && len(errs) > 0 {
 			result.perMutant[id] = fmt.Errorf("compilation failed (mutation detected):\n%s", strings.Join(errs, "\n"))
 		}
-		
+
 	}
 
 	return result
@@ -260,14 +251,10 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	defer cancel()
 
 	if _, err := os.Stat(e.testBinary); os.IsNotExist(err) {
-		status := "error"
-		killedBy := "binary missing - package has compile errors"
+		// Binary not produced after a successful compile — package has no test files.
 		return mutantResult{
-			id:         mutantID,
-			status:     status,
-			err:        fmt.Errorf("test binary missing - compilation failed"),
-			killedBy:   "(compiler)",
-			killOutput: killedBy,
+			id:     mutantID,
+			status: "untested",
 		}
 	}
 
@@ -506,11 +493,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, debug)
 			pkgMuts := pkgToMutants[pkgDir]
 
-			
 			currentSites := rebuildMutantSites(pkgMuts)
 
 			result := compileWithSurgicalRetry(compileCtx, executor, mutantIDsForPkg, currentSites, pkgMuts, tempDir)
-			
+
 			for _, mutantID := range mutantIDsForPkg {
 				err := result.perMutant[mutantID]
 				if err != nil {
@@ -532,6 +518,27 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				}
 			}
 
+			if _, statErr := os.Stat(executor.testBinary); os.IsNotExist(statErr) {
+				untestedCount := 0
+				for _, mutantID := range mutantIDsForPkg {
+					if result.perMutant[mutantID] == nil {
+						resultsChan <- mutantResult{id: mutantID, status: "untested"}
+						if prog != nil {
+							prog.Record()
+						}
+						untestedCount++
+					}
+				}
+				if untestedCount > 0 {
+					pkg := executor.relPath()
+					if pkg == "" || pkg == "./" {
+						pkg = filepath.Base(pkgDir)
+					}
+					fmt.Fprintf(os.Stderr, "[INFO] No test binary for %s \u2014 package has no test files, %d mutant(s) marked untested\n", pkg, untestedCount)
+				}
+				return nil
+			}
+
 			baseline, baselineOK := executor.measureBaseline(testCtx)
 
 			if baselineOK {
@@ -543,11 +550,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				executor.timeout = defaultMutantTimeout
 			}
 
-			
 			for _, mutantID := range mutantIDsForPkg {
 				err := result.perMutant[mutantID]
 				if err == nil {
-					
+
 					var mutant *Mutant
 					for _, m := range pkgMuts {
 						if m.ID == mutantID {
@@ -556,7 +562,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 						}
 					}
 					if mutant != nil && (mutant.Status == "untested" || mutant.Status == "error") {
-						
+
 						resultsChan <- mutantResult{
 							id:           mutantID,
 							status:       mutant.Status,
@@ -833,7 +839,6 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		mutantIDs[i] = m.ID
 	}
 
-	
 	sites := rebuildMutantSites(pkgMutants)
 
 	result := compileWithSurgicalRetry(context.Background(), executor, mutantIDs, sites, pkgMutants, projectRoot)
@@ -853,11 +858,10 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	
 	var testableIDs []int
 	for _, m := range pkgMutants {
 		if m.Status == "" || m.Status == "untested" {
-			
+
 			if m.Status != "error" {
 				testableIDs = append(testableIDs, m.ID)
 			}
@@ -867,6 +871,28 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 		if prog != nil {
 			prog.Finish()
+		}
+		return nil
+	}
+
+	// Check whether the test binary was actually produced. go test -c succeeds
+	// silently for packages with no test files but writes no binary. Mark all
+	// remaining (non-error) mutants as "untested" and log once per package.
+	if _, statErr := os.Stat(executor.testBinary); os.IsNotExist(statErr) {
+		pkgRelPath, _ := filepath.Rel(projectRoot, pkgDir)
+		if pkgRelPath == "" || pkgRelPath == "." {
+			pkgRelPath = filepath.Base(pkgDir)
+		}
+		fmt.Fprintf(os.Stderr, "[INFO] No test binary for ./%s — package has no test files, %d mutant(s) marked untested\n", pkgRelPath, len(testableIDs))
+		for _, m := range pkgMutants {
+			if m.Status == "" {
+				m.Status = "untested"
+			}
+		}
+		if prog != nil {
+			for range testableIDs {
+				prog.Record()
+			}
 		}
 		return nil
 	}

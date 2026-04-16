@@ -1,14 +1,21 @@
-Mutation Score: 81.25%
-Killed: 13
-Survived: 3
+Mutation Score: 0.00%
+Killed: 0
+Survived: 0
 Errors: 0
-Untested: 0
-Total: 16
+Untested: 8
+Total: 8
 
-Top Killing Tests:
-  TestDivide                                         4 kills
-  TestAddCompound                                    3 kills
-  TestSubtract                                       2 kills
-  TestMultiply                                       2 kills
-  TestAdd                                            2 kills
+Error Summary by Operator:
+
+Untested by Operator (binary missing - package failed to compile):
+  assignment_operator                 4/4 untested (100.0%)
+  if_condition_false                  1/1 untested (100.0%)
+  if_condition_true                   1/1 untested (100.0%)
+  negate_condition                    1/1 untested (100.0%)
+  zero_value_return_numeric           1/1 untested (100.0%)
+
+Per-Mutant Compilation Errors (unlimited):
+  (no detailed errors available)
+
+Error Count by Operator:
 

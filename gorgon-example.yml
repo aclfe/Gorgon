@@ -3,7 +3,7 @@ operators:
 concurrent: all
 threshold: 80
 cache: false
-dry_run: false
+dry_run: true
 debug: false
 progbar: true
 show_killed: true
@@ -23,10 +23,10 @@ skip_func:
 tests: []
 base: ""
 suppress:
+    - location: examples/mutations/negate_condition/negate_condition.go:6
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:
         - panic_removal
     - location: examples/mutations/panic_removal/panic_removal.go:6
       operators:
         - panic_removal:9
-    - location: examples/mutations/negate_condition/negate_condition.go:6

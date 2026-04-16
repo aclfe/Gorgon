@@ -349,7 +349,7 @@ func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
 			continue
 		}
 
-		if !testPackages[relDir] || strings.Contains(relDir, "examples/mutations") {
+		if !testPackages[relDir] {
 			m.Status = "untested"
 		}
 	}
