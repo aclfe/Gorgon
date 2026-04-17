@@ -165,11 +165,14 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	}
 
 	allOps := mutator.ListAll()
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar)
+	if cfg.ExternalSuites.Enabled {
+		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
+	}
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites)
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
+		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath, cfg.Format); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {

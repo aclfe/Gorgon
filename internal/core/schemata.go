@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -23,7 +24,9 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool) ([]Mutant, error) {
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig) ([]Mutant, error) {
+
+	log.Debug("GenerateAndRunSchemata called with externalCfg.Enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
 
 	mutants := GenerateMutants(sites, operators, allOps, projectRoot, dirRules, resolver, log)
 	if len(mutants) == 0 {
@@ -77,14 +80,65 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		setMutantErrors(mutants, fmt.Errorf("cache resolution failed: %w", err))
 		return mutants, err
 	}
-	if uncachedIndices == nil {
+	log.Debug("After cache check: uncachedIndices nil=%v", uncachedIndices == nil)
+	
+	// If all cached and no external suites, return early
+	if uncachedIndices == nil && !externalCfg.Enabled {
+	log.Debug("All mutants cached and no external suites, returning early")
+		return mutants, nil
+	}
+	
+	// If all cached but external suites enabled, still need to run external phase
+	if uncachedIndices == nil && externalCfg.Enabled {
+		log.Debug("All mutants cached but external suites enabled, running external phase only")
+		// Need workspace for external tests
+		baseDirAbs, _ := filepath.Abs(baseDir)
+		if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
+			log.Warn("[EXTERNAL] External suites require go.mod, skipping")
+			return mutants, nil
+		}
+		
+		ws, err := NewModuleWorkspace()
+		if err != nil {
+			return mutants, fmt.Errorf("workspace creation failed: %w", err)
+		}
+		defer ws.Cleanup()
+		
+		if err := ws.setup(baseDir, mutants); err != nil {
+			return mutants, fmt.Errorf("workspace setup failed: %w", err)
+		}
+		
+		_ = MakeSelfContained(ws.TempDir)
+		
+		if _, _, err := ws.applySchemata(mutants); err != nil {
+			return mutants, fmt.Errorf("schemata application failed: %w", err)
+		}
+		
+		// Run external phase
+		log.Debug("Before external phase check: enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
+		if len(externalCfg.Suites) > 0 {
+			log.Info("[EXTERNAL] Starting external suite phase with %d suites", len(externalCfg.Suites))
+			allSuitePaths := collectAllSuitePaths(externalCfg.Suites)
+			log.Info("[EXTERNAL] Collected %d suite paths", len(allSuitePaths))
+			if copyErr := ws.copyExternalSuites(ws.absModule, allSuitePaths, log); copyErr != nil {
+				log.Warn("external suite copy failed: %v", copyErr)
+			} else {
+				if err := runExternalPhase(ctx, ws, mutants, externalCfg, concurrent, log); err != nil {
+					log.Warn("external suite phase failed: %v", err)
+				}
+			}
+		}
+		
 		return mutants, nil
 	}
 
-	baseDirAbs, _ := filepath.Abs(baseDir)
-	if !fileExists(filepath.Join(baseDirAbs, "go.mod")) {
+	projectRootAbs, _ := filepath.Abs(projectRoot)
+	log.Debug("Checking for go.mod at projectRoot: %s", filepath.Join(projectRootAbs, "go.mod"))
+	if !fileExists(filepath.Join(projectRootAbs, "go.mod")) {
+		log.Debug("No go.mod found, using standalone mode")
 		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
 	}
+	log.Debug("go.mod found, using workspace mode")
 
 	ws, err := NewModuleWorkspace()
 	if err != nil {
@@ -93,7 +147,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 	defer ws.Cleanup()
 
-	if err := ws.setup(baseDir, mutants); err != nil {
+	if err := ws.setup(projectRoot, mutants); err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
 		return mutants, err
 	}
@@ -106,7 +160,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, err
 	}
 
-	ws.simplifyGoMod(hasNonStdlib)
+	ws.simplifyGoMod(hasNonStdlib || externalCfg.Enabled)
 
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
@@ -153,16 +207,39 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		prog = NewProgressTracker(len(mutants))
 	}
 
-	results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, log)
+	runUnitTests := unitTestsEnabled && (!externalCfg.Enabled || externalCfg.RunMode != "only")
 
-	if len(results) > 0 {
-		collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+	var results []mutantResult
+	if runUnitTests {
+		var err error
+		results, err = compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, log)
+
+		if len(results) > 0 {
+			collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+		}
+
+		if err != nil {
+			SaveCache(mutants, baseDir, cache, fileHashes)
+			return mutants, err
+		}
 	}
 
-	if err != nil {
-
-		SaveCache(mutants, baseDir, cache, fileHashes)
-		return mutants, err
+	log.Debug("After unit tests, about to check external phase")
+	// ── Phase 2: External Suites ──────────────────────────────────────────────
+	log.Debug("Before external phase check: enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
+	if externalCfg.Enabled && len(externalCfg.Suites) > 0 {
+		log.Info("[EXTERNAL] Starting external suite phase with %d suites, enabled=%v, runMode=%s", len(externalCfg.Suites), externalCfg.Enabled, externalCfg.RunMode)
+		allSuitePaths := collectAllSuitePaths(externalCfg.Suites)
+		log.Info("[EXTERNAL] Collected %d suite paths", len(allSuitePaths))
+		if copyErr := ws.copyExternalSuites(ws.absModule, allSuitePaths, log); copyErr != nil {
+			log.Warn("external suite copy failed: %v", copyErr)
+		} else {
+			if err := runExternalPhase(ctx, ws, mutants, externalCfg, concurrent, log); err != nil {
+				log.Warn("external suite phase failed: %v", err)
+			}
+		}
+	} else {
+		log.Info("[EXTERNAL] External suites disabled or no suites configured (enabled=%v, suites=%d)", externalCfg.Enabled, len(externalCfg.Suites))
 	}
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
@@ -397,4 +474,75 @@ func collectPackagesWithTests(absModule string) map[string]bool {
 	})
 
 	return pkgs
+}
+
+
+func runExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, cfg config.ExternalSuitesConfig, concurrent int, log *logger.Logger) error {
+	var targets []*Mutant
+	switch cfg.RunMode {
+	case "only":
+		for i := range mutants {
+			targets = append(targets, &mutants[i])
+		}
+	case "alongside":
+		for i := range mutants {
+			targets = append(targets, &mutants[i])
+		}
+	default: // "after_unit"
+		for i := range mutants {
+			// Include mutants that survived OR have no status (unit tests didn't run)
+			if mutants[i].Status == "survived" || mutants[i].Status == "" {
+				targets = append(targets, &mutants[i])
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		log.Info("[EXTERNAL] No survivors to test against external suites")
+		return nil
+	}
+
+	log.Info("[EXTERNAL] Running %d survivors against external suites", len(targets))
+
+	for _, suite := range cfg.Suites {
+		resolvedPaths, err := resolveSuitePaths(ctx, ws.TempDir, suite, log)
+		if err != nil || len(resolvedPaths) == 0 {
+			log.Warn("[EXTERNAL] No packages found for suite %q: %v", suite.Name, err)
+			continue
+		}
+
+		binaries, err := buildExternalSuiteBinaries(ctx, ws.TempDir, suite, resolvedPaths, log)
+		if err != nil {
+			log.Warn("[EXTERNAL] Build failed for suite %q: %v", suite.Name, err)
+			continue
+		}
+
+		for _, binPath := range binaries {
+			var stillAlive []*Mutant
+			for _, m := range targets {
+				if m.Status != "killed" {
+					stillAlive = append(stillAlive, m)
+				}
+			}
+			if len(stillAlive) == 0 {
+				break
+			}
+
+			results := runMutantsAgainstBinary(ctx, binPath, ws.TempDir, stillAlive, 30*time.Second, concurrent, suite.Name)
+
+			for _, r := range results {
+				if r.status == "killed" {
+					for i := range mutants {
+						if mutants[i].ID == r.id {
+							mutants[i].Status = "killed"
+							mutants[i].KilledBy = r.killedBy
+							mutants[i].KillOutput = r.killOutput
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

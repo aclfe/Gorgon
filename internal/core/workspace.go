@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/aclfe/gorgon/internal/logger"
 )
 
 func maxConcurrency() int { return runtime.NumCPU() }
@@ -333,4 +335,68 @@ func collectAllPackages(absModule string) (map[string]bool, error) {
 	}
 
 	return pkgs, nil
+}
+
+func (w *ModuleWorkspace) copyExternalSuites(absModule string, suitePaths []string, log *logger.Logger) error {
+	for _, relPath := range suitePaths {
+		dirs, err := expandGlobPath(absModule, relPath)
+		if err != nil {
+			continue
+		}
+		for _, dir := range dirs {
+			rel, err := filepath.Rel(absModule, dir)
+			if err != nil {
+				continue
+			}
+			dst := filepath.Join(w.TempDir, rel)
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+			entries, _ := os.ReadDir(dir)
+			copiedCount := 0
+			for _, e := range entries {
+				if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
+					continue
+				}
+				if err := copyFileWithBuffer(
+					filepath.Join(dir, e.Name()),
+					filepath.Join(dst, e.Name()),
+				); err != nil {
+					return err
+				}
+				copiedCount++
+			}
+			log.Debug("[EXTERNAL] Copied %d files from %s to %s", copiedCount, dir, dst)
+		}
+	}
+	return nil
+}
+
+func expandGlobPath(absModule, pattern string) ([]string, error) {
+	clean := strings.TrimPrefix(pattern, "./")
+	isRecursive := strings.HasSuffix(clean, "/...")
+	if isRecursive {
+		clean = strings.TrimSuffix(clean, "/...")
+	}
+	root := filepath.Join(absModule, clean)
+
+	if !isRecursive {
+		return []string{root}, nil
+	}
+
+	var dirs []string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() {
+			return nil
+		}
+		entries, _ := os.ReadDir(path)
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), "_test.go") {
+				dirs = append(dirs, path)
+				return nil
+			}
+		}
+		return nil
+	})
+	return dirs, nil
 }

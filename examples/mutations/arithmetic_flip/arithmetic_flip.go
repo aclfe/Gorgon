@@ -1,6 +1,7 @@
 package arithmetic_flip
 
 func Add(a, b int) int {
+	//gorgon:ignore
 	return a + b
 }
 

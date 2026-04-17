@@ -59,8 +59,8 @@ func Parse(args []string) (*Flags, error) {
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
 	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
-	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile)")
-	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt)")
+	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile, html)")
+	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt) or directory (for html)")
 	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
 
 	if err := fs.Parse(args); err != nil {
@@ -190,11 +190,14 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
 	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
+	fmt.Fprintln(os.Stderr, "  -format string        output format for report file (textfile, html)")
+	fmt.Fprintln(os.Stderr, "  -output string        write report to file (e.g. report.txt) or directory (for html)")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -debug examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -output=report.txt -debug examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -format=html -output=gorgon-report examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
 	os.Exit(1)
 }

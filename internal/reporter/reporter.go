@@ -19,7 +19,7 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string) error {
 	total := totalMutants
 	killed := 0
 	survived := 0
@@ -48,7 +48,7 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 	outWriters = append(outWriters, os.Stdout)
 
 	var outFile *os.File
-	if outputFile != "" {
+	if outputFile != "" && format != "html" {
 		f, err := os.Create(outputFile)
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
@@ -227,6 +227,13 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 			}
 		} else {
 			return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
+		}
+	}
+
+	// Write HTML report if format is html
+	if format == "html" {
+		if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, outputFile); err != nil {
+			return fmt.Errorf("failed to write HTML report: %w", err)
 		}
 	}
 

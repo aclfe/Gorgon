@@ -74,9 +74,6 @@ func effectiveOperators(filePath, projectRoot string, base []mutator.Operator, r
 				out = append(out, op)
 			}
 		}
-		if log != nil && log.IsDebug() {
-			log.Debug("Dir rule %s: whitelist %d operators for %s", best.Dir, len(out), rel)
-		}
 		return out
 	}
 

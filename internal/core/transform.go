@@ -197,6 +197,11 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		return nil, nil
 	}
 
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		formatBufPool.Put(buf)
+		return nil, fmt.Errorf("failed to create directory: %w", err)
+	}
+
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
 		formatBufPool.Put(buf)
 		return nil, fmt.Errorf("write failed: %w", err)

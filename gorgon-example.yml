@@ -1,39 +1,58 @@
+# === Core Mutation Settings ===
 operators:
     - all
+threshold: 0
+
+# === Execution Settings ===
 concurrent: all
-threshold: 80
 cache: false
 dry_run: false
-debug: true
-progbar: true
-show_killed: true
-show_survived: true
-format: textfile
-output: output.txt
-cpu_profile: ""
+progbar: false
+
+# === Test Configuration ===
+unit_tests_enabled: true
+tests:
+    []
+
+# === External Test Suites ===
+external_suites:
+    enabled: true
+    run_mode: after_unit
+    suites:
+        - name: all-tests
+          paths:
+            - ./tests/...
+          short_circuit: true
+
+# === File Filtering ===
 exclude:
     - '*_test.go'
-include: []
+include:
+    []
 skip:
-    - vendor/
+    []
 skip_func:
-    - foo/bar.go:MyFunc
-    - examples/mutations/variable_replacement/variable_replacement.go:FindMax
-tests: []
+    []
+
+# === Advanced Options ===
+diff: ""
 base: ""
+debug: true
+
+# === Output Settings ===
+show_killed: false
+show_survived: false
+format: html
+output: "gorgon-report"
+cpu_profile: ""
+
+# === Suppressions (Auto-managed) ===
 suppress:
-    - location: examples/mutations/negate_condition/negate_condition.go:6
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:
         - panic_removal
+    - location: examples/mutations/negate_condition/negate_condition.go:6
     - location: examples/mutations/panic_removal/panic_removal.go:6
       operators:
         - panic_removal:9
-dir_rules:
-    - dir: internal/core
-      whitelist:
-        - arithmetic_flip
-        - boundary_value
-    - dir: internal/api
-      blacklist:
-        - all
+    - location: examples/mutations/arithmetic_flip/arithmetic_flip.go:5

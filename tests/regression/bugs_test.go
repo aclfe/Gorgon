@@ -91,7 +91,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, testutil.Logger(), false)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, operators, absPath, absPath, nil, nil, 2, nil, nil, nil, testutil.Logger(), false, true, testing.ExternalSuitesConfig{})
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}

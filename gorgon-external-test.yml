@@ -1,0 +1,57 @@
+# === Core Mutation Settings ===
+operators:
+    - all
+threshold: 0
+
+# === Execution Settings ===
+concurrent: all
+cache: false
+dry_run: false
+progbar: false
+
+# === Test Configuration ===
+unit_tests_enabled: true
+tests:
+    []
+
+# === External Test Suites ===
+external_suites:
+    enabled: true
+    run_mode: after_unit
+    suites:
+        - name: all-tests
+          paths:
+            - ./tests/...
+          short_circuit: true
+
+# === File Filtering ===
+exclude:
+    - '*_test.go'
+include:
+    []
+skip:
+    []
+skip_func:
+    []
+
+# === Advanced Options ===
+diff: ""
+base: ""
+debug: true
+
+# === Output Settings ===
+show_killed: false
+show_survived: false
+format: html
+output: "gorgon-report"
+cpu_profile: ""
+
+# === Suppressions (Auto-managed) ===
+suppress:
+    - location: examples/mutations/panic_removal/panic_removal.go:13
+      operators:
+        - panic_removal
+    - location: examples/mutations/negate_condition/negate_condition.go:6
+    - location: examples/mutations/panic_removal/panic_removal.go:6
+      operators:
+        - panic_removal:9

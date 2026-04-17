@@ -53,7 +53,7 @@ func BenchmarkGenerateMutants_New(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mutants := gtest.GenerateMutants(sites, ops)
+		mutants := gtest.GenerateMutants(sites, ops, ops, "", nil, nil, nil)
 		if len(mutants) == 0 {
 			b.Fatal("no mutants")
 		}
@@ -200,7 +200,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, benchDir, 1, nil, nil, nil, testutil.Logger(), false)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, ops, benchDir, benchDir, nil, nil, 1, nil, nil, nil, testutil.Logger(), false, true, gtest.ExternalSuitesConfig{})
 		cancel()
 		if err != nil {
 			b.Skipf("Schemata failed: %v", err)

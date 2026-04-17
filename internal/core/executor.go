@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/aclfe/gorgon/internal/logger"
+	"github.com/aclfe/gorgon/pkg/config"
 )
 
 type ProgressTracker struct {
@@ -1003,4 +1004,125 @@ type mutantResult struct {
 	killedBy     string
 	killDuration time.Duration
 	killOutput   string
+}
+
+
+func resolveSuitePaths(ctx context.Context, workspaceDir string, suite config.ExternalSuite, log *logger.Logger) ([]string, error) {
+	var resolved []string
+	for _, p := range suite.Paths {
+		args := []string{"list", "-f", "{{.Dir}}"}
+		if len(suite.Tags) > 0 {
+			args = append(args, "-tags", strings.Join(suite.Tags, ","))
+		}
+		args = append(args, p)
+
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = workspaceDir
+		log.Debug("[EXTERNAL] Running: go %v in %s", args, workspaceDir)
+		out, err := cmd.CombinedOutput()
+		log.Debug("[EXTERNAL] Output: %s, Error: %v", string(out), err)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			rel, err := filepath.Rel(workspaceDir, line)
+			if err != nil {
+				continue
+			}
+			resolved = append(resolved, "./"+filepath.ToSlash(rel))
+		}
+	}
+	return resolved, nil
+}
+
+func buildExternalSuiteBinaries(ctx context.Context, workspaceDir string, suite config.ExternalSuite, resolvedPaths []string, log *logger.Logger) (map[string]string, error) {
+	binaries := make(map[string]string, len(resolvedPaths))
+	log.Debug("[EXTERNAL] Building binaries for %d resolved paths", len(resolvedPaths))
+	for _, relPkg := range resolvedPaths {
+		safeName := strings.NewReplacer("/", "_", ".", "_").Replace(relPkg)
+		binPath := filepath.Join(workspaceDir, safeName+".test")
+
+		args := []string{"test", "-c", "-vet=off", "-o", binPath}
+		if len(suite.Tags) > 0 {
+			args = append(args, "-tags", strings.Join(suite.Tags, ","))
+		}
+		args = append(args, relPkg)
+
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = workspaceDir
+		log.Debug("[EXTERNAL] Building: go %v", args)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			log.Debug("[EXTERNAL] Build failed: %s, error: %v", string(out), err)
+			continue
+		}
+
+		if _, err := os.Stat(binPath); os.IsNotExist(err) {
+			log.Debug("[EXTERNAL] Binary not created at %s", binPath)
+			continue
+		}
+		log.Debug("[EXTERNAL] Binary created at %s", binPath)
+		binaries[relPkg] = binPath
+	}
+	log.Debug("[EXTERNAL] Built %d binaries", len(binaries))
+	return binaries, nil
+}
+
+func runMutantsAgainstBinary(ctx context.Context, binPath, workspaceDir string, mutants []*Mutant, timeout time.Duration, concurrent int, suiteName string) []mutantResult {
+	resultsChan := make(chan mutantResult, len(mutants))
+	sem := make(chan struct{}, concurrent)
+	var wg sync.WaitGroup
+
+	for _, m := range mutants {
+		m := m
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			cmd := exec.CommandContext(ctx, binPath,
+				fmt.Sprintf("-test.timeout=%.0fs", timeout.Seconds()))
+			cmd.Dir = workspaceDir
+			cmd.Env = append(os.Environ(),
+				fmt.Sprintf("GORGON_MUTANT_ID=%d", m.ID))
+
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				killedBy := parseFailedTest(string(out))
+				if killedBy == "" {
+					killedBy = suiteName
+				} else {
+					killedBy = killedBy + " [" + suiteName + "]"
+				}
+				resultsChan <- mutantResult{
+					id:       m.ID,
+					status:   "killed",
+					killedBy: killedBy,
+					killOutput: string(out),
+				}
+			} else {
+				resultsChan <- mutantResult{id: m.ID, status: "survived"}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(resultsChan)
+
+	var all []mutantResult
+	for r := range resultsChan {
+		all = append(all, r)
+	}
+	return all
+}
+
+func collectAllSuitePaths(suites []config.ExternalSuite) []string {
+	var paths []string
+	for _, s := range suites {
+		paths = append(paths, s.Paths...)
+	}
+	return paths
 }

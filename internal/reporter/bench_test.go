@@ -104,7 +104,7 @@ func BenchmarkReporter_SmallMutantSet(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -124,7 +124,7 @@ func BenchmarkReporter_MediumMutantSet(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -144,7 +144,7 @@ func BenchmarkReporter_LargeMutantSet(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -168,7 +168,7 @@ func BenchmarkReporter_RealisticDistribution(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -351,7 +351,7 @@ func BenchmarkReporter_Allocations_Small(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -372,7 +372,7 @@ func BenchmarkReporter_Allocations_Medium(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -393,7 +393,7 @@ func BenchmarkReporter_Allocations_Large(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -417,7 +417,7 @@ func BenchmarkReporter_EmptyMutantSet(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -440,7 +440,7 @@ func BenchmarkReporter_AllKilled(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -463,7 +463,7 @@ func BenchmarkReporter_AllSurvived(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}
@@ -486,7 +486,7 @@ func BenchmarkReporter_AllErrors(b *testing.B) {
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		err := reporter.Report(mutants, 0, false, false, "", "")
+		err := reporter.Report(mutants, 0, false, false, "", "", "textfile")
 		if err != nil {
 			b.Fatalf("Report failed: %v", err)
 		}

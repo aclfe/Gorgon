@@ -49,18 +49,28 @@ gorgon -diff=path/to/file.patch ./path
 Use `-config` to load a YAML file. All flags must be omitted when using `-config`.
 
 ```yaml
+# === Core Mutation Settings ===
 operators:
   - all
-concurrent: all
 threshold: 80
+
+# === Execution Settings ===
+concurrent: all
 cache: true
-progbar: false
 dry_run: false
-show_killed: false
-show_survived: false
-format: textfile
-output: "report.txt"
-debug_files: false
+progbar: false
+
+# === Test Configuration ===
+unit_tests_enabled: true
+tests: []
+
+# === External Test Suites ===
+external_suites:
+  enabled: false
+  run_mode: after_unit
+  suites: []
+
+# === File Filtering ===
 exclude:
   - "*_test.go"
 include: []
@@ -68,8 +78,21 @@ skip:
   - vendor/
 skip_func:
   - foo/bar.go:MyFunc
-tests: []
+
+# === Advanced Options ===
 diff: ""
+base: ""
+debug: false
+
+# === Output Settings ===
+show_killed: false
+show_survived: false
+format: textfile
+output: "report.txt"
+debug_files: false
+cpu_profile: ""
+
+# === Directory Rules ===
 dir_rules:
   - dir: internal/core
     whitelist:
@@ -78,13 +101,116 @@ dir_rules:
   - dir: internal/api
     blacklist:
       - all
-debug: false
-base: ""
-cpu_profile: ""
+
+# === Suppressions (Auto-managed) ===
+suppress: []
 ```
 
 ```
 gorgon -config=gorgon.yml ./path
+```
+
+## External Test Suites
+
+Run black-box tests from external packages (e.g., `/tests/`, `/integration/`) to kill mutations. This allows tests outside the main package to contribute to mutation detection.
+
+### Configuration
+
+Add `external_suites` to your config:
+
+```yaml
+unit_tests_enabled: true          # Run unit tests (default: true)
+external_suites:
+  enabled: true
+  run_mode: after_unit            # Options: after_unit, only, alongside
+  suites:
+    - name: integration
+      paths:
+        - ./tests/integration
+        - ./tests/regression
+      tags: [integration]          # Optional: build tags
+      short_circuit: true          # Stop on first kill (default: true)
+    
+    - name: e2e
+      paths:
+        - ./tests/e2e
+      tags: [e2e]
+```
+
+### Auto-Discovery
+
+Use glob patterns to automatically discover all test packages:
+
+```yaml
+external_suites:
+  enabled: true
+  suites:
+    - name: all-tests
+      paths:
+        - ./tests/...              # Recursively finds all test packages
+```
+
+### Run Modes
+
+- **`after_unit`** (default): Run external suites only on mutants that survived unit tests
+- **`only`**: Skip unit tests, run only external suites
+- **`alongside`**: Run external suites on all mutants regardless of unit test results
+
+### How It Works
+
+1. **Unit Phase** (if `unit_tests_enabled: true`): Gorgon runs local package tests
+2. **External Phase** (if `external_suites.enabled: true`): 
+   - Discovers test packages from configured paths
+   - Builds test binaries for each package
+   - Runs surviving mutants against each binary
+   - Mutants killed by external tests are marked with suite name (e.g., `TestName [integration]`)
+
+### Example: Integration Tests Kill Mutations
+
+```go
+// examples/mutations/arithmetic_flip/example2.go
+package arithmetic_flip
+
+func Example2(a, b int) int {
+	return a + b
+}
+```
+
+```go
+// tests/integration/arithmetic_flip_test.go
+package testing_test
+
+import (
+	"testing"
+	"github.com/myorg/myproject/examples/mutations/arithmetic_flip"
+)
+
+func TestExample2(t *testing.T) {
+	result := arithmetic_flip.Example2(2, 3)
+	if result != 5 {
+		t.Errorf("Expected 5, got %d", result)
+	}
+}
+```
+
+When `a + b` is mutated to `a - b`, the external test kills it:
+```
+Top Killing Tests:
+  TestExample2 [integration]                         1 kills
+```
+
+### Disabling Unit Tests
+
+To run only external suites:
+
+```yaml
+unit_tests_enabled: false
+external_suites:
+  enabled: true
+  run_mode: after_unit
+  suites:
+    - name: all-tests
+      paths: [./tests/...]
 ```
 
 ## Suppressions
@@ -587,7 +713,7 @@ output: "report.txt"
 debug_files: true
 ```
 
-Currently only `textfile` format is supported.
+Currently `textfile` and `html` format is supported.
 
 ## CPU Profiling
 

@@ -48,7 +48,7 @@ func BenchmarkFullMutationPipeline(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, testutil.Logger(), false)
+				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, operators, absPath, absPath, nil, nil, defaultConcurrency, nil, nil, nil, testutil.Logger(), false, true, testing.ExternalSuitesConfig{})
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -163,7 +163,7 @@ func BenchmarkParallelTestExecution(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, conc, nil, nil, nil, testutil.Logger(), false)
+				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, operators, absPath, absPath, nil, nil, conc, nil, nil, nil, testutil.Logger(), false, true, testing.ExternalSuitesConfig{})
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -302,7 +302,7 @@ func BenchmarkMutationDetectionRate(bnch *stdtesting.B) {
 
 	bnch.ResetTimer()
 	for i := 0; i < bnch.N; i++ {
-		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, testutil.Logger(), false)
+		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, operators, absPath, absPath, nil, nil, defaultConcurrency, nil, nil, nil, testutil.Logger(), false, true, testing.ExternalSuitesConfig{})
 		if err != nil {
 			bnch.Fatal(err)
 		}
@@ -366,7 +366,7 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 //nolint:thelper
 func prepareOnce(bnch *stdtesting.B, basePath string, sites []engine.Site, operators []mutator.Operator) (string, []testing.Mutant) {
 	bnch.Helper()
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, basePath, 1, nil, nil, nil, testutil.Logger(), false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, operators, basePath, basePath, nil, nil, 1, nil, nil, nil, testutil.Logger(), false, true, testing.ExternalSuitesConfig{})
 	if err != nil {
 		bnch.Fatal(err)
 	}

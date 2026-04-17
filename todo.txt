@@ -7,12 +7,26 @@ Alpha version right now I'd say.
 - make docs for what mutations we have 
 - ci functionality
 
+so currently added features that help big repos. external test suites, diff testing. 
 
 ╰─$ go test ./internal/testing -run TestMutationCounts -v
 
 - Another mode for bigger repos: integration tests in another folder. 
 - regression pipeline on external projects
 - documentation website
-    - just use github pages for now?
+    - update the md files, have a bot to update them?
 - visual html output in future.
-- 
+- there's multiple debug files being made, gorgon-debug.txt and output.txt? I want this to be fixed. 
+- should be able to run specific unit tests for a package, works in inner config file?
+- same as external suite with inner config file, run specific external tests for specific config files?
+- ╰─$ time bin/gorgon -config=gorgon-external-test.yml
+    - shows errors
+- html output, same file not yellow on other mutations, renders 100%. incorrect. 
+    - function signature, variable rep mutation. shouldn't be. 
+    - needs more fixes and in depth changes. 
+- overlapping debugs. output.debug.txt and gorgon-reporty.debug. 
+
+-----
+
+
+
