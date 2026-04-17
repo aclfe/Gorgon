@@ -39,6 +39,12 @@ diff: ""
 base: ""
 debug: true
 
+# === Baseline / Ratchet ===
+baseline:
+    no_regression: false
+    tolerance: 0.0
+    # file: ".gorgon-baseline.json"
+
 # === Output Settings ===
 show_killed: false
 show_survived: false

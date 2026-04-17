@@ -13,28 +13,33 @@ import (
 )
 
 type Flags struct {
-	ConfigFile   string
-	PrintAST     bool
-	PkgPath      string
-	Operators    string
-	Concurrent   string
-	Threshold    float64
-	UseCache     bool
-	DryRun       bool
-	Debug        bool
-	ProgBar      bool
-	ShowKilled   bool
-	ShowSurvived bool
-	Format       string
-	Output       string
-	CPUProfile   string
-	Exclude      string
-	Include      string
-	Skip         string
-	SkipFunc     string
-	Tests        string
-	Diff         string
-	Targets      []string
+	ConfigFile        string
+	PrintAST          bool
+	PkgPath           string
+	Operators         string
+	Concurrent        string
+	Threshold         float64
+	UseCache          bool
+	DryRun            bool
+	Debug             bool
+	ProgBar           bool
+	ShowKilled        bool
+	ShowSurvived      bool
+	Format            string
+	Output            string
+	CPUProfile        string
+	Exclude           string
+	Include           string
+	Skip              string
+	SkipFunc          string
+	Tests             string
+	Diff              string
+	Targets           []string
+	// Baseline / ratchet
+	NoRegression      bool
+	BaselineFile      string
+	BaselineTolerance float64
+	SaveBaseline      bool // set by "baseline" subcommand, not a flag
 }
 
 func Parse(args []string) (*Flags, error) {
@@ -62,6 +67,9 @@ func Parse(args []string) (*Flags, error) {
 	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile, html)")
 	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt) or directory (for html)")
 	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
+	fs.BoolVar(&f.NoRegression, "no-regression", false, "Fail if mutation score drops below saved baseline")
+	fs.StringVar(&f.BaselineFile, "baseline-file", "", "Path to baseline file (default: .gorgon-baseline.json)")
+	fs.Float64Var(&f.BaselineTolerance, "baseline-tolerance", 0, "Allow this many percentage points of score drop before failing")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -74,7 +82,8 @@ func Parse(args []string) (*Flags, error) {
 func (f *Flags) ValidateChecks() error {
 	if f.ConfigFile != "" && (f.PrintAST || f.PkgPath != "." || f.Operators != "all" ||
 		f.Concurrent != "all" || f.Threshold != 0 || f.UseCache || f.DryRun ||
-		f.ProgBar || f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "" || f.Diff != "") {
+		f.ProgBar || f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "" || f.Diff != "" ||
+		f.NoRegression || f.BaselineFile != "" || f.BaselineTolerance != 0) {
 		return fmt.Errorf("Error: -config cannot be used with other flags")
 	}
 	return nil
@@ -192,6 +201,12 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
 	fmt.Fprintln(os.Stderr, "  -format string        output format for report file (textfile, html)")
 	fmt.Fprintln(os.Stderr, "  -output string        write report to file (e.g. report.txt) or directory (for html)")
+	fmt.Fprintln(os.Stderr, "  -no-regression        fail if mutation score drops below saved baseline")
+	fmt.Fprintln(os.Stderr, "  -baseline-file string path to baseline file (default: .gorgon-baseline.json)")
+	fmt.Fprintln(os.Stderr, "  -baseline-tolerance   allow this many pp of score drop before failing")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Subcommands:")
+	fmt.Fprintln(os.Stderr, "  baseline <path>       run tests and save current score as baseline")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
@@ -199,6 +214,8 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  gorgon -output=report.txt -debug examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -format=html -output=gorgon-report examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon baseline examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -no-regression examples/mutations")
 	os.Exit(1)
 }
 

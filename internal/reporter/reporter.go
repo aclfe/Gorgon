@@ -10,16 +10,25 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/aclfe/gorgon/internal/baseline"
 	"github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/subconfig"
 )
+
+type BaselineOptions struct {
+	Save      bool
+	NoRegression bool
+	Tolerance float64
+	Dir       string
+	File      string
+}
 
 const (
 	percentageMultiplier = 100
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string) error {
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string, blOpts BaselineOptions) error {
 	total := totalMutants
 	killed := 0
 	survived := 0
@@ -238,6 +247,53 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 	}
 
 	_ = outFile
+
+	// Baseline / ratchet handling
+	if blOpts.Save || blOpts.NoRegression {
+		current := &baseline.Data{
+			Score:    score,
+			Killed:   killed,
+			Survived: survived,
+			Untested: untested,
+			Total:    total,
+		}
+
+		if blOpts.Save {
+			if err := baseline.Save(blOpts.Dir, blOpts.File, current); err != nil {
+				return fmt.Errorf("failed to save baseline: %w", err)
+			}
+			path := blOpts.File
+			if path == "" {
+				path = baseline.DefaultFile
+			}
+			fmt.Fprintf(out, "\nBaseline saved: %.2f%% → %s\n", score, path)
+		}
+
+		if blOpts.NoRegression {
+			saved, err := baseline.Load(blOpts.Dir, blOpts.File)
+			if err != nil {
+				// No baseline yet — auto-save and continue (golangci-lint trick)
+				if os.IsNotExist(err) {
+					if saveErr := baseline.Save(blOpts.Dir, blOpts.File, current); saveErr != nil {
+						return fmt.Errorf("failed to auto-save baseline: %w", saveErr)
+					}
+					path := blOpts.File
+					if path == "" {
+						path = baseline.DefaultFile
+					}
+					fmt.Fprintf(out, "\nNo baseline found — saved current score %.2f%% as baseline: %s\n", score, path)
+				} else {
+					return fmt.Errorf("failed to load baseline: %w", err)
+				}
+			} else {
+				if err := baseline.CheckRegression(current, saved, blOpts.Tolerance); err != nil {
+					return err
+				}
+				fmt.Fprintf(out, "\nBaseline check passed: %.2f%% ≥ %.2f%% (tolerance: %.2f%%)\n",
+					score, saved.Score, blOpts.Tolerance)
+			}
+		}
+	}
 
 	return nil
 }

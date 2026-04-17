@@ -43,6 +43,32 @@ gorgon -diff=path/to/file.patch ./path
 | `-output` | `""` | Write report to file (e.g. `report.txt`) |
 | `-debug-files` | `false` | Also write debug info to `{output}.debug.txt` |
 | `-cpu-profile` | `""` | Write CPU profile to file (analyzable with `go tool pprof`) |
+| `-no-regression` | `false` | Fail if mutation score drops below saved baseline |
+| `-baseline-file` | `""` | Path to baseline file (default: `.gorgon-baseline.json`) |
+| `-baseline-tolerance` | `0` | Allow this many percentage points of score drop before failing |
+
+## Baseline / Ratchet Mode
+
+Large codebases can't jump from 0% to 80% overnight. Baseline mode lets teams improve incrementally without being blocked from day one — the same adoption trick golangci-lint uses.
+
+```
+gorgon baseline ./path          # save current score as baseline
+gorgon -no-regression ./path    # fail only if score drops from baseline
+gorgon -no-regression -baseline-tolerance=1 ./path  # allow 1pp of drift
+```
+
+On the first `-no-regression` run with no baseline file, Gorgon auto-saves the current score instead of failing, so teams are never blocked on day one.
+
+### Config
+
+```yaml
+baseline:
+  no_regression: true
+  tolerance: 1.0          # allow 1pp of drift (optional)
+  file: ".gorgon-baseline.json"  # override path (optional)
+```
+
+The baseline file (`.gorgon-baseline.json`) should be committed to version control so CI can compare against it.
 
 ## Config
 
@@ -83,6 +109,11 @@ skip_func:
 diff: ""
 base: ""
 debug: false
+
+# === Baseline / Ratchet ===
+baseline:
+  no_regression: false
+  tolerance: 0.0
 
 # === Output Settings ===
 show_killed: false

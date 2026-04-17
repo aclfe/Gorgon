@@ -172,7 +172,22 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath, cfg.Format); reportErr != nil {
+		blOpts := reporter.BaselineOptions{
+			Save:         flags.SaveBaseline,
+			NoRegression: flags.NoRegression || cfg.Baseline.NoRegression,
+			Tolerance:    flags.BaselineTolerance,
+			Dir:          baseDir,
+			File:         flags.BaselineFile,
+		}
+		// Config fills in when CLI flags weren't explicitly set
+		if blOpts.Tolerance == 0 && cfg.Baseline.Tolerance > 0 {
+			blOpts.Tolerance = cfg.Baseline.Tolerance
+		}
+		if blOpts.File == "" && cfg.Baseline.File != "" {
+			blOpts.File = cfg.Baseline.File
+		}
+
+		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath, cfg.Format, blOpts); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {

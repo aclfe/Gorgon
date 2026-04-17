@@ -33,6 +33,12 @@ type ExternalSuitesConfig struct {
 	Suites  []ExternalSuite  `yaml:"suites"`
 }
 
+type BaselineConfig struct {
+	NoRegression bool    `yaml:"no_regression"`
+	File         string  `yaml:"file,omitempty"`
+	Tolerance    float64 `yaml:"tolerance,omitempty"`
+}
+
 type Config struct {
 	Operators         []string          `yaml:"operators"`
 	Concurrent        string            `yaml:"concurrent"`
@@ -55,8 +61,9 @@ type Config struct {
 	Suppress          []SuppressEntry   `yaml:"suppress"`
 	Diff              string            `yaml:"diff,omitempty"`
 	DirRules          []DirOperatorRule `yaml:"dir_rules,omitempty"`
-	UnitTestsEnabled  bool              `yaml:"unit_tests_enabled"`
+	UnitTestsEnabled  bool                 `yaml:"unit_tests_enabled"`
 	ExternalSuites    ExternalSuitesConfig `yaml:"external_suites"`
+	Baseline          BaselineConfig       `yaml:"baseline,omitempty"`
 }
 
 func Default() *Config {
@@ -79,6 +86,7 @@ func Default() *Config {
 			RunMode: "after_unit",
 			Suites:  []ExternalSuite{},
 		},
+		Baseline: BaselineConfig{},
 	}
 }
 
@@ -239,6 +247,15 @@ func (c *Config) Save(path string) error {
 	lines = append(lines, fmt.Sprintf("diff: \"%s\"", c.Diff))
 	lines = append(lines, fmt.Sprintf("base: \"%s\"", c.Base))
 	lines = append(lines, fmt.Sprintf("debug: %t", c.Debug))
+	lines = append(lines, "")
+
+	lines = append(lines, "# === Baseline / Ratchet ===")
+	lines = append(lines, "baseline:")
+	lines = append(lines, fmt.Sprintf("    no_regression: %t", c.Baseline.NoRegression))
+	lines = append(lines, fmt.Sprintf("    tolerance: %.1f", c.Baseline.Tolerance))
+	if c.Baseline.File != "" {
+		lines = append(lines, fmt.Sprintf("    file: \"%s\"", c.Baseline.File))
+	}
 	lines = append(lines, "")
 	
 	lines = append(lines, "# === Output Settings ===")
