@@ -33,6 +33,7 @@ type Config struct {
 	Tests        []string        `yaml:"tests"`
 	Base         string          `yaml:"base"`
 	Suppress     []SuppressEntry `yaml:"suppress"`
+	Diff         string          `yaml:"diff,omitempty"`
 }
 
 func Default() *Config {

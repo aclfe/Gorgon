@@ -14,6 +14,7 @@ import (
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/core"
+	"github.com/aclfe/gorgon/internal/diff"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
@@ -135,6 +136,21 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 
+	if cfg.Diff != "" {
+		changedLines, err := diff.Resolve(cfg.Diff)
+		if err != nil {
+			log.Warn("failed to resolve diff %q: %v", cfg.Diff, err)
+			return fmt.Errorf("failed to resolve diff %q: %w", cfg.Diff, err)
+		}
+		if changedLines != nil {
+			sites = FilterSitesByDiff(sites, changedLines)
+			log.Debug("Diff filter: %d files with changes, %d mutation sites after filtering", len(changedLines), len(sites))
+			if cfg.ProgBar {
+				fmt.Fprintf(os.Stderr, "Diff filter: %d mutation sites after filtering\n", len(sites))
+			}
+		}
+	}
+
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, log, cfg.ProgBar)
 	totalMutants := testing.GetTotalMutants()
 
@@ -221,6 +237,23 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 		}
 
 		filtered = append(filtered, site)
+	}
+	return filtered
+}
+
+func FilterSitesByDiff(sites []engine.Site, changedLines diff.FileLines) []engine.Site {
+	if changedLines == nil {
+		return sites
+	}
+	filtered := make([]engine.Site, 0, len(sites))
+	for _, site := range sites {
+		absPath, err := filepath.Abs(site.File.Name())
+		if err != nil {
+			absPath = site.File.Name()
+		}
+		if lines, ok := changedLines[absPath]; ok && lines[site.Line] {
+			filtered = append(filtered, site)
+		}
 	}
 	return filtered
 }

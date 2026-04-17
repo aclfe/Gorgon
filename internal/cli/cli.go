@@ -33,6 +33,7 @@ type Flags struct {
 	Skip         string
 	SkipFunc     string
 	Tests        string
+	Diff         string
 	Targets      []string
 }
 
@@ -53,6 +54,7 @@ func Parse(args []string) (*Flags, error) {
 	fs.StringVar(&f.Skip, "skip", "", "Comma-separated relative file paths to skip entirely")
 	fs.StringVar(&f.SkipFunc, "skip-func", "", "Comma-separated file:function pairs to skip")
 	fs.StringVar(&f.Tests, "tests", "", "Comma-separated relative paths to test files/folders")
+	fs.StringVar(&f.Diff, "diff", "", "Only mutate lines changed in a git diff (e.g. HEAD~1, a commit SHA, or path/to/file.patch)")
 	fs.BoolVar(&f.Debug, "debug", false, "Enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
@@ -72,7 +74,7 @@ func Parse(args []string) (*Flags, error) {
 func (f *Flags) ValidateChecks() error {
 	if f.ConfigFile != "" && (f.PrintAST || f.PkgPath != "." || f.Operators != "all" ||
 		f.Concurrent != "all" || f.Threshold != 0 || f.UseCache || f.DryRun ||
-		f.ProgBar || f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "") {
+		f.ProgBar || f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "" || f.Diff != "") {
 		return fmt.Errorf("Error: -config cannot be used with other flags")
 	}
 	return nil
@@ -115,6 +117,7 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	if f.Tests != "" {
 		cfg.Tests = splitAndTrim(f.Tests)
 	}
+	cfg.Diff = f.Diff
 	cfg.Debug = f.Debug
 	cfg.ProgBar = f.ProgBar
 	cfg.ShowKilled = f.ShowKilled
@@ -183,6 +186,7 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -skip string          comma-separated relative file paths to skip entirely")
 	fmt.Fprintln(os.Stderr, "  -skip-func string     comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc)")
 	fmt.Fprintln(os.Stderr, "  -tests string         comma-separated relative paths to test files/folders")
+	fmt.Fprintln(os.Stderr, "  -diff string          only mutate changed lines (e.g. HEAD~1 or path/to/file.patch)")
 	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
 	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")

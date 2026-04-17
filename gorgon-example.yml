@@ -9,6 +9,7 @@ show_survived: true
 format: textfile
 output: output.txt
 cpu_profile: ""
+diff: ""
 
 #Controlling the way mutations are generated and tested
 operators:

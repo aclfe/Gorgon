@@ -14,6 +14,8 @@ gorgon -concurrent=half ./path      # use half of CPU cores
 gorgon -concurrent=2 ./path         # use exactly 2 concurrent test runners
 gorgon -threshold=80 ./path         # fail if mutation score is below 80%
 gorgon -cache ./path                # cache results between runs
+gorgon -diff HEAD~1 ./path          # only mutate changed lines
+gorgon -diff=path/to/file.patch ./path
 ```
 
 ### Flags
@@ -33,6 +35,7 @@ gorgon -cache ./path                # cache results between runs
 | `-skip` | `""` | Comma-separated relative file paths to skip entirely |
 | `-skip-func` | `""` | Comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc) |
 | `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
+| `-diff` | `""` | Only mutate changed lines (e.g. HEAD~1, HEAD, or path/to/file.patch) |
 | `-debug` | `false` | Show detailed debug output during execution |
 | `-show-killed` | `false` | Show killed mutants with test attribution |
 | `-show-survived` | `false` | Show survived mutants in output |
@@ -66,6 +69,7 @@ skip:
 skip_func:
   - foo/bar.go:MyFunc
 tests: []
+diff: ""
 debug: false
 base: ""
 cpu_profile: ""
@@ -225,6 +229,37 @@ For example, with `tests: [cmd/gorgon/main_test.go]`:
 - Mutants in `pkg/config/`, `examples/`, etc. are marked **survived** (no tests cover them)
 
 This prevents false "kill" counts where tests appear to kill mutants they don't actually test.
+
+## Diff Filtering
+
+Use `-diff` to only mutate lines that have changed since a specific git reference or patch file:
+
+```
+gorgon -diff HEAD~1 ./path      # last commit
+gorgon -diff HEAD ./path        # staged changes
+gorgon -diff main ./path        # divergence from main branch
+gorgon -diff abc1234 ./path     # specific commit SHA
+gorgon -diff=path/to/file.patch ./path
+```
+
+This is useful for CI/CD pipelines to focus mutation testing on changed code only.
+
+### Config
+
+```yaml
+diff: "HEAD~1"
+```
+
+When `-config` is used, inline `//gorgon:ignore` comments are automatically added to the config file's `suppress:` section. Each comment becomes a YAML entry with the relative file path, line number, and suppressed operators:
+
+```yaml
+suppress:
+  - location: pkg/file.go:12
+    operators:
+      - panic_removal
+```
+
+Existing config suppressions are preserved and merged with inline comments. Paths are always relative to the project root, regardless of which subfolder you run Gorgon on.
 
 ## Output Files
 
