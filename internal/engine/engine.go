@@ -17,7 +17,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
+	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -29,16 +29,16 @@ var bufPool = sync.Pool{
 type Visitor func(n ast.Node) bool
 
 type Engine struct {
-	PrintAST    bool
-	sites       []Site
-	operators   []mutator.Operator
-	mu          sync.Mutex
-	projectRoot string
+	PrintAST         bool
+	sites            []Site
+	operators        []mutator.Operator
+	mu               sync.Mutex
+	projectRoot      string
 	ignoreDirectives map[string]map[int]map[string]map[int]bool
-	ProgressFunc func(current, total int)
+	ProgressFunc     func(current, total int)
 	FileProgressFunc func(filename string)
-	totalFiles   int
-	filesProcessed int
+	totalFiles       int
+	filesProcessed   int
 }
 
 func NewEngine(printAST bool) *Engine {
@@ -440,7 +440,6 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 	return e.traverseModule(path, visitor)
 }
 
-
 func findGoPackages(root string) ([]string, error) {
 	var pkgDirs []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -529,7 +528,6 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 				return true
 			}
 
-			
 			mctx := buildContextLazy(node, file, fset, fileCache, parents, true)
 
 			for _, op := range e.operators {
@@ -650,7 +648,6 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 		return fmt.Errorf("failed to load packages from %q: %w", path, err)
 	}
 
-	
 	totalFiles := 0
 	for _, pkg := range pkgs {
 		totalFiles += len(pkg.Syntax)

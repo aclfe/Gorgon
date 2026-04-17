@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 
-	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
+	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
 )
 
 var formatBufPool = sync.Pool{

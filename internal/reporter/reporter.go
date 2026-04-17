@@ -10,7 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/aclfe/gorgon/internal/testing"
+	"github.com/aclfe/gorgon/internal/core"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	stdtesting "testing"
 
+	"github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
-	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
@@ -29,10 +29,8 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
+	"github.com/aclfe/gorgon/tests/testutil"
 )
-
-
-
 
 type expectedMutations struct {
 	folder   string
@@ -71,8 +69,6 @@ var expectedResults = []expectedMutations{
 }
 
 func TestMutationCounts(tst *stdtesting.T) {
-	
-	
 
 	for _, expected := range expectedResults {
 		tst.Run(expected.folder+"/"+expected.operator, func(t *stdtesting.T) {
@@ -95,7 +91,7 @@ func TestMutationCounts(tst *stdtesting.T) {
 			sites := eng.Sites()
 			operators := []mutator.Operator{op}
 
-			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, logger.New(false), false)
+			mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, testutil.Logger(), false)
 			if err != nil {
 				t.Fatalf("GenerateAndRunSchemata failed: %v", err)
 			}
@@ -126,9 +122,9 @@ func TestMutationCounts(tst *stdtesting.T) {
 }
 
 func TestAllOperatorsCombined(tst *stdtesting.T) {
-	
+
 	tst.Skip("Slow integration test - run explicitly if needed")
-	
+
 	absPath, err := filepath.Abs("../../examples/mutations")
 	if err != nil {
 		tst.Fatal(err)
@@ -143,7 +139,7 @@ func TestAllOperatorsCombined(tst *stdtesting.T) {
 
 	sites := eng.Sites()
 
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, logger.New(false), false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, 2, nil, nil, nil, testutil.Logger(), false)
 	if err != nil {
 		tst.Fatalf("GenerateAndRunSchemata failed: %v", err)
 	}

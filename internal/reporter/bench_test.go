@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	mtest "github.com/aclfe/gorgon/internal/testing"
+	mtest "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/pkg/mutator"

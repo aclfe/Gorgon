@@ -13,11 +13,11 @@ import (
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/cli"
+	"github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/suppressions"
-	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/config"
 )
 

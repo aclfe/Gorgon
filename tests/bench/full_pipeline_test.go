@@ -12,11 +12,12 @@ import (
 	stdtesting "testing"
 	"time"
 
+	"github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
-	"github.com/aclfe/gorgon/internal/testing"
 	"github.com/aclfe/gorgon/pkg/mutator"
 	"github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
 	"github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	"github.com/aclfe/gorgon/tests/testutil"
 )
 
 const (
@@ -47,7 +48,7 @@ func BenchmarkFullMutationPipeline(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, logger.New(false), false)
+				mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, testutil.Logger(), false)
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -162,7 +163,7 @@ func BenchmarkParallelTestExecution(bnch *stdtesting.B) {
 
 			bnch.ResetTimer()
 			for i := 0; i < bnch.N; i++ {
-				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, conc, nil, nil, nil, logger.New(false), false)
+				_, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, conc, nil, nil, nil, testutil.Logger(), false)
 				if err != nil {
 					bnch.Fatal(err)
 				}
@@ -301,7 +302,7 @@ func BenchmarkMutationDetectionRate(bnch *stdtesting.B) {
 
 	bnch.ResetTimer()
 	for i := 0; i < bnch.N; i++ {
-		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, logger.New(false), false)
+		mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, absPath, defaultConcurrency, nil, nil, nil, testutil.Logger(), false)
 		if err != nil {
 			bnch.Fatal(err)
 		}
@@ -365,7 +366,7 @@ func loadTestSites(t stdtesting.TB, basePath string) ([]engine.Site, []mutator.O
 //nolint:thelper
 func prepareOnce(bnch *stdtesting.B, basePath string, sites []engine.Site, operators []mutator.Operator) (string, []testing.Mutant) {
 	bnch.Helper()
-	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, basePath, 1, nil, nil, nil, logger.New(false), false)
+	mutants, err := testing.GenerateAndRunSchemata(context.Background(), sites, operators, basePath, 1, nil, nil, nil, testutil.Logger(), false)
 	if err != nil {
 		bnch.Fatal(err)
 	}

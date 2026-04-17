@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/aclfe/gorgon/internal/cache"
+	gtest "github.com/aclfe/gorgon/internal/core"
+	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
 	"github.com/aclfe/gorgon/internal/engine"
-	gtest "github.com/aclfe/gorgon/internal/testing"
-	"github.com/aclfe/gorgon/internal/testing/schemata_nodes"
 	"github.com/aclfe/gorgon/pkg/mutator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
@@ -37,6 +37,7 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/switch_mutations"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
+	"github.com/aclfe/gorgon/tests/testutil"
 )
 
 const benchDir = "../../examples/mutations/arithmetic_flip"
@@ -199,7 +200,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, benchDir, 1, nil, nil, nil, logger.New(false), false)
+		_, err := gtest.GenerateAndRunSchemata(ctx, sites, ops, benchDir, 1, nil, nil, nil, testutil.Logger(), false)
 		cancel()
 		if err != nil {
 			b.Skipf("Schemata failed: %v", err)
