@@ -49,8 +49,7 @@ type Config struct {
 	ProgBar           bool              `yaml:"progbar"`
 	ShowKilled        bool              `yaml:"show_killed"`
 	ShowSurvived      bool              `yaml:"show_survived"`
-	Format            string            `yaml:"format"`
-	Output            string            `yaml:"output"`
+	Outputs           []string          `yaml:"outputs,omitempty"` // format:file pairs, e.g. ["junit:report.xml", "html:report"]
 	CPUProfile        string            `yaml:"cpu_profile"`
 	Exclude           []string          `yaml:"exclude"`
 	Include           []string          `yaml:"include"`
@@ -87,6 +86,7 @@ func Default() *Config {
 			Suites:  []ExternalSuite{},
 		},
 		Baseline: BaselineConfig{},
+		Outputs:  []string{},
 	}
 }
 
@@ -101,7 +101,26 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg := Default()
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	
+	// Unmarshal into a map first to capture old format/output fields
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+	
+	// Backward compatibility: convert old format+output to outputs
+	if format, ok := raw["format"].(string); ok && format != "" {
+		if output, ok := raw["output"].(string); ok && output != "" {
+			// Only add if outputs is empty
+			if _, hasOutputs := raw["outputs"]; !hasOutputs {
+				raw["outputs"] = []string{format + ":" + output}
+			}
+		}
+	}
+	
+	// Re-marshal and unmarshal with converted data
+	converted, _ := yaml.Marshal(raw)
+	if err := yaml.Unmarshal(converted, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
@@ -261,8 +280,14 @@ func (c *Config) Save(path string) error {
 	lines = append(lines, "# === Output Settings ===")
 	lines = append(lines, fmt.Sprintf("show_killed: %t", c.ShowKilled))
 	lines = append(lines, fmt.Sprintf("show_survived: %t", c.ShowSurvived))
-	lines = append(lines, fmt.Sprintf("format: %s", c.Format))
-	lines = append(lines, fmt.Sprintf("output: \"%s\"", c.Output))
+	lines = append(lines, "outputs:")
+	if len(c.Outputs) == 0 {
+		lines = append(lines, "    []")
+	} else {
+		for _, out := range c.Outputs {
+			lines = append(lines, fmt.Sprintf("    - %s", out))
+		}
+	}
 	lines = append(lines, fmt.Sprintf("cpu_profile: \"%s\"", c.CPUProfile))
 	lines = append(lines, "")
 	

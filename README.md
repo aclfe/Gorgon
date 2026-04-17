@@ -39,7 +39,7 @@ gorgon -diff=path/to/file.patch ./path
 | `-debug` | `false` | Show detailed debug output during execution |
 | `-show-killed` | `false` | Show killed mutants with test attribution |
 | `-show-survived` | `false` | Show survived mutants in output |
-| `-format` | `textfile` | Output format for report file |
+| `-format` | `textfile` | Output format for report file (textfile, html, junit, sarif, json) |
 | `-output` | `""` | Write report to file (e.g. `report.txt`) |
 | `-debug-files` | `false` | Also write debug info to `{output}.debug.txt` |
 | `-cpu-profile` | `""` | Write CPU profile to file (analyzable with `go tool pprof`) |
@@ -118,9 +118,12 @@ baseline:
 # === Output Settings ===
 show_killed: false
 show_survived: false
-format: textfile
-output: "report.txt"
-debug_files: false
+outputs:
+  - textfile:report.txt
+  - junit:mutation-results.xml
+  - sarif:mutation-results.sarif
+  - html:gorgon-report
+  - json:mutation-results.json
 cpu_profile: ""
 
 # === Directory Rules ===
@@ -139,6 +142,95 @@ suppress: []
 
 ```
 gorgon -config=gorgon.yml ./path
+```
+
+## CI Integration
+
+Gorgon supports multiple output formats for CI/CD pipelines and test dashboards.
+
+### Multiple Outputs
+
+Specify all output formats in the config file using the `outputs` list with `format:filepath` pairs:
+
+```yaml
+outputs:
+  - textfile:report.txt
+  - junit:mutation-results.xml
+  - sarif:mutation-results.sarif
+  - html:gorgon-report
+  - json:mutation-results.json
+```
+
+All formats are written in a single run. Or via CLI (single format only):
+```sh
+gorgon -format=junit -output=mutation-results.xml ./path
+```
+
+### JUnit XML
+
+For Jenkins, TeamCity, and other CI systems that parse JUnit reports:
+
+```sh
+gorgon -format=junit -output=mutation-results.xml ./path
+```
+
+Survived mutants appear as test failures, compilation errors as errors, and untested mutants as skipped.
+
+### SARIF
+
+For GitHub Code Scanning and other SARIF-compatible tools:
+
+```sh
+gorgon -format=sarif -output=mutation-results.sarif ./path
+```
+
+Upload to GitHub Actions:
+```yaml
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v2
+  with:
+    sarif_file: mutation-results.sarif
+```
+
+### HTML
+
+For local review and dashboards:
+
+```sh
+gorgon -format=html -output=gorgon-report ./path
+```
+
+### JSON
+
+For programmatic consumption and custom tooling:
+
+```sh
+gorgon -format=json -output=mutation-results.json ./path
+```
+
+Output structure:
+```json
+{
+  "summary": {
+    "total": 100,
+    "killed": 85,
+    "survived": 10,
+    "errors": 3,
+    "untested": 2,
+    "score": 89.47
+  },
+  "mutants": [
+    {
+      "id": 1,
+      "status": "killed",
+      "operator": "arithmetic_flip",
+      "file": "pkg/example.go",
+      "line": 42,
+      "column": 10,
+      "killed_by": "TestExample"
+    }
+  ]
+}
 ```
 
 ## External Test Suites

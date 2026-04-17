@@ -111,9 +111,17 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 	debugFilePath := ""
 	if cfg.Debug {
-		if cfg.Output != "" {
-			ext := filepath.Ext(cfg.Output)
-			base := strings.TrimSuffix(cfg.Output, ext)
+		// Extract output from first outputs entry
+		output := ""
+		if len(cfg.Outputs) > 0 {
+			parts := strings.SplitN(cfg.Outputs[0], ":", 2)
+			if len(parts) == 2 {
+				output = strings.TrimSpace(parts[1])
+			}
+		}
+		if output != "" {
+			ext := filepath.Ext(output)
+			base := strings.TrimSuffix(output, ext)
 			debugFilePath = base + ".debug" + ext
 		} else {
 			debugFilePath = "gorgon-debug.txt"
@@ -178,6 +186,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			Tolerance:    flags.BaselineTolerance,
 			Dir:          baseDir,
 			File:         flags.BaselineFile,
+			MultiOutputs: cfg.Outputs,
 		}
 		// Config fills in when CLI flags weren't explicitly set
 		if blOpts.Tolerance == 0 && cfg.Baseline.Tolerance > 0 {
@@ -187,7 +196,21 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			blOpts.File = cfg.Baseline.File
 		}
 
-		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath, cfg.Format, blOpts); reportErr != nil {
+		// Extract format and output from first outputs entry for backward compatibility
+		format := "textfile"
+		output := ""
+		if len(cfg.Outputs) > 0 {
+			parts := strings.SplitN(cfg.Outputs[0], ":", 2)
+			if len(parts) == 2 {
+				format = strings.TrimSpace(parts[0])
+				output = strings.TrimSpace(parts[1])
+			}
+		}
+
+		// Always write textfile to stdout when using multi-outputs
+		writeTextToStdout := len(cfg.Outputs) > 0 && format != "textfile"
+
+		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts, writeTextToStdout); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {

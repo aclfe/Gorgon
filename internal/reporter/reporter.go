@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/tabwriter"
-	"time"
 
 	"github.com/aclfe/gorgon/internal/baseline"
 	"github.com/aclfe/gorgon/internal/core"
@@ -16,11 +14,12 @@ import (
 )
 
 type BaselineOptions struct {
-	Save      bool
+	Save         bool
 	NoRegression bool
-	Tolerance float64
-	Dir       string
-	File      string
+	Tolerance    float64
+	Dir          string
+	File         string
+	MultiOutputs []string // format:file pairs from config
 }
 
 const (
@@ -28,13 +27,12 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string, blOpts BaselineOptions) error {
-	total := totalMutants
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string, blOpts BaselineOptions, writeTextToStdout bool) error {
+	// Count statuses
 	killed := 0
 	survived := 0
 	errors := 0
 	untested := 0
-	unknown := 0
 
 	for _, mutant := range mutants {
 		switch mutant.Status {
@@ -46,207 +44,92 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 			errors++
 		case "untested":
 			untested++
-		default:
-			unknown++
 		}
 	}
 
-	fileCache := make(map[string][]byte)
-
-	var outWriters []io.Writer
-	outWriters = append(outWriters, os.Stdout)
-
-	var outFile *os.File
-	if outputFile != "" && format != "html" {
-		f, err := os.Create(outputFile)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %w", err)
-		}
-		defer f.Close()
-		outFile = f
-		outWriters = append(outWriters, f)
-	}
-
-	out := io.MultiWriter(outWriters...)
-
-	if debugFile != "" {
-		if err := writeDebugInfo(mutants, killed, survived, errors, untested, debugFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to write debug file: %v\n", err)
-		}
-	}
-
-	if debug {
-		fmt.Fprintln(os.Stdout, "=== Debug Information ===")
-
-		if errors > 0 {
-			fmt.Fprintf(os.Stdout, "\nError Summary by Operator:\n")
-			opErrors := make(map[string]int)
-			opTotal := make(map[string]int)
-			for _, mutant := range mutants {
-				opTotal[mutant.Operator.Name()]++
-				if mutant.Status == "error" {
-					opErrors[mutant.Operator.Name()]++
-				}
-			}
-			for op, errCount := range opErrors {
-				total := opTotal[op]
-				pct := float64(errCount) / float64(total) * 100
-				fmt.Fprintf(os.Stdout, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
-			}
-
-			uniqueErrors := extractUniqueCompilerErrors(mutants)
-			if len(uniqueErrors) > 0 {
-				fmt.Fprintf(os.Stdout, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
-				for i, errMsg := range uniqueErrors {
-					if i >= 20 {
-						fmt.Fprintf(os.Stdout, "  ... and %d more unique error types\n", len(uniqueErrors)-20)
-						break
-					}
-					fmt.Fprintf(os.Stdout, "  • %s\n", errMsg)
-				}
-			}
-
-			fmt.Fprintf(os.Stdout, "\nPer-Mutant Compilation Errors:\n")
-			shownCount := writePerMutantErrors(os.Stdout, mutants, 200)
-			if shownCount > 200 {
-				fmt.Fprintf(os.Stdout, "  ... and %d more unique error lines (total: %d)\n", shownCount-200, shownCount)
-			} else if shownCount == 0 {
-				fmt.Fprintln(os.Stdout, "  (no detailed errors available)")
-			}
-
-			fmt.Fprintf(os.Stdout, "\nError Count by Operator:\n")
-			opErrorCount := make(map[string]int)
-			for _, mutant := range mutants {
-				if mutant.Status == "error" {
-					opErrorCount[mutant.Operator.Name()]++
-				}
-			}
-			for op, count := range opErrorCount {
-				fmt.Fprintf(os.Stdout, "  %s: %d errors\n", op, count)
-			}
-		}
-
-		fmt.Fprintln(os.Stdout, "\n=== End Debug Information ===")
-	}
-
+	// Calculate score
 	score := 0.0
 	effectiveTotal := killed + survived + untested
 	if effectiveTotal > 0 {
 		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
 	}
 
-	writer := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tUntested\tTotal"); err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-	if _, err := fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, untested, total); err != nil {
-		return fmt.Errorf("failed to write stats: %w", err)
-	}
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("failed to flush writer: %w", err)
+	// Write debug file if requested
+	if debugFile != "" {
+		if err := writeDebugInfo(mutants, killed, survived, errors, untested, debugFile); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to write debug file: %v\n", err)
+		}
 	}
 
-	if killed > 0 {
-		fmt.Fprintln(out, "\nTop Killing Tests:")
-		testKills := make(map[string]int)
-		for _, mutant := range mutants {
-			if mutant.Status == "killed" && mutant.KilledBy != "" {
-				testKills[mutant.KilledBy]++
+	// Write format-specific reports
+	if outputFile != "" || format == "textfile" {
+		switch format {
+		case "textfile":
+			if err := writeTextReport(mutants, totalMutants, threshold, resolver, debug, showKilled, showSurvived, outputFile); err != nil {
+				return fmt.Errorf("failed to write text report: %w", err)
+			}
+		case "html":
+			if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, outputFile); err != nil {
+				return fmt.Errorf("failed to write HTML report: %w", err)
+			}
+		case "junit":
+			if err := writeJUnitReport(mutants, outputFile); err != nil {
+				return fmt.Errorf("failed to write JUnit report: %w", err)
+			}
+		case "sarif":
+			if err := writeSARIFReport(mutants, outputFile); err != nil {
+				return fmt.Errorf("failed to write SARIF report: %w", err)
+			}
+		case "json":
+			if err := writeJSONReport(mutants, totalMutants, score, killed, survived, errors, untested, outputFile); err != nil {
+				return fmt.Errorf("failed to write JSON report: %w", err)
 			}
 		}
+	}
 
-		type testKill struct {
-			name  string
-			count int
-		}
-		sortedTests := make([]testKill, 0, len(testKills))
-		for name, count := range testKills {
-			sortedTests = append(sortedTests, testKill{name, count})
-		}
-		sort.Slice(sortedTests, func(i, j int) bool {
-			return sortedTests[i].count > sortedTests[j].count
-		})
-
-		maxShow := 10
-		if len(sortedTests) < maxShow {
-			maxShow = len(sortedTests)
-		}
-		for i := 0; i < maxShow; i++ {
-			fmt.Fprintf(out, "  %-50s %d kills\n", sortedTests[i].name, sortedTests[i].count)
+	// Always write textfile to stdout when using multi-outputs
+	if writeTextToStdout {
+		if err := writeTextReport(mutants, totalMutants, threshold, resolver, debug, showKilled, showSurvived, ""); err != nil {
+			return fmt.Errorf("failed to write text report to stdout: %w", err)
 		}
 	}
 
-	if killed > 0 && showKilled {
-		fmt.Fprintln(out, "\nKilled Mutants:")
-
-		shownCount := 0
-		maxShow := 0
-		for _, mutant := range mutants {
-			if mutant.Status == "killed" && (maxShow == 0 || shownCount < maxShow) {
-				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
-				killedBy := mutant.KilledBy
-				if killedBy == "" {
-					killedBy = "(unknown)"
+	// Handle multiple outputs from config (format:file pairs)
+	if len(mutants) > 0 && blOpts.MultiOutputs != nil {
+		for _, spec := range blOpts.MultiOutputs {
+			parts := strings.SplitN(spec, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			fmtType := strings.TrimSpace(parts[0])
+			file := strings.TrimSpace(parts[1])
+			if file == "" {
+				continue
+			}
+			switch fmtType {
+			case "textfile":
+				if err := writeTextReport(mutants, totalMutants, threshold, resolver, debug, showKilled, showSurvived, file); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write text report to %s: %v\n", file, err)
 				}
-				duration := ""
-				if mutant.KillDuration > 0 {
-					duration = mutant.KillDuration.Round(time.Millisecond).String()
+			case "html":
+				if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, file); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write HTML report to %s: %v\n", file, err)
 				}
-				fmt.Fprintf(out, "- #%d %s:%d:%d (%s) killed by %s (%s)\n",
-					mutant.ID,
-					mutant.Site.File.Name(),
-					mutant.Site.Line,
-					col,
-					mutant.Operator.Name(),
-					killedBy,
-					duration)
-				shownCount++
+			case "junit":
+				if err := writeJUnitReport(mutants, file); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write JUnit report to %s: %v\n", file, err)
+				}
+			case "sarif":
+				if err := writeSARIFReport(mutants, file); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write SARIF report to %s: %v\n", file, err)
+				}
+			case "json":
+				if err := writeJSONReport(mutants, totalMutants, score, killed, survived, errors, untested, file); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write JSON report to %s: %v\n", file, err)
+				}
 			}
 		}
-		if maxShow > 0 && killed > maxShow {
-			fmt.Fprintf(out, "  ... and %d more killed mutants\n", killed-maxShow)
-		}
 	}
-
-	if showSurvived {
-		fmt.Fprintln(out, "\nSurvived Mutants:")
-		hasSurvived := false
-		for _, mutant := range mutants {
-			if mutant.Status == "survived" {
-				hasSurvived = true
-				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
-				fmt.Fprintf(out, "- %s in %s:%d:%d (Operator: %s)\n",
-					mutant.Status,
-					mutant.Site.File.Name(),
-					mutant.Site.Line,
-					col,
-					mutant.Operator.Name())
-			}
-		}
-		if !hasSurvived {
-			fmt.Fprintln(out, "  (none)")
-		}
-	}
-
-	if threshold > 0 && effectiveTotal > 0 && score < threshold {
-		// Check per-package thresholds if resolver is available
-		if resolver != nil && resolver.HasAnyOverrides() {
-			if err := checkPerPackageThresholds(mutants, threshold, resolver, out); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
-		}
-	}
-
-	// Write HTML report if format is html
-	if format == "html" {
-		if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, outputFile); err != nil {
-			return fmt.Errorf("failed to write HTML report: %w", err)
-		}
-	}
-
-	_ = outFile
 
 	// Baseline / ratchet handling
 	if blOpts.Save || blOpts.NoRegression {
@@ -255,7 +138,7 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 			Killed:   killed,
 			Survived: survived,
 			Untested: untested,
-			Total:    total,
+			Total:    totalMutants,
 		}
 
 		if blOpts.Save {
@@ -266,7 +149,7 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 			if path == "" {
 				path = baseline.DefaultFile
 			}
-			fmt.Fprintf(out, "\nBaseline saved: %.2f%% → %s\n", score, path)
+			fmt.Fprintf(os.Stdout, "\nBaseline saved: %.2f%% → %s\n", score, path)
 		}
 
 		if blOpts.NoRegression {
@@ -281,7 +164,7 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 					if path == "" {
 						path = baseline.DefaultFile
 					}
-					fmt.Fprintf(out, "\nNo baseline found — saved current score %.2f%% as baseline: %s\n", score, path)
+					fmt.Fprintf(os.Stdout, "\nNo baseline found — saved current score %.2f%% as baseline: %s\n", score, path)
 				} else {
 					return fmt.Errorf("failed to load baseline: %w", err)
 				}
@@ -289,7 +172,7 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 				if err := baseline.CheckRegression(current, saved, blOpts.Tolerance); err != nil {
 					return err
 				}
-				fmt.Fprintf(out, "\nBaseline check passed: %.2f%% ≥ %.2f%% (tolerance: %.2f%%)\n",
+				fmt.Fprintf(os.Stdout, "\nBaseline check passed: %.2f%% ≥ %.2f%% (tolerance: %.2f%%)\n",
 					score, saved.Score, blOpts.Tolerance)
 			}
 		}

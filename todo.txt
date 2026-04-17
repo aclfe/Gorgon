@@ -25,7 +25,8 @@ so currently added features that help big repos. external test suites, diff test
     - function signature, variable rep mutation. shouldn't be. 
     - needs more fixes and in depth changes. 
 - overlapping debugs. output.debug.txt and gorgon-reporty.debug. 
-
+fix sarif and juit output.
+lack of debugging info and output's not having proper logs
 -----
 
 

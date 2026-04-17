@@ -1,0 +1,6 @@
+[INFO] Loaded sub-configs from 1 directories
+[DEBUG] External suites enabled with 1 suites
+[DEBUG] GenerateAndRunSchemata called with externalCfg.Enabled=true, suites=1
+[DEBUG] After cache check: uncachedIndices nil=false
+[DEBUG] Checking for go.mod at projectRoot: /home/aclfe/Desktop/coding/Gorgon/go.mod
+[DEBUG] go.mod found, using workspace mode

@@ -64,7 +64,7 @@ func Parse(args []string) (*Flags, error) {
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
 	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
-	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile, html)")
+	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile, html, junit, sarif, json)")
 	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt) or directory (for html)")
 	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
 	fs.BoolVar(&f.NoRegression, "no-regression", false, "Fail if mutation score drops below saved baseline")
@@ -131,8 +131,10 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	cfg.ProgBar = f.ProgBar
 	cfg.ShowKilled = f.ShowKilled
 	cfg.ShowSurvived = f.ShowSurvived
-	cfg.Format = f.Format
-	cfg.Output = f.Output
+	// Convert CLI format/output to outputs format
+	if f.Format != "textfile" || f.Output != "" {
+		cfg.Outputs = []string{f.Format + ":" + f.Output}
+	}
 	cfg.CPUProfile = f.CPUProfile
 	return cfg, nil
 }
@@ -199,7 +201,7 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
 	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
-	fmt.Fprintln(os.Stderr, "  -format string        output format for report file (textfile, html)")
+	fmt.Fprintln(os.Stderr, "  -format string        output format for report file (textfile, html, junit, sarif, json)")
 	fmt.Fprintln(os.Stderr, "  -output string        write report to file (e.g. report.txt) or directory (for html)")
 	fmt.Fprintln(os.Stderr, "  -no-regression        fail if mutation score drops below saved baseline")
 	fmt.Fprintln(os.Stderr, "  -baseline-file string path to baseline file (default: .gorgon-baseline.json)")

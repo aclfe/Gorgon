@@ -43,13 +43,12 @@ debug: true
 baseline:
     no_regression: false
     tolerance: 0.0
-    # file: ".gorgon-baseline.json"
 
 # === Output Settings ===
-show_killed: false
-show_survived: false
-format: html
-output: "gorgon-report"
+show_killed: true
+show_survived: true
+outputs:
+    - textfile:mutation-results.txt
 cpu_profile: ""
 
 # === Suppressions (Auto-managed) ===
