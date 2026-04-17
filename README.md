@@ -70,6 +70,14 @@ skip_func:
   - foo/bar.go:MyFunc
 tests: []
 diff: ""
+dir_rules:
+  - dir: internal/core
+    whitelist:
+      - arithmetic_flip
+      - boundary_value
+  - dir: internal/api
+    blacklist:
+      - all
 debug: false
 base: ""
 cpu_profile: ""
@@ -260,6 +268,294 @@ suppress:
 ```
 
 Existing config suppressions are preserved and merged with inline comments. Paths are always relative to the project root, regardless of which subfolder you run Gorgon on.
+
+## Per-Directory Operator Rules
+
+Use `dir_rules` in your config file to control which operators apply to specific directories. This is useful for enforcing different mutation testing policies across different parts of your codebase.
+
+### Whitelist
+
+Only allow specific operators in a directory:
+
+```yaml
+dir_rules:
+  - dir: internal/core
+    whitelist:
+      - arithmetic_flip
+      - boundary_value
+      - condition_negation
+```
+
+### Blacklist
+
+Block specific operators in a directory:
+
+```yaml
+dir_rules:
+  - dir: internal/api
+    blacklist:
+      - defer_removal
+      - concurrency
+```
+
+### Exclude Entire Directory
+
+Use `all` as a blacklist value to skip an entire directory:
+
+```yaml
+dir_rules:
+  - dir: vendor/
+    blacklist:
+      - all
+```
+
+### How It Works
+
+- Rules match by directory prefix (longest match wins)
+- Whitelist takes precedence over blacklist
+- If no rule matches, all operators apply
+- `dir_rules` is config-file-only (not a CLI flag)
+
+### Example Config
+
+```yaml
+dir_rules:
+  - dir: internal/core
+    whitelist:
+      - arithmetic_flip
+      - math_operators
+      - boundary_value
+  - dir: internal/api
+    blacklist:
+      - all
+  - dir: pkg/config
+    blacklist:
+      - concurrency
+      - defer_removal
+```
+
+## Per-Package / Per-Module Configuration Overrides
+
+This is a meaningful feature for monorepos. Sub-configs are named `gorgon.yml` and discovered during a tree walk. The root config is identified by being explicitly passed via `-config`; everything else found during the tree walk is a sub-config.
+
+### Discovery Model
+
+- Sub-configs are named `gorgon.yml` — same filename as the root
+- Discovery skips `vendor/`, `.git/`, and `_`-prefixed directories
+- Chaining behavior: root → core/gorgon.yml → core/auth/gorgon.yml for a file in core/auth/
+- Each level in the chain applies in order
+
+### What's Overrideable
+
+**Replace semantics** (deepest sub-config wins outright):
+- `operators` — core risk profile decision, a subtree owns this entirely
+- `threshold` — different quality bars per package (generated code vs. core library)
+- `tests` — a subtree may have its own test suite or integration tests
+- `concurrent` — a subtree with expensive tests may want to throttle parallelism
+
+**Merge/additive semantics** (all levels in the chain contribute):
+- `exclude` / `include` — accumulated; deeper configs add more file filters
+- `skip` / `skip_func` — accumulated; you never want a parent to un-skip something a child skipped
+- `suppress` — accumulated; suppressions only grow as you go deeper
+- `dir_rules` — accumulated; deeper rules are more specific and evaluated with existing longest-prefix logic
+
+**Not overrideable** (global only):
+- `cache`, `dry_run`, `debug`, `progbar` — run-mode flags
+- `format`, `output`, `cpu_profile` — output concerns, single report
+- `diff` — a global VCS filter
+- `base` — structural, set once
+
+### How It Works
+
+1. **Discovery**: Gorgon walks the project tree looking for `gorgon.yml` files (excluding `vendor/`, `.git/`, `_`-prefixed dirs)
+2. **Chaining**: For each file, Gorgon builds a chain of all sub-configs that are ancestors-or-self
+3. **Resolution**: 
+   - `operators`, `threshold`, `tests`, `concurrent`: deepest sub-config wins
+   - `exclude`, `include`, `skip`, `skip_func`, `suppress`, `dir_rules`: accumulated across all levels
+
+### Example
+
+```yaml
+# Root config (gorgon.yml at project root)
+threshold: 80
+operators:
+  - all
+
+# In internal/core/gorgon.yml
+threshold: 90
+operators:
+  - arithmetic_flip
+  - boundary_value
+
+# In internal/api/gorgon.yml
+threshold: 70
+concurrent: 2
+```
+
+For a file in `internal/api/handler.go`:
+- Uses `threshold: 70` (from api sub-config)
+- Uses `operators: [all]` (from root, since api doesn't specify operators)
+- Uses `concurrent: 2` (from api sub-config)
+
+### Per-Package Threshold Checking
+
+When sub-configs are present, mutation score thresholds are checked per-package. Each package can have its own threshold defined in its sub-config. The reporter will show which packages failed their threshold check:
+
+```
+Packages below threshold:
+ pkg/testdata/subconfig: 85.00% (threshold 90.00%)
+```
+
+### Logging
+
+When sub-configs are discovered, Gorgon logs the count:
+```
+Loaded sub-configs from 3 directories
+```
+
+In debug mode, additional details about operator filtering per directory are shown:
+```
+[DEBUG] Dir rule internal/core: whitelist 3 operators for internal/core/handler.go
+```
+
+### Important Notes
+
+- Sub-configs work with or without `go.mod` files in subdirectories
+- The `operators` field in a sub-config applies to ALL files in that directory subtree
+- To have different operators for nested directories, create separate `gorgon.yml` files in each nested directory
+- `dir_rules` in a sub-config provides fine-grained control WITHIN that directory's subtree
+
+### Sub-Config File Format
+
+A sub-config file (`gorgon.yml`) in a subdirectory can contain any of the overrideable fields:
+
+```yaml
+# Example: internal/core/gorgon.yml
+threshold: 90
+operators:
+  - arithmetic_flip
+  - boundary_value
+  - condition_negation
+concurrent: 2
+tests:
+  - internal/core/core_test.go
+exclude:
+  - '*_generated.go'
+skip:
+  - internal/core/legacy/
+skip_func:
+  - internal/core/legacy/legacy.go:OldFunc
+suppress:
+  - location: internal/core/legacy/legacy.go:42
+    operators:
+      - arithmetic_flip
+dir_rules:
+  - dir: internal/core/internal
+    blacklist:
+      - all
+```
+
+### Sub-Config Precedence
+
+When multiple sub-configs apply to a file (e.g., root → core → core/auth), the precedence is:
+
+1. **For replace fields** (`operators`, `threshold`, `tests`, `concurrent`):
+   - Deepest sub-config wins
+   - If a field is not set in a sub-config, it falls back to the parent
+
+2. **For merge fields** (`exclude`, `include`, `skip`, `skip_func`, `suppress`, `dir_rules`):
+   - All sub-configs contribute
+   - Order: root → deeper → deepest
+   - Later entries are appended to earlier ones
+
+3. **For dir_rules specifically**:
+   - Rules from all levels are accumulated
+   - Longest-prefix matching still applies within the merged set
+   - Whitelist takes precedence over blacklist
+
+### Example: Nested Sub-Configs
+
+```
+project/
+├── gorgon.yml              # root: threshold=80, operators=[all]
+├── internal/
+│   ├── gorgon.yml          # internal: threshold=90, operators=[arithmetic_flip]
+│   └── core/
+│       ├── gorgon.yml      # core: threshold=95, operators=[boundary_value]
+│       └── handler.go      # Uses: threshold=95, operators=[boundary_value]
+```
+
+For `internal/core/handler.go`:
+- `threshold`: 95 (from core sub-config)
+- `operators`: [boundary_value] (from core sub-config)
+- `exclude`, `skip`, etc.: accumulated from all three configs
+
+### Deep Dive: How Sub-Configs Are Resolved
+
+#### 1. Discovery Phase
+
+Gorgon walks the directory tree starting from the project root:
+
+```
+project/
+├── gorgon.yml              # Root config (explicitly passed via -config)
+├── internal/
+│   ├── gorgon.yml          # Sub-config #1
+│   └── core/
+│       ├── gorgon.yml      # Sub-config #2
+│       └── handler.go
+```
+
+Each `gorgon.yml` found (except the root config) is stored as a sub-config entry with its directory path.
+
+#### 2. Chain Building
+
+For each file being mutated, Gorgon builds a chain of applicable sub-configs:
+
+```
+File: project/internal/core/handler.go
+
+Chain (shallowest → deepest):
+1. project/internal/gorgon.yml
+2. project/internal/core/gorgon.yml
+```
+
+The chain includes all sub-configs that are ancestors of the file's directory.
+
+#### 3. Field Resolution
+
+**Replace fields** (last one wins):
+- `operators`: Walk chain deepest→shallowest, return first non-empty list
+- `threshold`: Walk chain deepest→shallowest, return first non-nil pointer
+- `tests`: Walk chain deepest→shallowest, return first non-empty list
+- `concurrent`: Walk chain deepest→shallowest, return first non-empty string
+
+**Merge fields** (accumulate all):
+- `exclude`: root.Exclude + chain[0].Exclude + chain[1].Exclude + ...
+- `include`: root.Include + chain[0].Include + chain[1].Include + ...
+- `skip`: root.Skip + chain[0].Skip + chain[1].Skip + ...
+- `skip_func`: root.SkipFunc + chain[0].SkipFunc + chain[1].SkipFunc + ...
+- `suppress`: root.Suppress + chain[0].Suppress + chain[1].Suppress + ...
+- `dir_rules`: root.DirRules + chain[0].DirRules + chain[1].DirRules + ...
+
+#### 4. Operator Application
+
+For each mutation site:
+
+1. Start with root operators (or all operators if root has `all`)
+2. Apply sub-config operator override (replace semantics)
+3. Apply dir_rules filtering (merge semantics from all levels)
+4. Generate mutants with the final operator list
+
+#### 5. Threshold Checking
+
+When reporting results:
+
+1. Group mutants by their package directory
+2. For each package, look up the effective threshold from the chain
+3. Calculate mutation score for that package
+4. Check if score meets the package's threshold
+5. Report any packages that failed their threshold
 
 ## Output Files
 

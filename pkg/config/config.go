@@ -13,27 +13,34 @@ type SuppressEntry struct {
 	Operators []string `yaml:"operators,omitempty"`
 }
 
+type DirOperatorRule struct {
+	Dir       string   `yaml:"dir"`
+	Whitelist []string `yaml:"whitelist,omitempty"`
+	Blacklist []string `yaml:"blacklist,omitempty"`
+}
+
 type Config struct {
-	Operators    []string        `yaml:"operators"`
-	Concurrent   string          `yaml:"concurrent"`
-	Threshold    float64         `yaml:"threshold"`
-	Cache        bool            `yaml:"cache"`
-	DryRun       bool            `yaml:"dry_run"`
-	Debug        bool            `yaml:"debug"`
-	ProgBar      bool            `yaml:"progbar"`
-	ShowKilled   bool            `yaml:"show_killed"`
-	ShowSurvived bool            `yaml:"show_survived"`
-	Format       string          `yaml:"format"`
-	Output       string          `yaml:"output"`
-	CPUProfile   string          `yaml:"cpu_profile"`
-	Exclude      []string        `yaml:"exclude"`
-	Include      []string        `yaml:"include"`
-	Skip         []string        `yaml:"skip"`
-	SkipFunc     []string        `yaml:"skip_func"`
-	Tests        []string        `yaml:"tests"`
-	Base         string          `yaml:"base"`
-	Suppress     []SuppressEntry `yaml:"suppress"`
-	Diff         string          `yaml:"diff,omitempty"`
+	Operators    []string          `yaml:"operators"`
+	Concurrent   string            `yaml:"concurrent"`
+	Threshold    float64           `yaml:"threshold"`
+	Cache        bool              `yaml:"cache"`
+	DryRun       bool              `yaml:"dry_run"`
+	Debug        bool              `yaml:"debug"`
+	ProgBar      bool              `yaml:"progbar"`
+	ShowKilled   bool              `yaml:"show_killed"`
+	ShowSurvived bool              `yaml:"show_survived"`
+	Format       string            `yaml:"format"`
+	Output       string            `yaml:"output"`
+	CPUProfile   string            `yaml:"cpu_profile"`
+	Exclude      []string          `yaml:"exclude"`
+	Include      []string          `yaml:"include"`
+	Skip         []string          `yaml:"skip"`
+	SkipFunc     []string          `yaml:"skip_func"`
+	Tests        []string          `yaml:"tests"`
+	Base         string            `yaml:"base"`
+	Suppress     []SuppressEntry   `yaml:"suppress"`
+	Diff         string            `yaml:"diff,omitempty"`
+	DirRules     []DirOperatorRule `yaml:"dir_rules,omitempty"`
 }
 
 func Default() *Config {
@@ -49,6 +56,7 @@ func Default() *Config {
 		SkipFunc:   []string{},
 		Tests:      []string{},
 		Suppress:   []SuppressEntry{},
+		DirRules:   []DirOperatorRule{},
 	}
 }
 

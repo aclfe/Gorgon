@@ -14,6 +14,8 @@ import (
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
+	"github.com/aclfe/gorgon/internal/subconfig"
+	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
@@ -21,9 +23,9 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, baseDir string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool) ([]Mutant, error) {
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool) ([]Mutant, error) {
 
-	mutants := GenerateMutants(sites, operators)
+	mutants := GenerateMutants(sites, operators, allOps, projectRoot, dirRules, resolver, log)
 	if len(mutants) == 0 {
 		return nil, nil
 	}

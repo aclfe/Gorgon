@@ -1,30 +1,24 @@
-[DEBUG] Diff filter: 7 files with changes, 60 mutation sites after filtering
-[INFO] No test binary for ./internal/cli — package has no test files, 16 mutant(s) marked untested
-[INFO] No test binary for ./internal/runner — package has no test files, 36 mutant(s) marked untested
-Mutation Score: 0.00%
-Killed: 0
+[INFO] Loaded sub-configs from 1 directories
+[DEBUG] Mutant #2 killed (pkg: /tmp/gorgon-standalone-2852297477/pkg-0/pkg/testdata/subconfig, timeout=10s, killed_by=TestSubtract, duration=2.484291ms)
+  Cmd: /tmp/gorgon-standalone-2852297477/pkg-0/pkg/testdata/subconfig/package.test [-test.timeout=10s]
+  Output: --- FAIL: TestSubtract (0.00s)
+    example_test.go:13: Subtract(5, 3) = 8, want 2
+FAIL
+
+[DEBUG] Mutant #1 killed (pkg: /tmp/gorgon-standalone-2852297477/pkg-0/pkg/testdata/subconfig, timeout=10s, killed_by=TestAdd, duration=2.799862ms)
+  Cmd: /tmp/gorgon-standalone-2852297477/pkg-0/pkg/testdata/subconfig/package.test [-test.timeout=10s]
+  Output: --- FAIL: TestAdd (0.00s)
+    example_test.go:7: Add(2, 3) = -1, want 5
+FAIL
+
+Mutation Score: 100.00%
+Killed: 2
 Survived: 0
 Errors: 0
-Untested: 52
-Total: 52
+Untested: 0
+Total: 2
 
-Error Summary by Operator:
-
-Untested by Operator (binary missing - package failed to compile):
-  if_condition_true                   6/6 untested (100.0%)
-  nil_check_removal                   2/2 untested (100.0%)
-  logical_operator                    8/8 untested (100.0%)
-  negate_condition                    7/7 untested (100.0%)
-  zero_value_return_error             1/1 untested (100.0%)
-  assignment_operator                 3/3 untested (100.0%)
-  loop_body_removal                   1/1 untested (100.0%)
-  loop_break_first                    1/1 untested (100.0%)
-  function_call_removal               5/5 untested (100.0%)
-  condition_negation                  12/12 untested (100.0%)
-  if_condition_false                  6/6 untested (100.0%)
-
-Per-Mutant Compilation Errors (unlimited):
-  (no detailed errors available)
-
-Error Count by Operator:
+Top Killing Tests:
+  TestAdd                                            1 kills
+  TestSubtract                                       1 kills
 

@@ -190,6 +190,19 @@ func List() []Operator {
 	return globalRegistry.List()
 }
 
+// ListAll returns every registered operator regardless of selection.
+// Used by sub-config resolution to map operator names to instances.
+func ListAll() []Operator {
+	ops := make([]Operator, 0, len(globalRegistry.operators))
+	for _, op := range globalRegistry.operators {
+		ops = append(ops, op)
+	}
+	for _, init := range globalRegistry.initializers {
+		ops = append(ops, init())
+	}
+	return ops
+}
+
 func All() map[string]Operator {
 	return globalRegistry.All()
 }

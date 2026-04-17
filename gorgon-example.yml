@@ -1,7 +1,9 @@
-# Basic Configuration
+operators:
+    - all
+concurrent: all
 threshold: 80
-dry_run: false
 cache: false
+dry_run: false
 debug: true
 progbar: true
 show_killed: true
@@ -9,14 +11,6 @@ show_survived: true
 format: textfile
 output: output.txt
 cpu_profile: ""
-diff: ""
-
-#Controlling the way mutations are generated and tested
-operators:
-    - all
-concurrent: all
-tests: []
-base: ""
 exclude:
     - '*_test.go'
 include: []
@@ -25,13 +19,21 @@ skip:
 skip_func:
     - foo/bar.go:MyFunc
     - examples/mutations/variable_replacement/variable_replacement.go:FindMax
-
-#Automatically syned as gorgon comments are put in codebase
+tests: []
+base: ""
 suppress:
+    - location: examples/mutations/negate_condition/negate_condition.go:6
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:
         - panic_removal
     - location: examples/mutations/panic_removal/panic_removal.go:6
       operators:
         - panic_removal:9
-    - location: examples/mutations/negate_condition/negate_condition.go:6
+dir_rules:
+    - dir: internal/core
+      whitelist:
+        - arithmetic_flip
+        - boundary_value
+    - dir: internal/api
+      blacklist:
+        - all

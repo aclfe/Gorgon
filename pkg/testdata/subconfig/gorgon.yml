@@ -1,0 +1,30 @@
+# Sub-config for pkg/testdata/subconfig
+# This overrides the root config for this directory only
+
+# Only use arithmetic operators in this subtree
+operators:
+    - arithmetic_flip
+    - boundary_value
+
+# Higher threshold for this critical package
+threshold: 40
+
+# Skip test files in this subtree
+exclude:
+    - '*_test.go'
+
+# Skip specific function
+skip_func:
+    - pkg/testdata/subconfig/example.go:SkipThis
+
+# Additional suppressions for this subtree
+suppress:
+    - location: pkg/testdata/subconfig/example.go:10
+      operators:
+        - arithmetic_flip
+
+# Additional dir rules for nested directories
+dir_rules:
+    - dir: pkg/testdata/subconfig/nested
+      blacklist:
+        - all

@@ -1,5 +1,13 @@
 Mutation Score  Killed  Survived  Errors  Untested  Total
-0.00%           0       0         0       52        52
+100.00%         2       0         0       0         2
+
+Top Killing Tests:
+  TestAdd                                            1 kills
+  TestSubtract                                       1 kills
+
+Killed Mutants:
+- #1 /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go:5:14 (arithmetic_flip) killed by TestAdd (3ms)
+- #2 /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go:10:14 (arithmetic_flip) killed by TestSubtract (2ms)
 
 Survived Mutants:
   (none)

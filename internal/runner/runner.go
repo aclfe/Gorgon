@@ -18,8 +18,10 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
+	"github.com/aclfe/gorgon/internal/subconfig"
 	"github.com/aclfe/gorgon/internal/suppressions"
 	"github.com/aclfe/gorgon/pkg/config"
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
@@ -40,6 +42,12 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	projectRoot := findProjectRoot(targets[0], cfg.Base)
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
+
+	// Discover sub-configs
+	resolver, err := subconfig.Discover(projectRoot, configPath)
+	if err != nil {
+		return fmt.Errorf("failed to discover sub-configs: %w", err)
+	}
 
 	if cfg.ProgBar {
 		var mu sync.Mutex
@@ -80,7 +88,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	}
 
 	sites := eng.Sites()
-	sites = FilterSites(sites, targets, cfg.Exclude, cfg.Include, cfg.Skip, cfg.SkipFunc)
+	sites = FilterSites(sites, targets, cfg, resolver)
 
 	if cfg.ProgBar {
 		fmt.Fprintf(os.Stderr, "Found %d mutation sites\n", len(sites))
@@ -89,15 +97,6 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	baseDir := targets[0]
 	if info, err := os.Stat(targets[0]); err == nil && !info.IsDir() {
 		baseDir = filepath.Dir(targets[0])
-	}
-
-	if cfg.DryRun {
-		mutants := testing.GenerateMutants(sites, ops)
-		fmt.Printf("Total mutants: %d\n\n", len(mutants))
-		for _, m := range mutants {
-			fmt.Printf("#%d %s:%d:%d (%s)\n", m.ID, m.Site.File.Name(), m.Site.Line, m.Site.Column, m.Operator.Name())
-		}
-		return nil
 	}
 
 	ctx := context.Background()
@@ -136,6 +135,10 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 
+	if resolver.HasAnyOverrides() {
+		log.Info("Loaded sub-configs from %d directories", resolver.Entries())
+	}
+
 	if cfg.Diff != "" {
 		changedLines, err := diff.Resolve(cfg.Diff)
 		if err != nil {
@@ -144,18 +147,29 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 		if changedLines != nil {
 			sites = FilterSitesByDiff(sites, changedLines)
-			log.Debug("Diff filter: %d files with changes, %d mutation sites after filtering", len(changedLines), len(sites))
+			log.Info("Diff filter: %d files with changes, %d mutation sites after filtering", len(changedLines), len(sites))
 			if cfg.ProgBar {
 				fmt.Fprintf(os.Stderr, "Diff filter: %d mutation sites after filtering\n", len(sites))
 			}
 		}
 	}
 
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, baseDir, concurrent, c, tests, testPaths, log, cfg.ProgBar)
+	if cfg.DryRun {
+		allOps := mutator.ListAll()
+		mutants := testing.GenerateMutants(sites, ops, allOps, projectRoot, cfg.DirRules, resolver, log)
+		fmt.Printf("Total mutants: %d\n\n", len(mutants))
+		for _, m := range mutants {
+			fmt.Printf("#%d %s:%d:%d (%s)\n", m.ID, m.Site.File.Name(), m.Site.Line, m.Site.Column, m.Operator.Name())
+		}
+		return nil
+	}
+
+	allOps := mutator.ListAll()
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar)
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
-		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
+		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, cfg.Output, debugFilePath); reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {
@@ -181,26 +195,23 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	return nil
 }
 
-func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, skipFunc []string) []engine.Site {
-	if len(exclude) == 0 && len(include) == 0 && len(skip) == 0 && len(skipFunc) == 0 {
-		return sites
-	}
-
-	skipFuncMap := make(map[string]map[string]bool)
-	for _, sf := range skipFunc {
-		parts := strings.SplitN(sf, ":", 2)
-		if len(parts) == 2 {
-			file, name := parts[0], parts[1]
-			if skipFuncMap[name] == nil {
-				skipFuncMap[name] = make(map[string]bool)
-			}
-			skipFuncMap[name][file] = true
-		}
-	}
-
+func FilterSites(sites []engine.Site, targets []string, cfg *config.Config, resolver *subconfig.Resolver) []engine.Site {
 	var filtered []engine.Site
 	for _, site := range sites {
 		filePath := site.File.Name()
+
+		// Get effective filters for this specific file
+		var exclude, include, skip, skipFunc []string
+		if resolver != nil && resolver.HasAnyOverrides() {
+			exclude, include, skip, skipFunc = resolver.EffectiveFilters(filePath, cfg)
+		} else {
+			exclude, include, skip, skipFunc = cfg.Exclude, cfg.Include, cfg.Skip, cfg.SkipFunc
+		}
+
+		if len(exclude) == 0 && len(include) == 0 && len(skip) == 0 && len(skipFunc) == 0 {
+			filtered = append(filtered, site)
+			continue
+		}
 
 		relPath := filePath
 		cwdRel := filePath
@@ -222,6 +233,18 @@ func FilterSites(sites []engine.Site, targets []string, exclude, include, skip, 
 
 		if shouldSkip(relPath, cwdRel, skip) {
 			continue
+		}
+
+		skipFuncMap := make(map[string]map[string]bool)
+		for _, sf := range skipFunc {
+			parts := strings.SplitN(sf, ":", 2)
+			if len(parts) == 2 {
+				file, name := parts[0], parts[1]
+				if skipFuncMap[name] == nil {
+					skipFuncMap[name] = make(map[string]bool)
+				}
+				skipFuncMap[name][file] = true
+			}
 		}
 
 		if shouldSkipFunc(site.FunctionName, relPath, cwdRel, skipFuncMap) {

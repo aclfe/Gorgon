@@ -5,12 +5,17 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
 	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/logger"
+	"github.com/aclfe/gorgon/internal/subconfig"
+	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
@@ -29,7 +34,82 @@ type Mutant struct {
 	ErrorReason  string
 }
 
-func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant {
+func effectiveOperators(filePath, projectRoot string, base []mutator.Operator, rules []config.DirOperatorRule, log *logger.Logger) []mutator.Operator {
+	if len(rules) == 0 {
+		return base
+	}
+
+	rel, err := filepath.Rel(projectRoot, filePath)
+	if err != nil {
+		return base
+	}
+
+	// Find longest-prefix (most specific) matching rule
+	bestLen := -1
+	var best *config.DirOperatorRule
+	for i := range rules {
+		r := &rules[i]
+		dir := filepath.Clean(r.Dir)
+		if rel == dir || strings.HasPrefix(rel, dir+string(filepath.Separator)) {
+			if len(dir) > bestLen {
+				bestLen = len(dir)
+				best = r
+			}
+		}
+	}
+
+	if best == nil {
+		return base
+	}
+
+	// Whitelist takes priority
+	if len(best.Whitelist) > 0 {
+		allow := make(map[string]bool, len(best.Whitelist))
+		for _, op := range best.Whitelist {
+			allow[strings.TrimSpace(op)] = true
+		}
+		var out []mutator.Operator
+		for _, op := range base {
+			if allow[op.Name()] {
+				out = append(out, op)
+			}
+		}
+		if log != nil && log.IsDebug() {
+			log.Debug("Dir rule %s: whitelist %d operators for %s", best.Dir, len(out), rel)
+		}
+		return out
+	}
+
+	if len(best.Blacklist) > 0 {
+		// Check for "all" shorthand
+		for _, op := range best.Blacklist {
+			if strings.TrimSpace(op) == "all" {
+				if log != nil && log.IsDebug() {
+					log.Debug("Dir rule %s: blacklist all operators for %s", best.Dir, rel)
+				}
+				return nil
+			}
+		}
+		deny := make(map[string]bool, len(best.Blacklist))
+		for _, op := range best.Blacklist {
+			deny[strings.TrimSpace(op)] = true
+		}
+		var out []mutator.Operator
+		for _, op := range base {
+			if !deny[op.Name()] {
+				out = append(out, op)
+			}
+		}
+		if log != nil && log.IsDebug() {
+			log.Debug("Dir rule %s: blacklist %d operators for %s", best.Dir, len(base)-len(out), rel)
+		}
+		return out
+	}
+
+	return base
+}
+
+func GenerateMutants(sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, log *logger.Logger) []Mutant {
 
 	type siteKey struct {
 		file string
@@ -50,6 +130,22 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 	})
 
 	for _, site := range sites {
+		// 1. Apply sub-config operator override (replace semantics)
+		ops := operators
+		if resolver != nil && resolver.HasAnyOverrides() {
+			ops = resolver.EffectiveOperators(site.File.Name(), operators, allOps)
+		}
+
+		// 2. Apply dir_rules on top (existing logic, but with merged rules)
+		effectiveDirRules := dirRules
+		if resolver != nil && resolver.HasAnyOverrides() {
+			effectiveDirRules = resolver.EffectiveDirRules(site.File.Name(), dirRules)
+		}
+		ops = effectiveOperators(site.File.Name(), projectRoot, ops, effectiveDirRules, log)
+		if len(ops) == 0 {
+			continue
+		}
+
 		key := siteKey{
 			file: site.File.Name(),
 			line: site.Line,
@@ -61,7 +157,7 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator) []Mutant
 		}
 		seen[key] = true
 
-		for _, op := range sortedOps {
+		for _, op := range ops {
 			if canApply(op, site) {
 				mutants = append(mutants, Mutant{
 					ID:       mutantID,

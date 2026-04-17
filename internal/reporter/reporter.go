@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aclfe/gorgon/internal/core"
+	"github.com/aclfe/gorgon/internal/subconfig"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 	tabWidth             = 4
 )
 
-func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string) error {
 	total := totalMutants
 	killed := 0
 	survived := 0
@@ -219,11 +220,68 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, debug
 	}
 
 	if threshold > 0 && effectiveTotal > 0 && score < threshold {
-		return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
+		// Check per-package thresholds if resolver is available
+		if resolver != nil && resolver.HasAnyOverrides() {
+			if err := checkPerPackageThresholds(mutants, threshold, resolver, out); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
+		}
 	}
 
 	_ = outFile
 
+	return nil
+}
+
+func checkPerPackageThresholds(mutants []testing.Mutant, rootThreshold float64, resolver *subconfig.Resolver, out io.Writer) error {
+	// Group mutants by package directory
+	type pkgStats struct {
+		killed, survived, untested int
+		sampleFile                 string
+	}
+	pkgs := make(map[string]*pkgStats)
+	for _, m := range mutants {
+		if m.Site.File == nil {
+			continue
+		}
+		dir := filepath.Dir(m.Site.File.Name())
+		if pkgs[dir] == nil {
+			pkgs[dir] = &pkgStats{sampleFile: m.Site.File.Name()}
+		}
+		switch m.Status {
+		case "killed":
+			pkgs[dir].killed++
+		case "survived":
+			pkgs[dir].survived++
+		case "untested":
+			pkgs[dir].untested++
+		}
+	}
+
+	var failures []string
+	for dir, stats := range pkgs {
+		effective := stats.killed + stats.survived + stats.untested
+		if effective == 0 {
+			continue
+		}
+		score := float64(stats.killed) / float64(effective) * percentageMultiplier
+		threshold := resolver.EffectiveThreshold(stats.sampleFile, rootThreshold)
+		if threshold > 0 && score < threshold {
+			failures = append(failures,
+				fmt.Sprintf(" %s: %.2f%% (threshold %.2f%%)", dir, score, threshold))
+		}
+	}
+
+	if len(failures) > 0 {
+		sort.Strings(failures)
+		fmt.Fprintln(out, "\nPackages below threshold:")
+		for _, f := range failures {
+			fmt.Fprintln(out, f)
+		}
+		return fmt.Errorf("%d package(s) below mutation score threshold", len(failures))
+	}
 	return nil
 }
 
