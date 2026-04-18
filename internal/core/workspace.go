@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -73,7 +74,7 @@ func (w *ModuleWorkspace) Cleanup() {
 	_ = os.RemoveAll(w.TempDir)
 }
 
-func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
+func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Logger) error {
 	// Detect go.work first; fall back to go.mod if absent.
 	ws := gowork.Find(baseDir)
 	w.goWork = ws
@@ -83,6 +84,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	if ws != nil {
 		w.absModule = ws.Root
 		moduleRoots = ws.Modules
+		log.Debug("[WORKSPACE] Found go.work with %d modules", len(moduleRoots))
 	} else {
 		modDir := FindGoModDir(baseDir)
 		if modDir == "" {
@@ -94,14 +96,17 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		}
 		w.absModule = abs
 		moduleRoots = []string{abs}
+		log.Debug("[WORKSPACE] Single module mode: %s", abs)
 	}
 
+	log.Debug("[WORKSPACE] Building mutated paths map from %d mutants", len(mutants))
 	mutatedPaths := make(map[string]bool, len(mutants))
 	for i := range mutants {
 		if mutants[i].Site.File != nil {
 			mutatedPaths[mutants[i].Site.File.Name()] = true
 		}
 	}
+	log.Debug("[WORKSPACE] Mutated paths: %d unique files", len(mutatedPaths))
 
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
@@ -148,20 +153,52 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 		if err != nil {
 			return fmt.Errorf("failed to collect packages in %s: %w", modRoot, err)
 		}
+		log.Debug("[WORKSPACE] Collected %d packages from %s", len(allPkgs), modRoot)
 		for pkgRelDir := range allPkgs {
 			pkgRelDir := pkgRelDir
 			g.Go(func() error {
-				return w.copyPackageFromModule(modRoot, pkgRelDir, mutatedPaths)
+				return w.copyPackageFromModule(modRoot, pkgRelDir, mutatedPaths, log)
 			})
 		}
 	}
 
-	return g.Wait()
+	log.Debug("[WORKSPACE] Waiting for all copy operations to complete...")
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// Download dependencies after copying go.mod/go.sum
+	log.Debug("[WORKSPACE] Downloading dependencies...")
+	cmd := exec.Command("go", "mod", "download")
+	cmd.Dir = w.TempDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		log.Debug("[WORKSPACE] go mod download failed: %v, output: %s", err, string(output))
+		return fmt.Errorf("failed to download dependencies: %w", err)
+	}
+	log.Debug("[WORKSPACE] Dependencies downloaded")
+
+	// Debug: list files in temp directory
+	if log.IsDebug() {
+		filepath.Walk(w.TempDir, func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() && strings.HasSuffix(path, "_test.go") {
+				rel, _ := filepath.Rel(w.TempDir, path)
+				log.Debug("[WORKSPACE] Test file present: %s", rel)
+			}
+			return nil
+		})
+	}
+
+	log.Debug("[WORKSPACE] Setup complete")
+	return nil
 }
 
-func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, bool, error) {
+func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, log *logger.Logger) (map[string][]*Mutant, bool, error) {
+	log.Debug("[SCHEMATA] Starting with %d mutants", len(mutants))
+	
 	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(maxConcurrency())
+	// Limit to 2 concurrent AST transformations to prevent OOM
+	// AST manipulation is extremely memory-intensive
+	g.SetLimit(2)
 
 	astToMutants := make(map[*ast.File][]*Mutant, len(mutants))
 	for i := range mutants {
@@ -170,6 +207,7 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 			astToMutants[m.Site.FileAST] = append(astToMutants[m.Site.FileAST], m)
 		}
 	}
+	log.Debug("[SCHEMATA] Grouped into %d AST files", len(astToMutants))
 
 	hasNonStdlib := false
 	for astFile := range astToMutants {
@@ -188,12 +226,30 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 	var cacheMu sync.Mutex
 
 	type astEntry struct {
-		astFile *ast.File
-		mutants []*Mutant
+		astFile    *ast.File
+		mutants    []*Mutant
+		chunkIndex int // 0 for non-chunked files
 	}
 	sortedASTs := make([]astEntry, 0, len(astToMutants))
+	
+	// Split files with too many mutants into separate entries
+	// Each chunk will be compiled in its own package copy
+	const maxMutantsPerFile = 500
 	for astFile, fileMutants := range astToMutants {
-		sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants})
+		if !chunkLargeFiles || len(fileMutants) <= maxMutantsPerFile {
+			sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants, 0})
+		} else {
+			// Split into chunks - each chunk gets compiled separately
+			chunkIdx := 1
+			for i := 0; i < len(fileMutants); i += maxMutantsPerFile {
+				end := i + maxMutantsPerFile
+				if end > len(fileMutants) {
+					end = len(fileMutants)
+				}
+				sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants[i:end], chunkIdx})
+				chunkIdx++
+			}
+		}
 	}
 	sort.Slice(sortedASTs, func(i, j int) bool {
 		if len(sortedASTs[i].mutants) == 0 || len(sortedASTs[j].mutants) == 0 {
@@ -202,56 +258,105 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		return sortedASTs[i].mutants[0].Site.File.Name() < sortedASTs[j].mutants[0].Site.File.Name()
 	})
 
-	for _, entry := range sortedASTs {
-		entryAST := entry.astFile
-		entryMutants := entry.mutants
-
-		origPath := entryMutants[0].Site.File.Name()
-		if origPath == "" {
-			continue
+	log.Debug("[SCHEMATA] Processing %d files with schemata transformation...", len(sortedASTs))
+	
+	// Process in batches to avoid OOM with large codebases
+	const batchSize = 50
+	for batchStart := 0; batchStart < len(sortedASTs); batchStart += batchSize {
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(sortedASTs) {
+			batchEnd = len(sortedASTs)
 		}
+		batch := sortedASTs[batchStart:batchEnd]
+		
+		log.Debug("[SCHEMATA] Processing batch %d-%d of %d files", batchStart+1, batchEnd, len(sortedASTs))
+		
+		batchGroup, _ := errgroup.WithContext(context.Background())
+		batchGroup.SetLimit(2)
+		
+		for _, entry := range batch {
+			entry := entry
+			entryAST := entry.astFile
+			entryMutants := entry.mutants
+			chunkIdx := entry.chunkIndex
 
-		g.Go(func() error {
+			origPath := entryMutants[0].Site.File.Name()
+			if origPath == "" {
+				continue
+			}
 
-			cacheMu.Lock()
-			src, cached := sourceCache[origPath]
-			cacheMu.Unlock()
-
-			if !cached {
-				var err error
-				src, err = os.ReadFile(origPath)
-				if err != nil {
-					return fmt.Errorf("failed to read %s: %w", origPath, err)
-				}
+			batchGroup.Go(func() error {
 				cacheMu.Lock()
-				sourceCache[origPath] = src
+				src, cached := sourceCache[origPath]
 				cacheMu.Unlock()
-			}
 
-			rel, err := w.relPath(origPath)
-			if err != nil {
-				return fmt.Errorf("failed to compute rel path: %w", err)
-			}
-			tempFile := filepath.Join(w.TempDir, rel)
-
-			posMap, err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants)
-			if err != nil {
-				return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-			}
-			for _, m := range entryMutants {
-				if pm, ok := posMap[m.ID]; ok {
-					m.TempLine = pm.TempLine
-					m.TempCol = pm.TempCol
+				if !cached {
+					var err error
+					src, err = os.ReadFile(origPath)
+					if err != nil {
+						return fmt.Errorf("failed to read %s: %w", origPath, err)
+					}
+					cacheMu.Lock()
+					sourceCache[origPath] = src
+					cacheMu.Unlock()
 				}
-			}
-			return nil
-		})
-	}
 
-	if err := g.Wait(); err != nil {
-		return nil, false, err
-	}
+				rel, err := w.relPath(origPath)
+				if err != nil {
+					return fmt.Errorf("failed to compute rel path: %w", err)
+				}
+				
+				// For chunked files, create separate package directories
+				tempFile := filepath.Join(w.TempDir, rel)
+				if chunkIdx > 1 {  // Only create separate dirs for chunk 2+
+					dir := filepath.Dir(tempFile)
+					base := filepath.Base(tempFile)
+					// Create chunk-specific package directory
+					chunkDir := fmt.Sprintf("%s_chunk%d", dir, chunkIdx)
+					tempFile = filepath.Join(chunkDir, base)
+					
+					// Copy all files from the original package to the chunk directory
+					origDir := filepath.Dir(origPath)
+					if err := os.MkdirAll(chunkDir, 0o755); err == nil {
+						entries, _ := os.ReadDir(origDir)
+						for _, e := range entries {
+							if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
+								continue
+							}
+							srcFile := filepath.Join(origDir, e.Name())
+							dstFile := filepath.Join(chunkDir, e.Name())
+							copyFileWithBuffer(srcFile, dstFile)
+						}
+					}
+				}
 
+				posMap, err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants)
+				if err != nil {
+					return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+				}
+				for _, m := range entryMutants {
+					if pm, ok := posMap[m.ID]; ok {
+						m.TempLine = pm.TempLine
+						m.TempCol = pm.TempCol
+					}
+				}
+				return nil
+			})
+		}
+		
+		if err := batchGroup.Wait(); err != nil {
+			return nil, false, err
+		}
+		
+		// Clear source cache after each batch to free memory
+		sourceCache = make(map[string][]byte)
+		log.Debug("[SCHEMATA] Batch complete, memory released")
+	}
+	
+	log.Debug("[SCHEMATA] All batches complete")
+
+	log.Debug("[SCHEMATA] AST transformation complete, building file map...")
+	
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
 
 	sortedMutants := make([]*Mutant, len(mutants))
@@ -361,7 +466,7 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 // copyPackageFromModule is like copyPackage but the relative dest path is
 // computed from modRoot, then placed under w.TempDir at the same relative
 // position it holds within w.absModule (the workspace root).
-func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutatedPaths map[string]bool) error {
+func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutatedPaths map[string]bool, log *logger.Logger) error {
 	srcDir := filepath.Join(modRoot, pkgRelDir)
 
 	// Destination is relative to workspace root (w.absModule), not modRoot.
@@ -402,6 +507,7 @@ func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutat
 		if mutatedPaths[src] {
 			continue
 		}
+		log.Debug("[WORKSPACE] Copying %s to %s", src, dst)
 		if err := copyFileWithBuffer(src, dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", src, err)
 		}

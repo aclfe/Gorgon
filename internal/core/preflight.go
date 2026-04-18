@@ -98,6 +98,12 @@ func level2PackagePreflight(mutants []Mutant) ([]Mutant, []PreflightResult) {
 	var valid []Mutant
 
 	for filePath, fileMutants := range groups {
+		// Skip preflight for files with too many mutants to avoid OOM
+		// They'll be validated during actual compilation instead
+		if len(fileMutants) > 50 {
+			valid = append(valid, fileMutants...)
+			continue
+		}
 		fileValid, fileInvalid := checkFileWithSchemata(filePath, fileMutants)
 		valid = append(valid, fileValid...)
 		invalid = append(invalid, fileInvalid...)
@@ -116,67 +122,66 @@ func checkFileWithSchemata(filePath string, mutants []Mutant) ([]Mutant, []Prefl
 		return makeAllInvalid(mutants, fmt.Sprintf("cannot read source file: %v", err))
 	}
 
-	var valid []Mutant
-	var invalid []PreflightResult
-
-	for j := range mutants {
-		mutant := mutants[j] // struct copy (safe for &mutant pointer)
-
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-		if err != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("parse error: %v", err),
-			})
-			continue
-		}
-
-		tmpf, err := os.CreateTemp("", "gorgon-preflight-*.go")
-		if err != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("cannot create temp file for preflight: %v", err),
-			})
-			continue
-		}
-		tmpPath := tmpf.Name()
-		tmpf.Close()
-
-		mutantsPtr := []*Mutant{&mutant}
-		posMap, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutantsPtr)
-
-		_ = os.Remove(tmpPath)
-
-		if schemataErr != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("schemata apply failed: %v", schemataErr),
-			})
-			continue
-		}
-
-		if posMap == nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: "schemata produced an un-formattable AST",
-			})
-			continue
-		}
-
-		if pm, ok := posMap[mutant.ID]; ok {
-			mutant.TempLine = pm.TempLine
-			mutant.TempCol = pm.TempCol
-		}
-
-		valid = append(valid, mutant)
+	// Try all mutants together first (fast path)
+	valid, invalid, ok := tryApplySchemata(filePath, src, mutants)
+	if ok {
+		return valid, invalid
 	}
 
-	return valid, invalid
+	// Combined application failed — validate individually to isolate bad mutants
+	var allValid []Mutant
+	var allInvalid []PreflightResult
+	for i := range mutants {
+		v, inv, _ := tryApplySchemata(filePath, src, mutants[i:i+1])
+		allValid = append(allValid, v...)
+		allInvalid = append(allInvalid, inv...)
+	}
+	return allValid, allInvalid
+}
+
+func tryApplySchemata(filePath string, src []byte, mutants []Mutant) ([]Mutant, []PreflightResult, bool) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+	if err != nil {
+		return nil, makeAllInvalidWith(mutants, fmt.Sprintf("parse error: %v", err)), false
+	}
+
+	tmpf, err := os.CreateTemp("", "gorgon-preflight-*.go")
+	if err != nil {
+		return nil, makeAllInvalidWith(mutants, fmt.Sprintf("cannot create temp file: %v", err)), false
+	}
+	tmpPath := tmpf.Name()
+	tmpf.Close()
+	defer os.Remove(tmpPath)
+
+	mutantsPtr := make([]*Mutant, len(mutants))
+	for i := range mutants {
+		mutantsPtr[i] = &mutants[i]
+	}
+
+	posMap, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutantsPtr)
+	if schemataErr != nil || posMap == nil {
+		return nil, nil, false
+	}
+
+	valid := make([]Mutant, 0, len(mutants))
+	for i := range mutants {
+		if pm, ok := posMap[mutants[i].ID]; ok {
+			mutants[i].TempLine = pm.TempLine
+			mutants[i].TempCol = pm.TempCol
+		}
+		valid = append(valid, mutants[i])
+	}
+	return valid, nil, true
+}
+
+func makeAllInvalidWith(mutants []Mutant, reason string) []PreflightResult {
+	inv := make([]PreflightResult, len(mutants))
+	for i := range mutants {
+		inv[i] = PreflightResult{MutantID: mutants[i].ID, Status: StatusCompileError, ErrorReason: reason}
+		mutants[i].Status = StatusCompileError
+	}
+	return inv
 }
 
 // Helper to mark every mutant in a group as invalid

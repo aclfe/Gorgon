@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Gorgon Mutation Report</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: monospace; font-size: 12px; }
+.container { display: flex; height: 100vh; }
+.sidebar { width: 300px; border-right: 1px solid #ccc; overflow-y: auto; background: #f5f5f5; }
+.main { flex: 1; display: flex; flex-direction: column; }
+.header { padding: 10px; border-bottom: 1px solid #ccc; background: #fff; }
+.stats { display: flex; gap: 20px; }
+.stat { display: flex; align-items: baseline; gap: 5px; }
+.stat-label { color: #666; }
+.stat-value { font-weight: bold; }
+.score { font-size: 18px; }
+.score.good { color: #2e7d32; }
+.score.amber { color: #f57c00; }
+.score.bad { color: #c62828; }
+.content { flex: 1; overflow-y: auto; background: #fff; }
+.tree { padding: 10px; }
+.tree-node { cursor: pointer; padding: 2px 0; user-select: none; }
+.tree-node:hover { background: #e0e0e0; }
+.tree-node.selected { background: #d0d0d0; font-weight: bold; }
+.tree-dir { padding-left: 15px; }
+.tree-file { padding-left: 15px; }
+.tree-toggle { display: inline-block; width: 12px; }
+.tree-icon { margin-right: 3px; }
+.file-score { float: right; margin-right: 5px; font-size: 10px; }
+.file-score.good { color: #2e7d32; }
+.file-score.amber { color: #f57c00; }
+.file-score.bad { color: #c62828; }
+.code-view { padding: 10px; }
+.code-line { display: flex; border-bottom: 1px solid #f0f0f0; position: relative; }
+.mutation-count { width: 30px; text-align: center; color: #666; font-size: 10px; padding: 2px; cursor: pointer; user-select: none; }
+.mutation-count:hover { background: #e0e0e0; }
+.line-num { width: 50px; text-align: right; padding-right: 10px; color: #999; user-select: none; border-right: 1px solid #ddd; }
+.line-content { flex: 1; padding-left: 10px; white-space: pre; }
+.line-killed { background: #c8e6c9; }
+.line-survived { background: #ffcdd2; }
+.line-error { background: #fff9c4; }
+.line-untested { background: #fff9c4; }
+.line-none { background: #fff; }
+.mutant-popup { display: none; position: absolute; left: 30px; top: 100%; background: #fff; border: 1px solid #999; box-shadow: 2px 2px 8px rgba(0,0,0,0.2); padding: 8px; font-size: 11px; z-index: 1000; min-width: 300px; }
+.mutant-popup.show { display: block; }
+.mutant-item { padding: 3px 0; border-bottom: 1px solid #eee; }
+.mutant-item:last-child { border-bottom: none; }
+.mutant-status { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 10px; font-weight: bold; margin-right: 5px; }
+.mutant-status.killed { background: #c8e6c9; color: #2e7d32; }
+.mutant-status.survived { background: #ffcdd2; color: #c62828; }
+.mutant-status.error { background: #fff9c4; color: #f57c00; }
+.mutant-status.untested { background: #e0e0e0; color: #666; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="sidebar">
+<div class="tree">
+
+
+
+<div class="tree-node" onclick="toggleDir(event, this)">
+<span class="tree-toggle">▶</span>
+<span class="tree-icon">📁</span>
+<span>internal</span>
+</div>
+<div class="tree-dir" style="display:none;">
+
+
+
+<div class="tree-node" onclick="toggleDir(event, this)">
+<span class="tree-toggle">▶</span>
+<span class="tree-icon">📁</span>
+<span>badge</span>
+</div>
+<div class="tree-dir" style="display:none;">
+
+
+
+<div class="tree-node tree-file" onclick="showFile('\/home\/aclfe\/Desktop\/coding\/Gorgon\/internal\/badge\/badge.go')">
+<span class="tree-toggle"></span>
+<span class="tree-icon">📄</span>
+<span>badge.go</span>
+<span class="file-score amber">0%</span>
+</div>
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+</div>
+</div>
+<div class="main">
+<div class="header">
+<div class="stats">
+<div class="stat">
+<span class="stat-label">Score:</span>
+<span class="stat-value score amber">0.0%</span>
+</div>
+<div class="stat">
+<span class="stat-label">Killed:</span>
+<span class="stat-value">0</span>
+</div>
+<div class="stat">
+<span class="stat-label">Survived:</span>
+<span class="stat-value">0</span>
+</div>
+<div class="stat">
+<span class="stat-label">Errors:</span>
+<span class="stat-value">0</span>
+</div>
+<div class="stat">
+<span class="stat-label">Total:</span>
+<span class="stat-value">20</span>
+</div>
+</div>
+</div>
+<div class="content">
+<div id="file-view"></div>
+</div>
+</div>
+</div>
+
+
+
+<script>
+const filesData = {"/home/aclfe/Desktop/coding/Gorgon/internal/badge/badge.go":{"Path":"/home/aclfe/Desktop/coding/Gorgon/internal/badge/badge.go","RelPath":"internal/badge/badge.go","Lines":[{"Number":1,"Content":"package badge","Status":"none","Mutants":null},{"Number":2,"Content":"","Status":"none","Mutants":null},{"Number":3,"Content":"import (","Status":"none","Mutants":null},{"Number":4,"Content":"\t\"encoding/json\"","Status":"none","Mutants":null},{"Number":5,"Content":"\t\"fmt\"","Status":"none","Mutants":null},{"Number":6,"Content":")","Status":"none","Mutants":null},{"Number":7,"Content":"","Status":"none","Mutants":null},{"Number":8,"Content":"// ShieldsIO represents the JSON format for shields.io endpoint badges","Status":"none","Mutants":null},{"Number":9,"Content":"type ShieldsIO struct {","Status":"none","Mutants":null},{"Number":10,"Content":"\tSchemaVersion int    `json:\"schemaVersion\"`","Status":"none","Mutants":null},{"Number":11,"Content":"\tLabel         string `json:\"label\"`","Status":"none","Mutants":null},{"Number":12,"Content":"\tMessage       string `json:\"message\"`","Status":"none","Mutants":null},{"Number":13,"Content":"\tColor         string `json:\"color\"`","Status":"none","Mutants":null},{"Number":14,"Content":"}","Status":"none","Mutants":null},{"Number":15,"Content":"","Status":"none","Mutants":null},{"Number":16,"Content":"// GenerateJSON creates shields.io JSON format badge","Status":"none","Mutants":null},{"Number":17,"Content":"func GenerateJSON(score float64) (string, error) {","Status":"none","Mutants":null},{"Number":18,"Content":"\tbadge := ShieldsIO{","Status":"none","Mutants":null},{"Number":19,"Content":"\t\tSchemaVersion: 1,","Status":"none","Mutants":null},{"Number":20,"Content":"\t\tLabel:         \"mutation\",","Status":"none","Mutants":null},{"Number":21,"Content":"\t\tMessage:       fmt.Sprintf(\"%.1f%%\", score),","Status":"none","Mutants":null},{"Number":22,"Content":"\t\tColor:         getColor(score),","Status":"none","Mutants":null},{"Number":23,"Content":"\t}","Status":"none","Mutants":null},{"Number":24,"Content":"\tdata, err := json.MarshalIndent(badge, \"\", \"  \")","Status":"none","Mutants":null},{"Number":25,"Content":"\tif err != nil {","Status":"untested","Mutants":[{"ID":1,"Operator":"if_condition_false","Status":"untested","KilledBy":""},{"ID":2,"Operator":"negate_condition","Status":"untested","KilledBy":""},{"ID":3,"Operator":"if_condition_true","Status":"untested","KilledBy":""},{"ID":4,"Operator":"error_check_removal","Status":"untested","KilledBy":""},{"ID":5,"Operator":"condition_negation","Status":"untested","KilledBy":""}]},{"Number":26,"Content":"\t\treturn \"\", err","Status":"untested","Mutants":[{"ID":6,"Operator":"zero_value_return_string","Status":"untested","KilledBy":""},{"ID":7,"Operator":"error_return_nil","Status":"untested","KilledBy":""}]},{"Number":27,"Content":"\t}","Status":"none","Mutants":null},{"Number":28,"Content":"\treturn string(data), nil","Status":"none","Mutants":null},{"Number":29,"Content":"}","Status":"none","Mutants":null},{"Number":30,"Content":"","Status":"none","Mutants":null},{"Number":31,"Content":"// GenerateSVG creates shields.io SVG badge","Status":"none","Mutants":null},{"Number":32,"Content":"func GenerateSVG(score float64) string {","Status":"none","Mutants":null},{"Number":33,"Content":"\tcolor := getColor(score)","Status":"none","Mutants":null},{"Number":34,"Content":"\tmessage := fmt.Sprintf(\"%.1f%%\", score)","Status":"none","Mutants":null},{"Number":35,"Content":"\t","Status":"none","Mutants":null},{"Number":36,"Content":"\t// Use shields.io static badge format","Status":"none","Mutants":null},{"Number":37,"Content":"\treturn fmt.Sprintf(","Status":"none","Mutants":null},{"Number":38,"Content":"\t\t`\u003csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"20\"\u003e","Status":"none","Mutants":null},{"Number":39,"Content":"  \u003clinearGradient id=\"b\" x2=\"0\" y2=\"100%%\"\u003e","Status":"none","Mutants":null},{"Number":40,"Content":"    \u003cstop offset=\"0\" stop-color=\"#bbb\" stop-opacity=\".1\"/\u003e","Status":"none","Mutants":null},{"Number":41,"Content":"    \u003cstop offset=\"1\" stop-opacity=\".1\"/\u003e","Status":"none","Mutants":null},{"Number":42,"Content":"  \u003c/linearGradient\u003e","Status":"none","Mutants":null},{"Number":43,"Content":"  \u003cmask id=\"a\"\u003e","Status":"none","Mutants":null},{"Number":44,"Content":"    \u003crect width=\"120\" height=\"20\" rx=\"3\" fill=\"#fff\"/\u003e","Status":"none","Mutants":null},{"Number":45,"Content":"  \u003c/mask\u003e","Status":"none","Mutants":null},{"Number":46,"Content":"  \u003cg mask=\"url(#a)\"\u003e","Status":"none","Mutants":null},{"Number":47,"Content":"    \u003cpath fill=\"#555\" d=\"M0 0h63v20H0z\"/\u003e","Status":"none","Mutants":null},{"Number":48,"Content":"    \u003cpath fill=\"%s\" d=\"M63 0h57v20H63z\"/\u003e","Status":"none","Mutants":null},{"Number":49,"Content":"    \u003cpath fill=\"url(#b)\" d=\"M0 0h120v20H0z\"/\u003e","Status":"none","Mutants":null},{"Number":50,"Content":"  \u003c/g\u003e","Status":"none","Mutants":null},{"Number":51,"Content":"  \u003cg fill=\"#fff\" text-anchor=\"middle\" font-family=\"DejaVu Sans,Verdana,Geneva,sans-serif\" font-size=\"11\"\u003e","Status":"none","Mutants":null},{"Number":52,"Content":"    \u003ctext x=\"31.5\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\"\u003emutation\u003c/text\u003e","Status":"none","Mutants":null},{"Number":53,"Content":"    \u003ctext x=\"31.5\" y=\"14\"\u003emutation\u003c/text\u003e","Status":"none","Mutants":null},{"Number":54,"Content":"    \u003ctext x=\"90.5\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\"\u003e%s\u003c/text\u003e","Status":"none","Mutants":null},{"Number":55,"Content":"    \u003ctext x=\"90.5\" y=\"14\"\u003e%s\u003c/text\u003e","Status":"none","Mutants":null},{"Number":56,"Content":"  \u003c/g\u003e","Status":"none","Mutants":null},{"Number":57,"Content":"\u003c/svg\u003e`, color, message, message)","Status":"none","Mutants":null},{"Number":58,"Content":"}","Status":"none","Mutants":null},{"Number":59,"Content":"","Status":"none","Mutants":null},{"Number":60,"Content":"// getColor returns the badge color based on mutation score","Status":"none","Mutants":null},{"Number":61,"Content":"func getColor(score float64) string {","Status":"none","Mutants":null},{"Number":62,"Content":"\tswitch {","Status":"none","Mutants":null},{"Number":63,"Content":"\tcase score \u003e= 80:","Status":"untested","Mutants":[{"ID":8,"Operator":"swap_case_bodies","Status":"untested","KilledBy":""},{"ID":9,"Operator":"boundary_value","Status":"untested","KilledBy":""},{"ID":10,"Operator":"condition_negation","Status":"untested","KilledBy":""}]},{"Number":64,"Content":"\t\treturn \"#4c1\" // bright green","Status":"none","Mutants":null},{"Number":65,"Content":"\tcase score \u003e= 60:","Status":"untested","Mutants":[{"ID":11,"Operator":"swap_case_bodies","Status":"untested","KilledBy":""},{"ID":12,"Operator":"boundary_value","Status":"untested","KilledBy":""},{"ID":13,"Operator":"condition_negation","Status":"untested","KilledBy":""}]},{"Number":66,"Content":"\t\treturn \"#97ca00\" // yellow-green","Status":"none","Mutants":null},{"Number":67,"Content":"\tcase score \u003e= 40:","Status":"untested","Mutants":[{"ID":14,"Operator":"swap_case_bodies","Status":"untested","KilledBy":""},{"ID":15,"Operator":"boundary_value","Status":"untested","KilledBy":""},{"ID":16,"Operator":"condition_negation","Status":"untested","KilledBy":""}]},{"Number":68,"Content":"\t\treturn \"#dfb317\" // yellow","Status":"none","Mutants":null},{"Number":69,"Content":"\tcase score \u003e= 20:","Status":"untested","Mutants":[{"ID":17,"Operator":"swap_case_bodies","Status":"untested","KilledBy":""},{"ID":18,"Operator":"boundary_value","Status":"untested","KilledBy":""},{"ID":19,"Operator":"condition_negation","Status":"untested","KilledBy":""}]},{"Number":70,"Content":"\t\treturn \"#fe7d37\" // orange","Status":"none","Mutants":null},{"Number":71,"Content":"\tdefault:","Status":"untested","Mutants":[{"ID":20,"Operator":"switch_remove_default","Status":"untested","KilledBy":""}]},{"Number":72,"Content":"\t\treturn \"#e05d44\" // red","Status":"none","Mutants":null},{"Number":73,"Content":"\t}","Status":"none","Mutants":null},{"Number":74,"Content":"}","Status":"none","Mutants":null},{"Number":75,"Content":"","Status":"none","Mutants":null}],"Score":0,"ScoreClass":"amber"}};
+
+function toggleDir(e, el) {
+e.stopPropagation();
+const dir = el.nextElementSibling;
+const toggle = el.querySelector('.tree-toggle');
+if (dir.style.display === 'none') {
+dir.style.display = 'block';
+toggle.textContent = '▼';
+} else {
+dir.style.display = 'none';
+toggle.textContent = '▶';
+}
+}
+
+function showFile(path) {
+document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('selected'));
+event.target.closest('.tree-file').classList.add('selected');
+
+const fileData = filesData[path];
+if (!fileData) return;
+
+let html = '<div class="code-view">';
+fileData.Lines.forEach(line => {
+const escaped = escapeHtml(line.Content);
+const mutantCount = line.Mutants ? line.Mutants.length : 0;
+const lineStatus = line.Status;
+
+html += `<div class="code-line">`;
+html += `<div class="mutation-count" onclick="toggleMutants(event, this)">`;
+if (mutantCount > 0) {
+html += mutantCount;
+}
+html += `</div>`;
+html += `<div class="line-num">${line.Number}</div>`;
+html += `<div class="line-content line-${lineStatus}">${escaped}</div>`;
+
+if (mutantCount > 0) {
+html += `<div class="mutant-popup">`;
+line.Mutants.forEach(m => {
+html += `<div class="mutant-item">`;
+html += `<span class="mutant-status ${m.Status}">${m.Status}</span>`;
+html += `#${m.ID} ${m.Operator}`;
+if (m.KilledBy) html += ` → ${m.KilledBy}`;
+html += `</div>`;
+});
+html += `</div>`;
+}
+
+html += `</div>`;
+});
+html += '</div>';
+document.getElementById('file-view').innerHTML = html;
+}
+
+function toggleMutants(e, el) {
+e.stopPropagation();
+const popup = el.parentElement.querySelector('.mutant-popup');
+if (!popup) return;
+
+document.querySelectorAll('.mutant-popup').forEach(p => {
+if (p !== popup) p.classList.remove('show');
+});
+
+popup.classList.toggle('show');
+}
+
+document.addEventListener('click', (e) => {
+if (!e.target.closest('.mutation-count') && !e.target.closest('.mutant-popup')) {
+document.querySelectorAll('.mutant-popup').forEach(p => p.classList.remove('show'));
+}
+});
+
+function escapeHtml(text) {
+const div = document.createElement('div');
+div.textContent = text;
+return div.innerHTML;
+}
+
+window.onload = () => {
+const firstFile = document.querySelector('.tree-file');
+if (firstFile) firstFile.click();
+};
+</script>
+</body>
+</html>

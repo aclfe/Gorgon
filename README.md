@@ -113,6 +113,7 @@ diff: ""
 base: ""
 debug: false
 go_version: ""  # Override detected Go version (e.g., "1.25", "1.26")
+chunk_large_files: true  # Split files with >500 mutants to reduce memory (default: true)
 
 # === Baseline / Ratchet ===
 baseline:
@@ -1247,6 +1248,42 @@ go_version: "1.26"  # Force specific Go version
 - Standardizing across multiple projects
 
 **Note**: The version must be in `X.Y` format (e.g., `1.25`, `1.26`).
+
+## Memory Optimization
+
+For extremely large files with many mutants (>500), Gorgon can split them into separate compilation units to prevent out-of-memory errors during compilation.
+
+### Chunking (Default: Enabled)
+
+```yaml
+# gorgon.yml
+chunk_large_files: true  # Split files with >500 mutants (default)
+```
+
+When enabled, files with more than 500 mutants are automatically split into chunks:
+- Each chunk compiles independently with ≤500 mutants
+- Reduces peak memory usage during compilation
+- Prevents compiler OOM kills on extremely large files
+
+**Example**: A file with 1200 mutants splits into:
+- Chunk 1: mutants 1-500 → `internal/cli/`
+- Chunk 2: mutants 501-1000 → `internal/cli_chunk2/`
+- Chunk 3: mutants 1001-1200 → `internal/cli_chunk3/`
+
+### Disable Chunking
+
+```yaml
+chunk_large_files: false  # Compile all mutants together
+```
+
+Disable if:
+- You have sufficient RAM (32GB+)
+- No single file has >500 mutants
+- You want slightly faster execution
+
+**Trade-off**: Faster execution but may cause OOM on extremely large files.
+
+**Note**: The preflight optimizations handle most cases efficiently. Chunking is only a safety net for truly massive files.
 
 ## Output Files
 

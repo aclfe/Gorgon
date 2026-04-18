@@ -19,6 +19,11 @@ type MutantForSite struct {
 	EnclosingFunc *ast.FuncDecl
 }
 
+type mutantResult struct {
+	id      int
+	retStmt *ast.ReturnStmt
+}
+
 type NodeType uint8
 
 const (
@@ -394,6 +399,17 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		return original
 	}
 
+	// Parse multi-value return types
+	returnTypes := parseReturnTypes(returnType)
+	numReturns := len(returnTypes)
+	
+	// For multi-value returns, only wrap if we're mutating the entire return statement
+	// Don't wrap individual expressions within multi-value returns
+	if numReturns > 1 && len(originalRet.Results) != numReturns {
+		// Mismatch - skip wrapping to avoid compilation errors
+		return original
+	}
+
 	if len(mutants) == 1 {
 		mutant := mutants[0]
 		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
@@ -401,21 +417,22 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 			return original
 		}
 		if retStmt, ok := mutated.(*ast.ReturnStmt); ok && len(retStmt.Results) > 0 {
+			// Check if mutated statement has multiple return values
+			if len(retStmt.Results) > 1 {
+				// Multi-value return - wrap the entire statement
+				return wrapMultiReturnWithSchemata(originalRet, retStmt, mutant.ID, returnTypes)
+			}
+			// Single-value return - wrap just the expression
 			expr := retStmt.Results[0]
-			// Skip type-unsafe nil mutations (e.g. nil returned as string or int).
-			if isNilExpr(expr) && !isNilableType(returnType) {
+			if isNilExpr(expr) && !isNilableType(returnTypes[0]) {
 				return original
 			}
-			return wrapReturnWithSchemata(originalRet, expr, mutant.ID, returnType)
+			return wrapReturnWithSchemata(originalRet, expr, mutant.ID, returnTypes[0])
 		}
 		return mutated
 	}
 
 	// Multi-mutant path
-	type mutantResult struct {
-		id   int
-		expr ast.Expr
-	}
 	var mutResults []mutantResult
 
 	for _, mutant := range mutants {
@@ -432,14 +449,21 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		if !ok || len(mutatedRet.Results) == 0 {
 			continue
 		}
-
-		expr := mutatedRet.Results[0]
-		// Skip type-unsafe nil mutations before they poison the package.
-		if isNilExpr(expr) && !isNilableType(returnType) {
+		
+		// Skip mutations that don't match the expected return count
+		if len(mutatedRet.Results) != len(returnTypes) {
 			continue
 		}
 
-		mutResults = append(mutResults, mutantResult{id: mutant.ID, expr: expr})
+		// Skip type-unsafe nil mutations
+		if numReturns == 1 {
+			expr := mutatedRet.Results[0]
+			if isNilExpr(expr) && !isNilableType(returnTypes[0]) {
+				continue
+			}
+		}
+
+		mutResults = append(mutResults, mutantResult{id: mutant.ID, retStmt: mutatedRet})
 	}
 
 	if len(mutResults) == 0 {
@@ -447,21 +471,31 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 
 	if len(mutResults) == 1 {
-		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType)
+		mr := mutResults[0]
+		if len(mr.retStmt.Results) > 1 {
+			// Multi-value return
+			return wrapMultiReturnWithSchemata(originalRet, mr.retStmt, mr.id, returnTypes)
+		}
+		// Single-value return
+		return wrapReturnWithSchemata(originalRet, mr.retStmt.Results[0], mr.id, returnTypes[0])
 	}
 
-	origExpr := originalRet.Results[0]
-	// Always use the declared function return type for the closure.
-	// Do NOT narrow away from interface{} — nil is valid in interface{} context.
-	typeExpr := buildTypeExpr(returnType)
+	// Multiple mutants - check if we have multi-value returns
+	hasMultiValue := len(originalRet.Results) > 1
+	if hasMultiValue {
+		return wrapMultiReturnMultiMutants(originalRet, mutResults, returnTypes)
+	}
 
+	// Single-value return with multiple mutants
+	origExpr := originalRet.Results[0]
+	typeExpr := buildTypeExpr(returnTypes[0])
 
 	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
 	for _, mr := range mutResults {
 		stmts = append(stmts, &ast.IfStmt{
 			Cond: createMutantIDCondition(mr.id),
 			Body: &ast.BlockStmt{
-				List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mr.expr}}},
+				List: []ast.Stmt{&ast.ReturnStmt{Results: mr.retStmt.Results}},
 			},
 		})
 	}
@@ -475,6 +509,86 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 						Results: &ast.FieldList{
 							List: []*ast.Field{{Type: typeExpr}},
 						},
+					},
+					Body: &ast.BlockStmt{List: stmts},
+				},
+			},
+		},
+	}
+}
+
+// parseReturnTypes splits comma-separated return types
+func parseReturnTypes(returnType string) []string {
+	if returnType == "" {
+		return []string{"interface{}"}
+	}
+	if !strings.Contains(returnType, ",") {
+		return []string{returnType}
+	}
+	types := strings.Split(returnType, ",")
+	for i := range types {
+		types[i] = strings.TrimSpace(types[i])
+	}
+	return types
+}
+
+// wrapMultiReturnWithSchemata wraps a multi-value return statement with schemata
+func wrapMultiReturnWithSchemata(original, mutated *ast.ReturnStmt, mutantID int, returnTypes []string) ast.Node {
+	// Build field list for function type
+	fields := make([]*ast.Field, len(returnTypes))
+	for i, typ := range returnTypes {
+		fields[i] = &ast.Field{Type: buildTypeExpr(typ)}
+	}
+
+	return &ast.ReturnStmt{
+		Results: []ast.Expr{
+			&ast.CallExpr{
+				Fun: &ast.FuncLit{
+					Type: &ast.FuncType{
+						Results: &ast.FieldList{List: fields},
+					},
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							&ast.IfStmt{
+								Cond: createMutantIDCondition(mutantID),
+								Body: &ast.BlockStmt{
+									List: []ast.Stmt{&ast.ReturnStmt{Results: mutated.Results}},
+								},
+							},
+							&ast.ReturnStmt{Results: original.Results},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// wrapMultiReturnMultiMutants wraps multi-value returns with multiple mutants
+func wrapMultiReturnMultiMutants(original *ast.ReturnStmt, mutResults []mutantResult, returnTypes []string) ast.Node {
+	// Build field list for function type
+	fields := make([]*ast.Field, len(returnTypes))
+	for i, typ := range returnTypes {
+		fields[i] = &ast.Field{Type: buildTypeExpr(typ)}
+	}
+
+	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
+	for _, mr := range mutResults {
+		stmts = append(stmts, &ast.IfStmt{
+			Cond: createMutantIDCondition(mr.id),
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{&ast.ReturnStmt{Results: mr.retStmt.Results}},
+			},
+		})
+	}
+	stmts = append(stmts, &ast.ReturnStmt{Results: original.Results})
+
+	return &ast.ReturnStmt{
+		Results: []ast.Expr{
+			&ast.CallExpr{
+				Fun: &ast.FuncLit{
+					Type: &ast.FuncType{
+						Results: &ast.FieldList{List: fields},
 					},
 					Body: &ast.BlockStmt{List: stmts},
 				},

@@ -85,6 +85,7 @@ type Config struct {
 	ThresholdInherit  bool                 `yaml:"threshold_inherit,omitempty"`
 	ViolationMode     ViolationMode        `yaml:"violation_mode,omitempty"`
 	Badge             string               `yaml:"badge,omitempty"` // "json" or "svg" - generates badge file
+	ChunkLargeFiles   bool                 `yaml:"chunk_large_files,omitempty"` // Split files with many mutants to reduce memory (default: true)
 }
 
 func Default() *Config {
@@ -108,6 +109,7 @@ func Default() *Config {
 			Suites:  []ExternalSuite{},
 		},
 		Baseline: BaselineConfig{},
+		ChunkLargeFiles: true, // Default to chunking for memory safety
 		Outputs:  []string{},
 	}
 }

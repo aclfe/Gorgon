@@ -43,7 +43,14 @@ func (m *conditionMutator) CanApply(n ast.Node) bool {
 		
 		
 		if ie.Init != nil {
-			if _, ok := ie.Init.(*ast.AssignStmt); !ok {
+			assign, ok := ie.Init.(*ast.AssignStmt)
+			if !ok {
+				return false
+			}
+			// Short variable declarations (:=) in Init declare vars that are
+			// typically only used in Cond. Replacing Cond with true/false would
+			// make those vars unused, causing a compile error.
+			if assign.Tok == token.DEFINE {
 				return false
 			}
 		}

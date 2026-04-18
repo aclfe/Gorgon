@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -133,27 +134,46 @@ func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositio
 	if err != nil {
 		return originalPositions
 	}
-	lines := bytes.Split(content, []byte{'\n'})
 
+	// Build result seeded with originals
 	result := make(map[int]PositionMapping, len(mutantIDs))
-
 	for id, pos := range originalPositions {
 		result[id] = pos
 	}
 
+	// Build set of IDs we need to find
+	needed := make(map[int]bool, len(mutantIDs))
 	for _, id := range mutantIDs {
-		pattern := []byte(fmt.Sprintf("activeMutantID == %d", id))
-		for lineNum, line := range lines {
-			if bytes.Contains(line, pattern) {
+		needed[id] = true
+	}
 
-				result[id] = PositionMapping{
-					OriginalLine: originalPositions[id].OriginalLine,
-					OriginalCol:  originalPositions[id].OriginalCol,
-					TempLine:     lineNum + 1,
-					TempCol:      bytes.Index(line, pattern) + 1,
-				}
-				break
-			}
+	// Single pass: scan each line once, match any mutant ID pattern found
+	lines := bytes.Split(content, []byte{'\n'})
+	prefix := []byte("activeMutantID == ")
+	for lineNum, line := range lines {
+		idx := bytes.Index(line, prefix)
+		if idx < 0 {
+			continue
+		}
+		rest := line[idx+len(prefix):]
+		// parse the integer
+		end := 0
+		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+			end++
+		}
+		if end == 0 {
+			continue
+		}
+		id, err := strconv.Atoi(string(rest[:end]))
+		if err != nil || !needed[id] {
+			continue
+		}
+		orig := originalPositions[id]
+		result[id] = PositionMapping{
+			OriginalLine: orig.OriginalLine,
+			OriginalCol:  orig.OriginalCol,
+			TempLine:     lineNum + 1,
+			TempCol:      idx + 1,
 		}
 	}
 
@@ -215,6 +235,7 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 }
 
 func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
+	fmt.Fprintf(os.Stderr, "[DEBUG] InjectSchemataHelpers called with %d files\n", len(fileToMutants))
 
 	type pkgInfo struct {
 		files   []string
@@ -239,6 +260,8 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 			}
 		}
 	}
+	
+	fmt.Fprintf(os.Stderr, "[DEBUG] Found %d unique package directories\n", len(pkgToInfo))
 
 	dirs := make([]string, 0, len(pkgToInfo))
 	for dir := range pkgToInfo {
@@ -261,6 +284,7 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 
 		helper := fmt.Sprintf(`package %s
 
+// GORGON_SCHEMATA
 
 import (
 	"os"
@@ -277,16 +301,19 @@ func init() {
 `, pkgName)
 
 		helperFile := filepath.Join(dir, "gorgon_schemata.go")
+		fmt.Fprintf(os.Stderr, "[DEBUG] Creating helper file: %s (package: %s)\n", helperFile, pkgName)
 		existing, _ := os.ReadFile(helperFile)
 		if bytes.Contains(existing, []byte(helperSentinel)) {
 			if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
 				return fmt.Errorf("failed to overwrite helper: %w", err)
 			}
+			fmt.Fprintf(os.Stderr, "[DEBUG] Overwrote existing helper file: %s\n", helperFile)
 			continue
 		}
 		if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
 			return fmt.Errorf("failed to write helper: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "[DEBUG] Created new helper file: %s\n", helperFile)
 	}
 	return nil
 }
@@ -483,9 +510,19 @@ func processStmtsForLoopVars(stmts []ast.Stmt) {
 			if s.Body != nil {
 				processStmtsForLoopVars(s.Body.List)
 			}
-			if s.Else != nil {
-				if block, ok := s.Else.(*ast.BlockStmt); ok {
-					processStmtsForLoopVars(block.List)
+			// Walk the entire else chain (else-if is an *ast.IfStmt, not a *ast.BlockStmt)
+			for else_ := s.Else; else_ != nil; {
+				switch e := else_.(type) {
+				case *ast.IfStmt:
+					if e.Body != nil {
+						processStmtsForLoopVars(e.Body.List)
+					}
+					else_ = e.Else
+				case *ast.BlockStmt:
+					processStmtsForLoopVars(e.List)
+					else_ = nil
+				default:
+					else_ = nil
 				}
 			}
 		case *ast.BlockStmt:

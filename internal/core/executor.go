@@ -90,8 +90,9 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 	if len(errors) == 0 {
 
 		result.compileFailed = true
+		compileErr := fmt.Errorf("compilation failed: %s", output)
 		for _, id := range mutantIDs {
-			result.perMutant[id] = nil
+			result.perMutant[id] = compileErr
 		}
 		return result
 	}
@@ -192,10 +193,16 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 
 	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-vet=off", "-o", e.testBinary, relPkg)
 	cmd.Dir = e.tempDir
+	e.log.Debug("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		e.log.Debug("[COMPILE] Error: %v, Output: %s", err, string(out))
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
+	if len(out) > 0 {
+		e.log.Debug("[COMPILE] Output: %s", string(out))
+	}
+	e.log.Debug("[COMPILE] Success, checking if binary exists at %s", e.testBinary)
 
 	result := compileResultWithAttribution{
 		perMutant: make(map[int]error, len(mutantIDs)),
@@ -1040,10 +1047,17 @@ func resolveSuitePaths(ctx context.Context, workspaceDir string, suite config.Ex
 
 func buildExternalSuiteBinaries(ctx context.Context, workspaceDir string, suite config.ExternalSuite, resolvedPaths []string, log *logger.Logger) (map[string]string, error) {
 	binaries := make(map[string]string, len(resolvedPaths))
-	log.Debug("[EXTERNAL] Building binaries for %d resolved paths", len(resolvedPaths))
+	
+	// Create temp dir for binaries (outside workspace to avoid conflicts)
+	binDir, err := os.MkdirTemp("", "gorgon-external-bins-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create binary temp dir: %w", err)
+	}
+	
+	log.Debug("[EXTERNAL] Building binaries for %d resolved paths from workspace %s", len(resolvedPaths), workspaceDir)
 	for _, relPkg := range resolvedPaths {
 		safeName := strings.NewReplacer("/", "_", ".", "_").Replace(relPkg)
-		binPath := filepath.Join(workspaceDir, safeName+".test")
+		binPath := filepath.Join(binDir, safeName+".test")
 
 		args := []string{"test", "-c", "-vet=off", "-o", binPath}
 		if len(suite.Tags) > 0 {
@@ -1053,9 +1067,9 @@ func buildExternalSuiteBinaries(ctx context.Context, workspaceDir string, suite 
 
 		cmd := exec.CommandContext(ctx, "go", args...)
 		cmd.Dir = workspaceDir
-		log.Debug("[EXTERNAL] Building: go %v", args)
+		log.Debug("[EXTERNAL] Building: go %v in %s", args, workspaceDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			log.Debug("[EXTERNAL] Build failed: %s, error: %v", string(out), err)
+			log.Debug("[EXTERNAL] Build failed: %s", string(out))
 			continue
 		}
 
@@ -1066,7 +1080,7 @@ func buildExternalSuiteBinaries(ctx context.Context, workspaceDir string, suite 
 		log.Debug("[EXTERNAL] Binary created at %s", binPath)
 		binaries[relPkg] = binPath
 	}
-	log.Debug("[EXTERNAL] Built %d binaries", len(binaries))
+	log.Debug("[EXTERNAL] Built %d binaries in %s", len(binaries), binDir)
 	return binaries, nil
 }
 
