@@ -1,9 +1,46 @@
 package testing
 
-import "time"
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
 
 // Go version used in generated go.mod files.
-const goVersion = "1.25"
+// Auto-detected from project's go.mod, falls back to "1.25" if detection fails.
+var goVersion = detectGoVersion()
+
+// detectGoVersion reads the project's go.mod to extract the Go version.
+func detectGoVersion() string {
+	// Try to find go.mod in current directory or parent directories
+	dir, _ := os.Getwd()
+	for dir != "" && dir != "/" && dir != "." {
+		goModPath := filepath.Join(dir, "go.mod")
+		if data, err := os.ReadFile(goModPath); err == nil {
+			// Extract "go X.Y" line
+			re := regexp.MustCompile(`(?m)^go\s+(\d+\.\d+)`)
+			if match := re.FindSubmatch(data); len(match) > 1 {
+				return string(match[1])
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	// Fallback to current stable version
+	return "1.25"
+}
+
+// SetGoVersion allows overriding the detected Go version (for testing or config).
+func SetGoVersion(version string) {
+	if version != "" && strings.HasPrefix(version, "1.") {
+		goVersion = version
+	}
+}
 
 // Default module name used in standalone benchmarks.
 const defaultModuleName = "gorgon-standalone"

@@ -39,7 +39,6 @@ type Flags struct {
 	NoRegression      bool
 	BaselineFile      string
 	BaselineTolerance float64
-	SaveBaseline      bool // set by "baseline" subcommand, not a flag
 }
 
 func Parse(args []string) (*Flags, error) {
@@ -207,16 +206,12 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -baseline-file string path to baseline file (default: .gorgon-baseline.json)")
 	fmt.Fprintln(os.Stderr, "  -baseline-tolerance   allow this many pp of score drop before failing")
 	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "Subcommands:")
-	fmt.Fprintln(os.Stderr, "  baseline <path>       run tests and save current score as baseline")
-	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -debug examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -output=report.txt -debug examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -format=html -output=gorgon-report examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon baseline examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -no-regression examples/mutations")
 	os.Exit(1)
 }

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -16,10 +17,13 @@ import (
 	"github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/diff"
 	"github.com/aclfe/gorgon/internal/engine"
+	"github.com/aclfe/gorgon/internal/gowork"
 	"github.com/aclfe/gorgon/internal/logger"
+	"github.com/aclfe/gorgon/internal/orgpolicy"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/subconfig"
 	"github.com/aclfe/gorgon/internal/suppressions"
+	"github.com/aclfe/gorgon/internal/badge"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -27,6 +31,11 @@ import (
 func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
 	if len(targets) == 0 {
 		cli.PrintUsage()
+	}
+
+	// Apply Go version override if specified in config
+	if cfg.GoVersion != "" {
+		testing.SetGoVersion(cfg.GoVersion)
 	}
 
 	ops, err := cli.ParseOperators(cfg)
@@ -43,10 +52,38 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	eng.SetProjectRoot(projectRoot)
 	eng.SetSuppressEntries(cfg.Suppress)
 
-	// Discover sub-configs
-	resolver, err := subconfig.Discover(projectRoot, configPath)
+	// Load org policy — search from project root upward
+	policy, err := findAndLoadOrgPolicy(projectRoot)
+	if err != nil {
+		return fmt.Errorf("failed to load org policy: %w", err)
+	}
+
+	// Discover sub-configs with policy if present
+	var resolver *subconfig.Resolver
+	if policy != nil && !policy.IsZero() {
+		resolver, err = subconfig.DiscoverWithPolicy(projectRoot, configPath, policy)
+	} else {
+		resolver, err = subconfig.Discover(projectRoot, configPath)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to discover sub-configs: %w", err)
+	}
+
+	// Apply org policy to root config
+	allOps := mutator.ListAll()
+	if policy != nil && !policy.IsZero() {
+		result := orgpolicy.Apply(cfg, policy, allOps)
+		cfg = result.Config
+		if len(result.Violations) > 0 && cfg.ViolationMode != config.ViolationSilent {
+			fmt.Fprintf(os.Stderr, "Org policy applied %d constraint(s):\n", len(result.Violations))
+			for _, v := range result.Violations {
+				fmt.Fprintf(os.Stderr, "  %s\n", v.Error())
+			}
+			if cfg.ViolationMode == config.ViolationFail {
+				// Violations are logged but not fatal by default
+				// Only fail if explicitly configured
+			}
+		}
 	}
 
 	if cfg.ProgBar {
@@ -163,7 +200,6 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	}
 
 	if cfg.DryRun {
-		allOps := mutator.ListAll()
 		mutants := testing.GenerateMutants(sites, ops, allOps, projectRoot, cfg.DirRules, resolver, log)
 		fmt.Printf("Total mutants: %d\n\n", len(mutants))
 		for _, m := range mutants {
@@ -172,7 +208,6 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		return nil
 	}
 
-	allOps := mutator.ListAll()
 	if cfg.ExternalSuites.Enabled {
 		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
 	}
@@ -181,7 +216,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 	if len(mutants) > 0 {
 		blOpts := reporter.BaselineOptions{
-			Save:         flags.SaveBaseline,
+			Save:         cfg.Baseline.Save,
 			NoRegression: flags.NoRegression || cfg.Baseline.NoRegression,
 			Tolerance:    flags.BaselineTolerance,
 			Dir:          baseDir,
@@ -210,7 +245,16 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		// Always write textfile to stdout when using multi-outputs
 		writeTextToStdout := len(cfg.Outputs) > 0 && format != "textfile"
 
-		if reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts, writeTextToStdout); reportErr != nil {
+		reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts, writeTextToStdout)
+		
+		// Generate badge even if report had errors (e.g., threshold failure)
+		if cfg.Badge != "" {
+			if err := generateBadge(cfg.Badge, baseDir); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to generate badge: %v\n", err)
+			}
+		}
+		
+		if reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
 				if pathErr == nil {
@@ -464,6 +508,11 @@ func findProjectRoot(target string, configBase string) string {
 		return configBase
 	}
 
+	// Prefer go.work root so the workspace is the authoritative boundary.
+	if ws := gowork.Find(target); ws != nil {
+		return ws.Root
+	}
+
 	if dir := testing.FindGoModDir(target); dir != "" {
 		return dir
 	}
@@ -486,3 +535,89 @@ func ExitWithError(err error) {
 	_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 	os.Exit(1)
 }
+
+// findAndLoadOrgPolicy walks up from projectRoot looking for gorgon-org.yml.
+// Also checks GORGON_ORG_POLICY env var for org-wide installation.
+func findAndLoadOrgPolicy(projectRoot string) (*config.OrgPolicy, error) {
+	// 1. Explicit env override — highest priority
+	if envPath := os.Getenv("GORGON_ORG_POLICY"); envPath != "" {
+		return config.LoadOrgPolicy(envPath)
+	}
+
+	// 2. Walk up from project root
+	dir := projectRoot
+	for {
+		candidate := filepath.Join(dir, config.OrgPolicyFilename)
+		if _, err := os.Stat(candidate); err == nil {
+			return config.LoadOrgPolicy(candidate)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	// 3. XDG config dir (Linux/Mac standard location)
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidate := filepath.Join(xdg, "gorgon", config.OrgPolicyFilename)
+		if _, err := os.Stat(candidate); err == nil {
+			return config.LoadOrgPolicy(candidate)
+		}
+	}
+
+	// Not found — return zero policy, not an error
+	return &config.OrgPolicy{}, nil
+}
+
+// GetLastMutationScore reads the last mutation score from baseline file
+func GetLastMutationScore(baseDir string) (float64, error) {
+	baselinePath := filepath.Join(baseDir, ".gorgon-baseline.json")
+	data, err := os.ReadFile(baselinePath)
+	if err != nil {
+		return 0, fmt.Errorf("baseline file not found: %w", err)
+	}
+	
+	var baseline struct {
+		Score float64 `json:"score"`
+	}
+	if err := json.Unmarshal(data, &baseline); err != nil {
+		return 0, fmt.Errorf("failed to parse baseline: %w", err)
+	}
+	
+	return baseline.Score, nil
+}
+
+// generateBadge creates a badge file based on the mutation score
+func generateBadge(format, baseDir string) error {
+	score, err := GetLastMutationScore(baseDir)
+	if err != nil {
+		return err
+	}
+
+	var output string
+	var filename string
+
+	switch format {
+	case "json":
+		output, err = badge.GenerateJSON(score)
+		if err != nil {
+			return err
+		}
+		filename = "mutation-badge.json"
+	case "svg":
+		output = badge.GenerateSVG(score)
+		filename = "mutation-badge.svg"
+	default:
+		return fmt.Errorf("invalid badge format: %s (use 'json' or 'svg')", format)
+	}
+
+	outputPath := filepath.Join(baseDir, filename)
+	if err := os.WriteFile(outputPath, []byte(output), 0644); err != nil {
+		return fmt.Errorf("failed to write badge file: %w", err)
+	}
+
+	fmt.Printf("Badge generated: %s\n", outputPath)
+	return nil
+}
+
