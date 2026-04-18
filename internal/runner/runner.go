@@ -211,24 +211,17 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	if cfg.ExternalSuites.Enabled {
 		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
 	}
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites)
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg)
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
 		blOpts := reporter.BaselineOptions{
 			Save:         cfg.Baseline.Save,
-			NoRegression: flags.NoRegression || cfg.Baseline.NoRegression,
-			Tolerance:    flags.BaselineTolerance,
+			NoRegression: cfg.Baseline.NoRegression,
+			Tolerance:    cfg.Baseline.Tolerance,
 			Dir:          baseDir,
-			File:         flags.BaselineFile,
+			File:         cfg.Baseline.File,
 			MultiOutputs: cfg.Outputs,
-		}
-		// Config fills in when CLI flags weren't explicitly set
-		if blOpts.Tolerance == 0 && cfg.Baseline.Tolerance > 0 {
-			blOpts.Tolerance = cfg.Baseline.Tolerance
-		}
-		if blOpts.File == "" && cfg.Baseline.File != "" {
-			blOpts.File = cfg.Baseline.File
 		}
 
 		// Extract format and output from first outputs entry for backward compatibility

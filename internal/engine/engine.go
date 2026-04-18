@@ -387,7 +387,25 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 			ctx.EnclosingFunc = fn
 			ctx.FunctionName = fn.Name.Name
 			if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 {
-				ctx.ReturnType = typeToString(fn.Type.Results.List[0].Type, file, fset, &cache.typeCache)
+				// Extract all return types for multi-value returns
+				var types []string
+				for _, field := range fn.Type.Results.List {
+					typeStr := typeToString(field.Type, file, fset, &cache.typeCache)
+					// Handle multiple names with same type: (a, b int) -> int, int
+					if len(field.Names) > 1 {
+						for range field.Names {
+							types = append(types, typeStr)
+						}
+					} else {
+						types = append(types, typeStr)
+					}
+				}
+				if len(types) == 1 {
+					ctx.ReturnType = types[0]
+				} else {
+					// Use comma-separated for multi-value returns
+					ctx.ReturnType = strings.Join(types, ",")
+				}
 			}
 		}
 	}

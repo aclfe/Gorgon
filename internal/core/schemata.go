@@ -24,7 +24,7 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig) ([]Mutant, error) {
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
 
 	log.Debug("GenerateAndRunSchemata called with externalCfg.Enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
 
@@ -104,13 +104,13 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		}
 		defer ws.Cleanup()
 		
-		if err := ws.setup(baseDir, mutants); err != nil {
+		if err := ws.setup(baseDir, mutants, log); err != nil {
 			return mutants, fmt.Errorf("workspace setup failed: %w", err)
 		}
 		
 		_ = MakeSelfContained(ws.TempDir)
 		
-		if _, _, err := ws.applySchemata(mutants); err != nil {
+		if _, _, err := ws.applySchemata(mutants, cfg.ChunkLargeFiles, log); err != nil {
 			return mutants, fmt.Errorf("schemata application failed: %w", err)
 		}
 		
@@ -154,20 +154,36 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 	defer ws.Cleanup()
 
-	if err := ws.setup(projectRoot, mutants); err != nil {
+	if err := ws.setup(projectRoot, mutants, log); err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
 		return mutants, err
 	}
 
 	_ = MakeSelfContained(ws.TempDir)
 
-	_, hasNonStdlib, err := ws.applySchemata(mutants)
+	_, hasNonStdlib, err := ws.applySchemata(mutants, cfg.ChunkLargeFiles, log)
 	if err != nil {
 		setMutantErrors(mutants, fmt.Errorf("schemata application failed: %w", err))
 		return mutants, err
 	}
 
 	ws.simplifyGoMod(hasNonStdlib || externalCfg.Enabled)
+
+	// Build external test binaries AFTER schemata is applied
+	var suiteBinaries map[string]map[string]string
+	if externalCfg.Enabled && len(externalCfg.Suites) > 0 {
+		log.Info("[EXTERNAL] Copying external test suites to workspace")
+		allSuitePaths := collectAllSuitePaths(externalCfg.Suites)
+		if copyErr := ws.copyExternalSuites(ws.absModule, allSuitePaths, log); copyErr != nil {
+			log.Warn("external suite copy failed: %v", copyErr)
+		} else {
+			var buildErr error
+			suiteBinaries, buildErr = buildAllExternalSuiteBinaries(ctx, ws, externalCfg, log)
+			if buildErr != nil {
+				log.Warn("external suite binary build failed: %v", buildErr)
+			}
+		}
+	}
 
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
@@ -233,20 +249,13 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	log.Debug("After unit tests, about to check external phase")
 	// ── Phase 2: External Suites ──────────────────────────────────────────────
-	log.Debug("Before external phase check: enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
-	if externalCfg.Enabled && len(externalCfg.Suites) > 0 {
-		log.Info("[EXTERNAL] Starting external suite phase with %d suites, enabled=%v, runMode=%s", len(externalCfg.Suites), externalCfg.Enabled, externalCfg.RunMode)
-		allSuitePaths := collectAllSuitePaths(externalCfg.Suites)
-		log.Info("[EXTERNAL] Collected %d suite paths", len(allSuitePaths))
-		if copyErr := ws.copyExternalSuites(ws.absModule, allSuitePaths, log); copyErr != nil {
-			log.Warn("external suite copy failed: %v", copyErr)
-		} else {
-			if err := runExternalPhase(ctx, ws, mutants, externalCfg, concurrent, log); err != nil {
-				log.Warn("external suite phase failed: %v", err)
-			}
+	if externalCfg.Enabled && len(externalCfg.Suites) > 0 && len(suiteBinaries) > 0 {
+		log.Info("[EXTERNAL] Running external suite phase with %d suites", len(externalCfg.Suites))
+		if err := runExternalPhaseWithBinaries(ctx, ws, mutants, externalCfg, suiteBinaries, concurrent, log); err != nil {
+			log.Warn("external suite phase failed: %v", err)
 		}
 	} else {
-		log.Info("[EXTERNAL] External suites disabled or no suites configured (enabled=%v, suites=%d)", externalCfg.Enabled, len(externalCfg.Suites))
+		log.Debug("[EXTERNAL] Skipping external phase: enabled=%v, suites=%d, binaries=%d", externalCfg.Enabled, len(externalCfg.Suites), len(suiteBinaries))
 	}
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
@@ -361,7 +370,10 @@ func setMutantErrors(mutants []Mutant, err error) {
 
 func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex map[int]int, tempDir string) {
 	for _, result := range results {
-		idx := mutantIDToIndex[result.id]
+		idx, ok := mutantIDToIndex[result.id]
+		if !ok {
+			continue
+		}
 		if mutants[idx].Status == "survived" {
 			continue
 		}
@@ -375,18 +387,14 @@ func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex ma
 }
 
 func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
-
-	coveredPackages := make(map[string]bool)
+	coveredPackages := make(map[string]bool, len(testPaths))
 	for _, testPath := range testPaths {
 		absPath, err := filepath.Abs(testPath)
 		if err != nil {
 			continue
 		}
-
-		pkgDir := filepath.Dir(absPath)
-		coveredPackages[pkgDir] = true
+		coveredPackages[filepath.Dir(absPath)] = true
 	}
-
 	if len(coveredPackages) == 0 {
 		return
 	}
@@ -396,27 +404,12 @@ func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
 		if m.Site.File == nil {
 			continue
 		}
-
-		mutantFile := m.Site.File.Name()
-		absMutantPath, err := filepath.Abs(mutantFile)
+		absMutantPath, err := filepath.Abs(m.Site.File.Name())
 		if err != nil {
-
 			continue
 		}
-
 		mutantPkg := filepath.Dir(absMutantPath)
-
-		isCovered := false
-		for pkgDir := range coveredPackages {
-
-			if mutantPkg == pkgDir || strings.HasPrefix(mutantPkg+string(filepath.Separator), pkgDir+string(filepath.Separator)) {
-				isCovered = true
-				break
-			}
-		}
-
-		if !isCovered {
-
+		if !coveredPackages[mutantPkg] {
 			m.Status = "untested"
 		}
 	}
@@ -484,20 +477,136 @@ func collectPackagesWithTests(absModule string) map[string]bool {
 }
 
 
-func runExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, cfg config.ExternalSuitesConfig, concurrent int, log *logger.Logger) error {
+// buildExternalBinariesFromSource builds test binaries from the original source directory
+func buildExternalBinariesFromSource(ctx context.Context, sourceRoot string, cfg config.ExternalSuitesConfig, log *logger.Logger) (map[string]map[string]string, error) {
+	allBinaries := make(map[string]map[string]string)
+	
+	for _, suite := range cfg.Suites {
+		resolvedPaths, err := resolveSuitePaths(ctx, sourceRoot, suite, log)
+		if err != nil || len(resolvedPaths) == 0 {
+			log.Warn("[EXTERNAL] No packages found for suite %q: %v", suite.Name, err)
+			continue
+		}
+
+		binaries, err := buildExternalSuiteBinaries(ctx, sourceRoot, suite, resolvedPaths, log)
+		if err != nil {
+			log.Warn("[EXTERNAL] Build failed for suite %q: %v", suite.Name, err)
+			continue
+		}
+		
+		if len(binaries) > 0 {
+			allBinaries[suite.Name] = binaries
+			log.Info("[EXTERNAL] Built %d binaries for suite %q", len(binaries), suite.Name)
+		}
+	}
+	
+	return allBinaries, nil
+}
+
+// buildAllExternalSuiteBinaries builds test binaries for all external suites upfront
+// before any mutations are applied. Returns a map of suite name -> binaries.
+func buildAllExternalSuiteBinaries(ctx context.Context, ws *ModuleWorkspace, cfg config.ExternalSuitesConfig, log *logger.Logger) (map[string]map[string]string, error) {
+	allBinaries := make(map[string]map[string]string)
+	
+	for _, suite := range cfg.Suites {
+		resolvedPaths, err := resolveSuitePaths(ctx, ws.TempDir, suite, log)
+		if err != nil || len(resolvedPaths) == 0 {
+			log.Warn("[EXTERNAL] No packages found for suite %q: %v", suite.Name, err)
+			continue
+		}
+
+		binaries, err := buildExternalSuiteBinaries(ctx, ws.TempDir, suite, resolvedPaths, log)
+		if err != nil {
+			log.Warn("[EXTERNAL] Build failed for suite %q: %v", suite.Name, err)
+			continue
+		}
+		
+		if len(binaries) > 0 {
+			allBinaries[suite.Name] = binaries
+			log.Info("[EXTERNAL] Built %d binaries for suite %q", len(binaries), suite.Name)
+		}
+	}
+	
+	return allBinaries, nil
+}
+
+// runExternalPhaseWithBinaries runs mutations against pre-built external test binaries
+func runExternalPhaseWithBinaries(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, cfg config.ExternalSuitesConfig, suiteBinaries map[string]map[string]string, concurrent int, log *logger.Logger) error {
+	// Build ID→index map once
+	idToIdx := make(map[int]int, len(mutants))
+	for i := range mutants {
+		idToIdx[mutants[i].ID] = i
+	}
+
 	var targets []*Mutant
 	switch cfg.RunMode {
-	case "only":
-		for i := range mutants {
-			targets = append(targets, &mutants[i])
-		}
-	case "alongside":
+	case "only", "alongside":
 		for i := range mutants {
 			targets = append(targets, &mutants[i])
 		}
 	default: // "after_unit"
 		for i := range mutants {
-			// Include mutants that survived OR have no status (unit tests didn't run)
+			if mutants[i].Status == "survived" || mutants[i].Status == "" {
+				targets = append(targets, &mutants[i])
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		log.Info("[EXTERNAL] No survivors to test against external suites")
+		return nil
+	}
+
+	log.Info("[EXTERNAL] Running %d survivors against external suites", len(targets))
+
+	for _, suite := range cfg.Suites {
+		binaries, ok := suiteBinaries[suite.Name]
+		if !ok || len(binaries) == 0 {
+			log.Warn("[EXTERNAL] No binaries available for suite %q", suite.Name)
+			continue
+		}
+
+		for _, binPath := range binaries {
+			var stillAlive []*Mutant
+			for _, m := range targets {
+				if m.Status != "killed" {
+					stillAlive = append(stillAlive, m)
+				}
+			}
+			if len(stillAlive) == 0 {
+				break
+			}
+
+			results := runMutantsAgainstBinary(ctx, binPath, ws.TempDir, stillAlive, 30*time.Second, concurrent, suite.Name)
+			for _, r := range results {
+				if r.status == "killed" {
+					if idx, ok := idToIdx[r.id]; ok {
+						mutants[idx].Status = "killed"
+						mutants[idx].KilledBy = r.killedBy
+						mutants[idx].KillOutput = r.killOutput
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func runExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, cfg config.ExternalSuitesConfig, concurrent int, log *logger.Logger) error {
+	idToIdx := make(map[int]int, len(mutants))
+	for i := range mutants {
+		idToIdx[mutants[i].ID] = i
+	}
+
+	var targets []*Mutant
+	switch cfg.RunMode {
+	case "only", "alongside":
+		for i := range mutants {
+			targets = append(targets, &mutants[i])
+		}
+	default: // "after_unit"
+		for i := range mutants {
 			if mutants[i].Status == "survived" || mutants[i].Status == "" {
 				targets = append(targets, &mutants[i])
 			}
@@ -536,16 +645,12 @@ func runExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant
 			}
 
 			results := runMutantsAgainstBinary(ctx, binPath, ws.TempDir, stillAlive, 30*time.Second, concurrent, suite.Name)
-
 			for _, r := range results {
 				if r.status == "killed" {
-					for i := range mutants {
-						if mutants[i].ID == r.id {
-							mutants[i].Status = "killed"
-							mutants[i].KilledBy = r.killedBy
-							mutants[i].KillOutput = r.killOutput
-							break
-						}
+					if idx, ok := idToIdx[r.id]; ok {
+						mutants[idx].Status = "killed"
+						mutants[idx].KilledBy = r.killedBy
+						mutants[idx].KillOutput = r.killOutput
 					}
 				}
 			}

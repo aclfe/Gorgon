@@ -40,6 +40,7 @@ func (NegateCondition) MutateWithContext(n ast.Node, ctx mutator.Context) ast.No
 		return nil
 	}
 	return &ast.IfStmt{
+		Init: ie.Init,
 		Cond: &ast.UnaryExpr{
 			Op: token.NOT,
 			X:  ie.Cond,

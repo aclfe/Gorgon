@@ -27,6 +27,7 @@ so currently added features that help big repos. external test suites, diff test
 - overlapping debugs. output.debug.txt and gorgon-reporty.debug. 
 fix sarif and juit output.
 lack of debugging info and output's not having proper logs
+No migration path from go-mutesting (documentation) The main Go mutation tool before Gorgon. A compatibility shim or migration guide lowers the switching.
 -----
 
 

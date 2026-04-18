@@ -1,0 +1,5 @@
+Mutation Score  Killed  Survived  Errors  Untested  Total
+0.00%           0       0         0       20        20
+
+Survived Mutants:
+  (none)

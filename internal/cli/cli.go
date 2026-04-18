@@ -13,32 +13,20 @@ import (
 )
 
 type Flags struct {
-	ConfigFile        string
-	PrintAST          bool
-	PkgPath           string
-	Operators         string
-	Concurrent        string
-	Threshold         float64
-	UseCache          bool
-	DryRun            bool
-	Debug             bool
-	ProgBar           bool
-	ShowKilled        bool
-	ShowSurvived      bool
-	Format            string
-	Output            string
-	CPUProfile        string
-	Exclude           string
-	Include           string
-	Skip              string
-	SkipFunc          string
-	Tests             string
-	Diff              string
-	Targets           []string
-	// Baseline / ratchet
-	NoRegression      bool
-	BaselineFile      string
-	BaselineTolerance float64
+	ConfigFile   string
+	PrintAST     bool
+	PkgPath      string
+	Operators    string
+	Concurrent   string
+	Threshold    float64
+	UseCache     bool
+	DryRun       bool
+	Debug        bool
+	ProgBar      bool
+	ShowKilled   bool
+	ShowSurvived bool
+	Diff         string
+	Targets      []string
 }
 
 func Parse(args []string) (*Flags, error) {
@@ -53,22 +41,11 @@ func Parse(args []string) (*Flags, error) {
 	fs.Float64Var(&f.Threshold, "threshold", 0, "Minimum mutation score percentage required (0-100)")
 	fs.BoolVar(&f.UseCache, "cache", false, "Cache mutation results between runs")
 	fs.BoolVar(&f.DryRun, "dry-run", false, "Preview mutants without running tests")
-	fs.StringVar(&f.Exclude, "exclude", "", "Comma-separated glob patterns for files to exclude")
-	fs.StringVar(&f.Include, "include", "", "Comma-separated glob patterns for files to include")
-	fs.StringVar(&f.Skip, "skip", "", "Comma-separated relative file paths to skip entirely")
-	fs.StringVar(&f.SkipFunc, "skip-func", "", "Comma-separated file:function pairs to skip")
-	fs.StringVar(&f.Tests, "tests", "", "Comma-separated relative paths to test files/folders")
 	fs.StringVar(&f.Diff, "diff", "", "Only mutate lines changed in a git diff (e.g. HEAD~1, a commit SHA, or path/to/file.patch)")
 	fs.BoolVar(&f.Debug, "debug", false, "Enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
 	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
-	fs.StringVar(&f.Format, "format", "textfile", "Output format for report file (textfile, html, junit, sarif, json)")
-	fs.StringVar(&f.Output, "output", "", "Write report to file (e.g. report.txt) or directory (for html)")
-	fs.StringVar(&f.CPUProfile, "cpu-profile", "", "Write CPU profile to file (analyzable with go tool pprof)")
-	fs.BoolVar(&f.NoRegression, "no-regression", false, "Fail if mutation score drops below saved baseline")
-	fs.StringVar(&f.BaselineFile, "baseline-file", "", "Path to baseline file (default: .gorgon-baseline.json)")
-	fs.Float64Var(&f.BaselineTolerance, "baseline-tolerance", 0, "Allow this many percentage points of score drop before failing")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -81,8 +58,7 @@ func Parse(args []string) (*Flags, error) {
 func (f *Flags) ValidateChecks() error {
 	if f.ConfigFile != "" && (f.PrintAST || f.PkgPath != "." || f.Operators != "all" ||
 		f.Concurrent != "all" || f.Threshold != 0 || f.UseCache || f.DryRun ||
-		f.ProgBar || f.CPUProfile != "" || f.Exclude != "" || f.Include != "" || f.Skip != "" || f.SkipFunc != "" || f.Tests != "" || f.Diff != "" ||
-		f.NoRegression || f.BaselineFile != "" || f.BaselineTolerance != 0) {
+		f.ProgBar || f.Diff != "" || f.Debug || f.ShowKilled || f.ShowSurvived) {
 		return fmt.Errorf("Error: -config cannot be used with other flags")
 	}
 	return nil
@@ -110,31 +86,11 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 	cfg.Threshold = f.Threshold
 	cfg.Cache = f.UseCache
 	cfg.DryRun = f.DryRun
-	if f.Exclude != "" {
-		cfg.Exclude = splitAndTrim(f.Exclude)
-	}
-	if f.Include != "" {
-		cfg.Include = splitAndTrim(f.Include)
-	}
-	if f.Skip != "" {
-		cfg.Skip = splitAndTrim(f.Skip)
-	}
-	if f.SkipFunc != "" {
-		cfg.SkipFunc = splitAndTrim(f.SkipFunc)
-	}
-	if f.Tests != "" {
-		cfg.Tests = splitAndTrim(f.Tests)
-	}
 	cfg.Diff = f.Diff
 	cfg.Debug = f.Debug
 	cfg.ProgBar = f.ProgBar
 	cfg.ShowKilled = f.ShowKilled
 	cfg.ShowSurvived = f.ShowSurvived
-	// Convert CLI format/output to outputs format
-	if f.Format != "textfile" || f.Output != "" {
-		cfg.Outputs = []string{f.Format + ":" + f.Output}
-	}
-	cfg.CPUProfile = f.CPUProfile
 	return cfg, nil
 }
 
@@ -191,28 +147,17 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -threshold float      minimum mutation score percentage (0-100)")
 	fmt.Fprintln(os.Stderr, "  -cache                cache mutation results between runs")
 	fmt.Fprintln(os.Stderr, "  -dry-run              preview mutants without running tests")
-	fmt.Fprintln(os.Stderr, "  -exclude string       comma-separated glob patterns for files to exclude")
-	fmt.Fprintln(os.Stderr, "  -include string       comma-separated glob patterns for files to include")
-	fmt.Fprintln(os.Stderr, "  -skip string          comma-separated relative file paths to skip entirely")
-	fmt.Fprintln(os.Stderr, "  -skip-func string     comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc)")
-	fmt.Fprintln(os.Stderr, "  -tests string         comma-separated relative paths to test files/folders")
 	fmt.Fprintln(os.Stderr, "  -diff string          only mutate changed lines (e.g. HEAD~1 or path/to/file.patch)")
-	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output (console + {output}.debug.txt or gorgon-debug.txt)")
+	fmt.Fprintln(os.Stderr, "  -debug                enable full debug output")
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
-	fmt.Fprintln(os.Stderr, "  -cpu-profile string   write CPU profile to file (go tool pprof)")
-	fmt.Fprintln(os.Stderr, "  -format string        output format for report file (textfile, html, junit, sarif, json)")
-	fmt.Fprintln(os.Stderr, "  -output string        write report to file (e.g. report.txt) or directory (for html)")
-	fmt.Fprintln(os.Stderr, "  -no-regression        fail if mutation score drops below saved baseline")
-	fmt.Fprintln(os.Stderr, "  -baseline-file string path to baseline file (default: .gorgon-baseline.json)")
-	fmt.Fprintln(os.Stderr, "  -baseline-tolerance   allow this many pp of score drop before failing")
+	fmt.Fprintln(os.Stderr, "  -show-killed          show killed mutants with test attribution")
+	fmt.Fprintln(os.Stderr, "  -show-survived        show survived mutants in output")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -debug examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon -output=report.txt -debug examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon -format=html -output=gorgon-report examples/mutations")
 	fmt.Fprintln(os.Stderr, "  gorgon -concurrent=half examples/mutations")
-	fmt.Fprintln(os.Stderr, "  gorgon -no-regression examples/mutations")
+	fmt.Fprintln(os.Stderr, "  gorgon -config=gorgon.yml examples/mutations")
 	os.Exit(1)
 }
 
