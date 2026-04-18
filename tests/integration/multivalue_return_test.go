@@ -99,13 +99,18 @@ go 1.25
 	
 	cmd := exec.Command(gorgonBin, tmpDir)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Gorgon output:\n%s", string(output))
-		t.Fatalf("Gorgon execution failed: %v", err)
-	}
 	
 	outputStr := string(output)
 	t.Logf("Gorgon output:\n%s", outputStr)
+	
+	// Check for Schemata compilation failures first
+	if strings.Contains(outputStr, "FATAL: Schemata-transformed code does not compile!") {
+		t.Fatalf("Schemata compilation failed:\n%s", outputStr)
+	}
+	
+	if err != nil {
+		t.Fatalf("Gorgon execution failed: %v", err)
+	}
 	
 	if strings.Contains(outputStr, "not enough return values") {
 		t.Error("Found 'not enough return values' error - multi-value return bug not fixed")

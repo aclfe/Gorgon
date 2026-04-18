@@ -242,11 +242,9 @@ func wrapExprWithIf(mutated, original ast.Expr, mutantID int, returnType string,
 	exprType := inferExprType(original, returnType, typeMap)
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
-			Type: &ast.FuncType{
-				Results: &ast.FieldList{
-					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
-				},
-			},
+			Type: safeFuncType(&ast.FieldList{
+				List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
+			}),
 			Body: &ast.BlockStmt{
 				List: []ast.Stmt{
 					&ast.IfStmt{
@@ -300,11 +298,9 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
-			Type: &ast.FuncType{
-				Results: &ast.FieldList{
-					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
-				},
-			},
+			Type: safeFuncType(&ast.FieldList{
+				List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
+			}),
 			Body: &ast.BlockStmt{List: stmts},
 		},
 	}
@@ -377,10 +373,15 @@ func HandleRangeStmt(original ast.Node, mutants []MutantForSite, returnType stri
 }
 
 func HandleAssignStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 1 {
-		return applySingleMutant(original, mutants[0], returnType, file)
-	}
-	return WrapStatement(original, mutants, returnType, file)
+    if assign, ok := original.(*ast.AssignStmt); ok && assign.Tok == token.DEFINE {
+        // Never wrap :=  — it would pull the declared variable out of scope.
+        // Expression-level operators will still mutate the RHS individually.
+        return original
+    }
+    if len(mutants) == 1 {
+        return applySingleMutant(original, mutants[0], returnType, file)
+    }
+    return WrapStatement(original, mutants, returnType, file)
 }
 
 func HandleDeferStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
@@ -505,11 +506,9 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: &ast.FuncType{
-						Results: &ast.FieldList{
-							List: []*ast.Field{{Type: typeExpr}},
-						},
-					},
+					Type: safeFuncType(&ast.FieldList{
+						List: []*ast.Field{{Type: typeExpr}},
+					}),
 					Body: &ast.BlockStmt{List: stmts},
 				},
 			},
@@ -544,9 +543,7 @@ func wrapMultiReturnWithSchemata(original, mutated *ast.ReturnStmt, mutantID int
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: &ast.FuncType{
-						Results: &ast.FieldList{List: fields},
-					},
+					Type: safeFuncType(&ast.FieldList{List: fields}),
 					Body: &ast.BlockStmt{
 						List: []ast.Stmt{
 							&ast.IfStmt{
@@ -587,9 +584,7 @@ func wrapMultiReturnMultiMutants(original *ast.ReturnStmt, mutResults []mutantRe
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: &ast.FuncType{
-						Results: &ast.FieldList{List: fields},
-					},
+					Type: safeFuncType(&ast.FieldList{List: fields}),
 					Body: &ast.BlockStmt{List: stmts},
 				},
 			},
@@ -610,11 +605,9 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: &ast.FuncType{
-						Results: &ast.FieldList{
-							List: []*ast.Field{{Type: typeExpr}},
-						},
-					},
+					Type: safeFuncType(&ast.FieldList{
+						List: []*ast.Field{{Type: typeExpr}},
+					}),
 					Body: &ast.BlockStmt{
 						List: []ast.Stmt{
 							&ast.IfStmt{
@@ -735,12 +728,47 @@ func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string
 	})
 }
 
+func safeFuncType(results *ast.FieldList) *ast.FuncType {
+    return &ast.FuncType{
+        Params:  &ast.FieldList{}, // must not be nil
+        Results: results,
+    }
+}
+
+func isConcreteFallbackType(t string) bool {
+	if t == "" || t == "interface{}" {
+		return false
+	}
+	// Interface literal syntax: interface{ ... } or struct{ ... }
+	if strings.Contains(t, "{") {
+		return false
+	}
+	// Package-qualified types (ast.Node, io.Reader, etc.) may be interfaces.
+	// We can't distinguish struct vs interface at this syntactic level, so
+	// be conservative and exclude them from the fallback.
+	if strings.Contains(t, ".") {
+		return false
+	}
+	return true
+}
+
 func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]string) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
 		if typeMap != nil {
 			if typ, ok := typeMap[e.Name]; ok {
-				return typ
+				if strings.Contains(typ, ".") {
+					// Package-qualified types (ast.Node, io.Reader, etc.) may be
+					// interfaces. Use them only when context exactly matches —
+					// otherwise an ast.Node-typed IIFE ends up in a bool position
+					// and slips past the lenient importer in L3.
+					if typ == siteReturnType {
+						return typ
+					}
+					// Fall through to keyword/heuristic checks below
+				} else {
+					return typ
+				}
 			}
 		}
 		switch e.Name {
@@ -769,7 +797,12 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 			}
 			return "rune"
 		default:
-			if siteReturnType != "" && siteReturnType != "interface{}" {
+			// Use siteReturnType as fallback only when it is a concrete,
+			// unqualified type (int, float64, string, bool, *Foo, []T, etc.).
+			// Interface types like ast.Node contain a "." and must NOT be used
+			// here — doing so would wrap a bool expression in func() ast.Node{}
+			// which breaks type checking at the call site.
+			if isConcreteFallbackType(siteReturnType) {
 				return siteReturnType
 			}
 			return "interface{}"
@@ -792,16 +825,54 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 		if isComparisonOp(e.Op) || isLogicalOp(e.Op) {
 			return "bool"
 		}
-		return inferExprType(e.X, siteReturnType, typeMap)
+		// For arithmetic operators, propagate the concrete type from either
+		// operand. This fixes cases like `sum + 1` where `sum` is unknown but
+		// the literal `1` tells us the type is int, or where siteReturnType
+		// propagates correctly through one of the operands.
+		lType := inferExprType(e.X, siteReturnType, typeMap)
+		if lType != "" && lType != "interface{}" {
+			return lType
+		}
+		rType := inferExprType(e.Y, siteReturnType, typeMap)
+		if rType != "" && rType != "interface{}" {
+			return rType
+		}
+		return "interface{}"
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
 			return "bool"
 		}
 		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.CallExpr:
-		if siteReturnType != "" && siteReturnType != "interface{}" {
-			return siteReturnType
+		// If this is a schemata-generated IIFE (Fun is a FuncLit with a single
+		// return type), extract that type. This fixes nested-mutation scenarios:
+		// when inner expressions are already wrapped, the outer mutation must
+		// see through the wrapper to get the real type, not fall back to
+		// interface{}.
+		if fl, ok := e.Fun.(*ast.FuncLit); ok &&
+			fl.Type != nil &&
+			fl.Type.Results != nil &&
+			len(fl.Type.Results.List) == 1 {
+			if t := typeToString(fl.Type.Results.List[0].Type); t != "" {
+				return t
+			}
 		}
+		// Infer well-known builtin return types so IIFEs don't inherit the
+		// enclosing function's return type when used as sub-expressions.
+		if fn, ok := e.Fun.(*ast.Ident); ok {
+			switch fn.Name {
+			case "len", "cap":
+				return "int"
+			case "real", "imag":
+				return "float64"
+			case "new":
+				return "interface{}"
+			}
+		}
+		// For all other calls: do NOT fall back to siteReturnType.
+		// The call expression's own return type is independent of the
+		// enclosing function's return type. Using siteReturnType here was
+		// the source of "cannot use func() ast.Node{}() as bool" errors.
 		return "interface{}"
 	case *ast.StarExpr:
 		return "*" + inferExprType(e.X, siteReturnType, typeMap)
@@ -827,6 +898,7 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 	}
 	return "interface{}"
 }
+
 
 func isComparisonOp(op token.Token) bool {
 	switch op {

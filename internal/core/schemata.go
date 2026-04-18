@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -24,11 +26,23 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
+const mutantBatchSize = 1000 // Process mutants in batches to avoid OOM
+
 func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
 
 	log.Debug("GenerateAndRunSchemata called with externalCfg.Enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
+	logMemUsage(log, "Start of GenerateAndRunSchemata")
 
-	mutants := GenerateMutants(sites, operators, allOps, projectRoot, dirRules, resolver, log)
+	allMutants := GenerateMutants(sites, operators, allOps, projectRoot, dirRules, resolver, log)
+	logMemUsage(log, "After GenerateMutants (%d mutants)", len(allMutants))
+	
+	// Process in batches to avoid OOM
+	if len(allMutants) > mutantBatchSize {
+		log.Info("Processing %d mutants in batches of %d to avoid OOM", len(allMutants), mutantBatchSize)
+		return processMutantsInBatches(ctx, allMutants, baseDir, projectRoot, concurrent, cache, tests, testPaths, log, progbar, unitTestsEnabled, externalCfg, cfg)
+	}
+	
+	mutants := allMutants
 	if len(mutants) == 0 {
 		return nil, nil
 	}
@@ -42,19 +56,11 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	} else {
 		filterMutantsWithoutTests(mutants, baseDir)
 	}
+	logMemUsage(log, "After filtering")
 
-	totalMutants := len(mutants)
-
-	// === Level 1: Quick static filter ===
-	validAfterLevel1, level1Invalid := quickStaticFilter(mutants)
-
-	// === Level 2: Accurate schemata compile check (this is the important one) ===
-	validMutants, level2Invalid := level2PackagePreflight(validAfterLevel1)
-
-	allInvalid := append(level1Invalid, level2Invalid...)
-
-	// Log nice stats. Invariant: level1 + level2 + validCount == totalMutants.
-	LogPreflightResults(log, totalMutants, allInvalid, len(validMutants))
+	// Run preflight validation: Level 1 (static) + Level 2 (type-check each mutant)
+	validMutants, allInvalid := RunPreflight(mutants, log)
+	logMemUsage(log, "After RunPreflight")
 
 	// Mark the bad ones on the original list
 	for _, r := range allInvalid {
@@ -153,19 +159,38 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, err
 	}
 	defer ws.Cleanup()
+	logMemUsage(log, "After workspace creation")
 
 	if err := ws.setup(projectRoot, mutants, log); err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
 		return mutants, err
 	}
+	logMemUsage(log, "After workspace setup")
 
 	_ = MakeSelfContained(ws.TempDir)
 
 	_, hasNonStdlib, err := ws.applySchemata(mutants, cfg.ChunkLargeFiles, log)
 	if err != nil {
+		log.Warn("CRITICAL: Schemata application failed: %v", err)
 		setMutantErrors(mutants, fmt.Errorf("schemata application failed: %w", err))
+		return mutants, fmt.Errorf("FATAL: schemata transformation produced invalid code: %w", err)
+	}
+	log.Debug("Schemata application completed successfully")
+	logMemUsage(log, "After applySchemata")
+
+	// Verify the transformed code compiles with L4 retry logic
+	log.Debug("Verifying schemata-transformed code compiles...")
+	mutants, err = verifyAndCleanSchemata(ctx, ws, mutants, log)
+	if err != nil {
+		log.Warn("Schemata compilation failed, marking all mutants as errors to prevent OOM")
+		setMutantErrors(mutants, err)
+		// Force cleanup and return immediately to prevent retry loops
+		ws.Cleanup()
+		runtime.GC()
 		return mutants, err
 	}
+	log.Debug("Schemata-transformed code compiles successfully")
+	logMemUsage(log, "After verifyAndCleanSchemata")
 
 	ws.simplifyGoMod(hasNonStdlib || externalCfg.Enabled)
 
@@ -183,6 +208,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				log.Warn("external suite binary build failed: %v", buildErr)
 			}
 		}
+		logMemUsage(log, "After external suite setup")
 	}
 
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
@@ -190,6 +216,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		setMutantErrors(mutants, fmt.Errorf("build package map failed: %w", err))
 		return mutants, err
 	}
+	logMemUsage(log, "After buildPkgMap")
 
 	mutantSites := make(map[int]MutantSite, len(mutants))
 	for i := range mutants {
@@ -234,11 +261,14 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	var results []mutantResult
 	if runUnitTests {
+		logMemUsage(log, "Before compileAndRunPackages")
 		var err error
 		results, err = compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, log)
+		logMemUsage(log, "After compileAndRunPackages")
 
 		if len(results) > 0 {
 			collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+			logMemUsage(log, "After collectResults")
 		}
 
 		if err != nil {
@@ -657,4 +687,374 @@ func runExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant
 		}
 	}
 	return nil
+}
+
+// verifyBuildSequential builds packages one at a time to reduce peak RAM usage.
+// Returns combined error output and error if any package fails.
+func verifyBuildSequential(ctx context.Context, tempDir string, log *logger.Logger) (string, error) {
+	logMemUsage(log, "verifyBuildSequential start")
+	
+	cmd := exec.CommandContext(ctx, "go", "list", "-f", "{{.Dir}}", "./...")
+	cmd.Dir = tempDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// Fall back to single build if list fails
+		cmd2 := exec.CommandContext(ctx, "go", "build", "./...")
+		cmd2.Dir = tempDir
+		out2, err2 := cmd2.CombinedOutput()
+		logMemUsage(log, "verifyBuildSequential end (fallback)")
+		return string(out2), err2
+	}
+
+	pkgs := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var validPkgs []string
+	for _, pkg := range pkgs {
+		pkg = strings.TrimSpace(pkg)
+		if pkg != "" {
+			validPkgs = append(validPkgs, pkg)
+		}
+	}
+	
+	log.Debug("[VERIFY] Building %d packages with memory-efficient batching", len(validPkgs))
+	
+	// Build in small batches to prevent OOM
+	const batchSize = 5
+	var allErrors strings.Builder
+	anyFailed := false
+	
+	for i := 0; i < len(validPkgs); i += batchSize {
+		end := i + batchSize
+		if end > len(validPkgs) {
+			end = len(validPkgs)
+		}
+		
+		for _, pkg := range validPkgs[i:end] {
+			relPkg, _ := filepath.Rel(tempDir, pkg)
+			buildCmd := exec.CommandContext(ctx, "go", "build", "./"+filepath.ToSlash(relPkg))
+			buildCmd.Dir = tempDir
+			pkgOut, pkgErr := buildCmd.CombinedOutput()
+			if pkgErr != nil {
+				anyFailed = true
+				allErrors.Write(pkgOut)
+				allErrors.WriteByte('\n')
+			}
+		}
+		
+		// Force GC after each batch to release compiler memory
+		if i > 0 && i%batchSize == 0 {
+			runtime.GC()
+			logMemUsage(log, "After building batch %d-%d/%d", i, end, len(validPkgs))
+		}
+	}
+	
+	logMemUsage(log, "verifyBuildSequential end")
+	if anyFailed {
+		return allErrors.String(), fmt.Errorf("build failed")
+	}
+	return "", nil
+}
+
+// verifyAndCleanSchemata runs build verification with retry loop that removes bad mutants.
+func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
+	const maxRounds = 5
+
+	for round := 0; round < maxRounds; round++ {
+		buildOut, buildErr := verifyBuildSequential(ctx, ws.TempDir, log)
+		if buildErr == nil {
+			if round > 0 {
+				log.Debug("[VERIFY] Build clean after %d removal round(s)", round)
+			}
+			return mutants, nil
+		}
+
+		log.Debug("[VERIFY] Round %d: build failed, scanning for bad mutant IDs", round+1)
+
+		badIDs := extractMutantIDsFromBuildErrors(ws.TempDir, buildOut)
+		if len(badIDs) == 0 {
+			return nil, fmt.Errorf("schemata build failed (round %d), bad mutants unidentifiable:\n%s", round+1, buildOut)
+		}
+
+		log.Debug("[VERIFY] Round %d: removing %d bad mutant(s): %v", round+1, len(badIDs), badIDs)
+
+		badSet := make(map[int]bool, len(badIDs))
+		for _, id := range badIDs {
+			badSet[id] = true
+		}
+
+		var kept []Mutant
+		for i := range mutants {
+			if badSet[mutants[i].ID] {
+				mutants[i].Status = StatusCompileError
+				mutants[i].KillOutput = fmt.Sprintf("build verification: removed in round %d", round+1)
+			} else {
+				kept = append(kept, mutants[i])
+			}
+		}
+
+		if len(kept) == len(mutants) {
+			return nil, fmt.Errorf("build verification: bad mutants identified but none removed, aborting")
+		}
+
+		// Re-apply schemata to the affected files.
+		if err := reapplyAffectedFiles(ws, badSet, kept, log); err != nil {
+			return nil, fmt.Errorf("re-apply after round %d: %w", round+1, err)
+		}
+		mutants = kept
+	}
+
+	if _, finalErr := verifyBuildSequential(ctx, ws.TempDir, log); finalErr != nil {
+		log.Warn("[VERIFY] Still failing after %d rounds — proceeding with remaining mutants", maxRounds)
+	}
+	return mutants, nil
+}
+
+// extractMutantIDsFromBuildErrors scans temp files near error lines for activeMutantID patterns.
+func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
+	errors := ParseCompilerErrors(buildOutput)
+	seen := make(map[int]bool)
+	var ids []int
+
+	prefix := []byte("activeMutantID == ")
+
+	for _, ce := range errors {
+		filePath := ce.File
+		if !filepath.IsAbs(filePath) {
+			filePath = filepath.Join(tempDir, filePath)
+		}
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(content), "\n")
+
+		// Scan a ±15 line window around the error.
+		lo := ce.Line - 16
+		if lo < 0 {
+			lo = 0
+		}
+		hi := ce.Line + 15
+		if hi > len(lines) {
+			hi = len(lines)
+		}
+
+		for _, line := range lines[lo:hi] {
+			idx := strings.Index(line, string(prefix))
+			if idx < 0 {
+				continue
+			}
+			rest := line[idx+len(prefix):]
+			end := 0
+			for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+				end++
+			}
+			if end == 0 {
+				continue
+			}
+			var id int
+			if _, err := fmt.Sscanf(rest[:end], "%d", &id); err != nil || seen[id] {
+				continue
+			}
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// reapplyAffectedFiles re-applies schemata to files that had bad mutants removed.
+func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, kept []Mutant, log *logger.Logger) error {
+	// Find which source files contained removed mutants.
+	affected := make(map[string][]*Mutant) // origPath → kept mutants for that file
+
+	for i := range kept {
+		m := &kept[i]
+		if m.Site.File == nil {
+			continue
+		}
+		p := m.Site.File.Name()
+		affected[p] = append(affected[p], m)
+	}
+
+	for origPath, fileMutants := range affected {
+		rel, err := ws.relPath(origPath)
+		if err != nil {
+			continue
+		}
+		tempPath := filepath.Join(ws.TempDir, rel)
+
+		// Restore original source.
+		src, err := os.ReadFile(origPath)
+		if err != nil {
+			return fmt.Errorf("re-read %s: %w", origPath, err)
+		}
+		if err := os.WriteFile(tempPath, src, filePermissions); err != nil {
+			return fmt.Errorf("restore %s: %w", tempPath, err)
+		}
+
+		// Re-apply schemata with only the kept mutants for this file.
+		if len(fileMutants) == 0 {
+			continue
+		}
+		
+		log.Debug("[VERIFY] Re-applying schemata to %s with %d mutant(s)", filepath.Base(origPath), len(fileMutants))
+		posMap, err := ApplySchemataToAST(fileMutants[0].Site.FileAST, fileMutants[0].Site.Fset, tempPath, src, fileMutants)
+		if err != nil {
+			return fmt.Errorf("re-apply schemata %s: %w", origPath, err)
+		}
+		
+		for _, m := range fileMutants {
+			if pm, ok := posMap[m.ID]; ok {
+				m.TempLine = pm.TempLine
+				m.TempCol = pm.TempCol
+			}
+		}
+	}
+
+	// Re-inject helpers only for affected packages.
+	tempFileToMutants := make(map[string][]*Mutant)
+	for origPath, fileMutants := range affected {
+		rel, _ := ws.relPath(origPath)
+		tempFileToMutants[filepath.Join(ws.TempDir, rel)] = fileMutants
+	}
+	return InjectSchemataHelpers(tempFileToMutants)
+}
+
+func processMutantsInBatches(ctx context.Context, allMutants []Mutant, baseDir, projectRoot string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
+	results := make([]Mutant, 0, len(allMutants))
+	
+	for start := 0; start < len(allMutants); start += mutantBatchSize {
+		end := start + mutantBatchSize
+		if end > len(allMutants) {
+			end = len(allMutants)
+		}
+		
+		batch := allMutants[start:end]
+		log.Info("Processing batch %d-%d of %d mutants", start+1, end, len(allMutants))
+		
+		if len(testPaths) > 0 {
+			filterMutantsByTestPackages(batch, testPaths)
+		} else {
+			filterMutantsWithoutTests(batch, baseDir)
+		}
+		
+		validMutants, allInvalid := RunPreflight(batch, log)
+		for _, r := range allInvalid {
+			for i := range batch {
+				if batch[i].ID == r.MutantID {
+					batch[i].Status = r.Status
+					batch[i].Error = r.Error
+					batch[i].KillOutput = r.ErrorReason
+					results = append(results, batch[i])
+					break
+				}
+			}
+		}
+		
+		if len(validMutants) == 0 {
+			continue
+		}
+		
+		uncachedIndices, fileHashes, err := ResolveCache(validMutants, baseDir, cache)
+		if err != nil {
+			log.Warn("Cache resolution failed for batch: %v", err)
+		}
+		
+		if uncachedIndices == nil {
+			results = append(results, validMutants...)
+			continue
+		}
+		
+		batchResults, err := runBatch(ctx, validMutants, baseDir, projectRoot, concurrent, cache, tests, testPaths, log, progbar, unitTestsEnabled, externalCfg, cfg, fileHashes)
+		if err != nil {
+			log.Warn("Batch processing failed: %v", err)
+		}
+		results = append(results, batchResults...)
+		
+		runtime.GC() // Force GC between batches
+	}
+	
+	lastTotalMutants = len(results)
+	return results, nil
+}
+
+func runBatch(ctx context.Context, mutants []Mutant, baseDir, projectRoot string, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config, fileHashes map[string]string) ([]Mutant, error) {
+	projectRootAbs, _ := filepath.Abs(projectRoot)
+	hasGoWork := fileExists(filepath.Join(projectRootAbs, "go.work"))
+	hasGoMod := fileExists(filepath.Join(projectRootAbs, "go.mod"))
+	
+	if !hasGoWork && !hasGoMod {
+		return mutants, nil // Skip workspace processing for standalone
+	}
+	
+	ws, err := NewModuleWorkspace()
+	if err != nil {
+		return mutants, err
+	}
+	defer ws.Cleanup()
+	
+	if err := ws.setup(projectRoot, mutants, log); err != nil {
+		return mutants, err
+	}
+	
+	_ = MakeSelfContained(ws.TempDir)
+	
+	_, hasNonStdlib, err := ws.applySchemata(mutants, cfg.ChunkLargeFiles, log)
+	if err != nil {
+		return mutants, err
+	}
+	
+	mutants, err = verifyAndCleanSchemata(ctx, ws, mutants, log)
+	if err != nil {
+		return mutants, err
+	}
+	
+	ws.simplifyGoMod(hasNonStdlib || externalCfg.Enabled)
+	
+	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
+	if err != nil {
+		return mutants, err
+	}
+	
+	mutantSites := make(map[int]MutantSite, len(mutants))
+	for i := range mutants {
+		m := &mutants[i]
+		if m.Site.File != nil {
+			line, col := m.TempLine, m.TempCol
+			if line == 0 {
+				line = m.Site.Line
+			}
+			if col == 0 {
+				col = m.Site.Column
+			}
+			mutantSites[m.ID] = MutantSite{File: m.Site.File.Name(), Line: line, Col: col}
+		}
+	}
+	
+	pkgToMutants := make(map[string][]*Mutant, len(mutants))
+	for i := range mutants {
+		m := &mutants[i]
+		if m.Site.File == nil {
+			continue
+		}
+		rel, err := filepath.Rel(ws.absModule, m.Site.File.Name())
+		if err != nil {
+			continue
+		}
+		pkgDir := filepath.Join(ws.TempDir, filepath.Dir(rel))
+		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
+	}
+	
+	if unitTestsEnabled {
+		results, err := compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, nil, log)
+		if len(results) > 0 {
+			collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+		}
+		if err != nil {
+			SaveCache(mutants, baseDir, cache, fileHashes)
+			return mutants, err
+		}
+	}
+	
+	SaveCache(mutants, baseDir, cache, fileHashes)
+	return mutants, nil
 }

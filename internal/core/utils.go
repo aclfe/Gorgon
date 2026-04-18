@@ -110,9 +110,6 @@ func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
 			}
 			continue
 		}
-		if !strings.HasSuffix(entry.Name(), ".go") {
-			continue
-		}
 
 		
 		if mutatedPaths[srcPath] {
@@ -157,9 +154,6 @@ func copyDirContents(src, dst string, mutatedPaths map[string]bool) error {
 					return err
 				}
 			}
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") {
 			continue
 		}
 		if mutatedPaths[srcPath] {

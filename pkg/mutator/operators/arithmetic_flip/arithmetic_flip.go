@@ -3,6 +3,7 @@ package arithmetic_flip
 
 import (
 	"go/ast"
+	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 	"github.com/aclfe/gorgon/pkg/mutator/tokens"
@@ -19,8 +20,23 @@ func (ArithmeticFlip) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
+	
+	// Only apply to numeric operators, not string concatenation
+	// The + operator can be used for both, so we need to be careful
+	if be.Op == token.ADD {
+		// Skip if either operand looks like a string literal
+		if isStringLiteral(be.X) || isStringLiteral(be.Y) {
+			return false
+		}
+	}
+	
 	_, ok = tokens.ArithmeticFlipTokens[be.Op]
 	return ok
+}
+
+func isStringLiteral(n ast.Expr) bool {
+	lit, ok := n.(*ast.BasicLit)
+	return ok && lit.Kind == token.STRING
 }
 
 func (ArithmeticFlip) Mutate(n ast.Node) ast.Node {

@@ -1,156 +1,394 @@
 [INFO] Loaded sub-configs from 1 directories
 [DEBUG] External suites enabled with 1 suites
 [DEBUG] GenerateAndRunSchemata called with externalCfg.Enabled=true, suites=1
+[DEBUG] [PREFLIGHT L3] empty_body.go: 10 type errors found, bisecting 67 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9236 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:94:18: t.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #9240 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:92:12: t.Name undefined (type *ast.StarExpr has no field or method Name)
+[DEBUG] [PREFLIGHT L3] config.go: 18 type errors found, bisecting 229 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8056 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #8066 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #8147 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:241:59: undefined: content
+[DEBUG] [PREFLIGHT L3] orgpolicy.go: 1 type errors found, bisecting 25 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8289 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] tokens.go: 1 type errors found, bisecting 1 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9832 rejected: -: cannot use nil as bool value in return statement
+[DEBUG] [PREFLIGHT L3] common.go: 7 type errors found, bisecting 49 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8986 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:119:28: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8987 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:121:12: e.Op undefined (type *ast.ParenExpr has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #8988 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:126:53: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
+[DEBUG] [PREFLIGHT L3] handlers.go: 65 type errors found, bisecting 492 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #3209 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3210 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3211 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3217 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:229:42: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+[DEBUG] [PREFLIGHT L3] Mutant #3236 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3237 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3238 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:272:13: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #3317 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:722:14: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #3318 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:722:14: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #3319 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:722:14: undefined: mutator
+[DEBUG] [PREFLIGHT L3] schemata.go: 28 type errors found, bisecting 517 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #3473 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:696:10: undefined: chain
+[DEBUG] [PREFLIGHT L3] Mutant #3475 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:699:55: undefined: chain
+[DEBUG] [PREFLIGHT L3] Mutant #3499 rejected: -: not enough return values
+	have (unknown type)
+	want (ast.Stmt, bool)
+[DEBUG] [PREFLIGHT L3] Mutant #3501 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:778:12: e.Kind undefined (type *ast.Ident has no field or method Kind)
+[DEBUG] [PREFLIGHT L3] Mutant #3536 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:792:23: e.Op undefined (type *ast.BasicLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #3550 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:805:18: e.Fun undefined (type *ast.UnaryExpr has no field or method Fun)
+[DEBUG] [PREFLIGHT L3] Mutant #3555 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:822:32: e.X undefined (type *ast.CallExpr has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #2886 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata.go:344:13: invalid operation: operator - not defined on "module " + benchModuleName + "\ngo " (constant "module gorgon-bench\ngo " of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #3563 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:830:8: e.Type undefined (type *ast.SelectorExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #3570 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:839:26: e.X undefined (type *ast.FuncLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #3571 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:841:26: e.Value undefined (type *ast.ParenExpr has no field or method Value)
+[DEBUG] [PREFLIGHT L3] Mutant #3572 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:839:26: e.X undefined (type *ast.KeyValueExpr has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #3584 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:870:31: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #3585 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:872:8: e.Len undefined (type *ast.StarExpr has no field or method Len)
+[DEBUG] [PREFLIGHT L3] Mutant #3586 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:877:34: e.Key undefined (type *ast.ArrayType has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #3591 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:875:10: invalid operation: operator - not defined on "[" + formatNode(e.Len) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #3593 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:877:10: invalid operation: operator - not defined on "map[" + typeToString(e.Key) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #3069 rejected: -: cannot use (func() int literal)() (value of type int) as time.Duration value in argument to runMutantsAgainstBinary
+[DEBUG] [PREFLIGHT L3] Mutant #3604 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go:897:12: e.Name undefined (type *ast.BasicLit has no field or method Name)
+[DEBUG] [PREFLIGHT L3] html.go: 39 type errors found, bisecting 199 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #3127 rejected: -: cannot use (func() int literal)() (value of type int) as time.Duration value in argument to runMutantsAgainstBinary
+[DEBUG] [PREFLIGHT L3] assignment_operator.go: 160 type errors found, bisecting 38 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8899 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go:34:13: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+[DEBUG] [PREFLIGHT L3] scope.go: 71 type errors found, bisecting 242 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8630 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:90:16: s.Decl undefined (type *ast.AssignStmt has no field or method Decl)
+[DEBUG] [PREFLIGHT L3] Mutant #8653 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:71:8: s.Tok undefined (type *ast.DeclStmt has no field or method Tok)
+[DEBUG] [PREFLIGHT L3] Mutant #8694 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:136:12: e.Kind undefined (type *ast.Ident has no field or method Kind)
+[DEBUG] [PREFLIGHT L3] Mutant #8697 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:147:8: e.Op undefined (type *ast.BasicLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #6196 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:262:5: undefined: scoreClass
+[DEBUG] [PREFLIGHT L3] Mutant #8702 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:160:24: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
+[DEBUG] [PREFLIGHT L3] Mutant #8711 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:164:24: e.X undefined (type *ast.CallExpr has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #6205 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:281:21: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #8726 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:185:35: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8727 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:187:8: e.Len undefined (type *ast.StarExpr has no field or method Len)
+[DEBUG] [PREFLIGHT L3] Mutant #8728 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:38: e.Key undefined (type *ast.ArrayType has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #8733 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:190:10: invalid operation: operator - not defined on "[" + constExprToString(e.Len) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #8735 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:10: invalid operation: operator - not defined on "map[" + TypeExprToString(e.Key) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #6256 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:317:15: cannot use i - 1 (value of type int) as error value in return statement: int does not implement error (missing method Error)
+[DEBUG] [PREFLIGHT L3] Mutant #8739 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:202:18: e.X undefined (type *ast.StructType has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8742 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:11: invalid operation: operator - not defined on id.Name + "." (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #8743 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:29: e.Sel undefined (type *ast.ParenExpr has no field or method Sel)
+[DEBUG] [PREFLIGHT L3] Mutant #6299 rejected: -: invalid operation: (func() error literal)() + fileUntested (mismatched types error and int)
+[DEBUG] [PREFLIGHT L3] Mutant #6300 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:379:20: cannot use fileKilled + fileSurvived - fileUntested (value of type int) as error value in return statement: int does not implement error (missing method Error)
+[DEBUG] [PREFLIGHT L3] workspace.go: 6 type errors found, bisecting 414 mutants
+[DEBUG] [PREFLIGHT L3] engine.go: 71 type errors found, bisecting 549 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #4765 rejected: -: not enough return values
+	have (unknown type)
+	want ([]string, error)
+[DEBUG] [PREFLIGHT L3] Mutant #4970 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:194:34: expr.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] utils.go: 16 type errors found, bisecting 251 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #4977 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:196:11: expr.Len undefined (type *ast.StarExpr has no field or method Len)
+[DEBUG] [PREFLIGHT L3] Mutant #4978 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:201:37: expr.Key undefined (type *ast.ArrayType has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #4983 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:199:10: invalid operation: operator - not defined on "[" + exprToString(expr.Len, fset) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #4985 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:201:10: invalid operation: operator - not defined on "map[" + typeToString(expr.Key, file, fset, typeCache) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #4988 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:209:24: expr.X undefined (type *ast.FuncType has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #4346 rejected: -: not enough return values
+	have (string)
+	want (string, int, bool)
+[DEBUG] [PREFLIGHT L3] Mutant #4991 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:210:11: invalid operation: operator - not defined on ident.Name + "." (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #4992 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:216:36: expr.Elt undefined (type *ast.ParenExpr has no field or method Elt)
+[DEBUG] [PREFLIGHT L3] Mutant #4353 rejected: -: not enough return values
+	have (string)
+	want (string, int, bool)
+[DEBUG] [PREFLIGHT L3] constant_replacement.go: 50 type errors found, bisecting 119 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9010 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:50:28: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
+[DEBUG] [PREFLIGHT L3] Mutant #9023 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:58:28: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #9030 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:70:28: parent.Values undefined (type *ast.BinaryExpr has no field or method Values)
+[DEBUG] [PREFLIGHT L3] Mutant #9036 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:83:30: parent.Elts undefined (type *ast.ValueSpec has no field or method Elts)
+[DEBUG] [PREFLIGHT L3] loop_break_first.go: 9 type errors found, bisecting 35 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9458 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go:66:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9470 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go:49:15: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+[DEBUG] [PREFLIGHT L3] Mutant #5251 rejected: -: cannot use (func() error literal)() (value of interface type error) as bool value in return statement
+[DEBUG] [PREFLIGHT L3] main.go: 32 type errors found, bisecting 57 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #1 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #2 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #3 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #6 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #9 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:52:3: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #10 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:52:3: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #11 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:52:3: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #22 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #23 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #24 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #27 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:76:4: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #28 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:76:4: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #29 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:76:4: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #37 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #38 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #39 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #42 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:83:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] runner.go: 322 type errors found, bisecting 564 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #5268 rejected: -: cannot use (func() error literal)() (value of interface type error) as bool value in return statement
+[DEBUG] [PREFLIGHT L3] Mutant #7205 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:46:16: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #7206 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:46:16: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #7207 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:46:16: undefined: cli
+[DEBUG] [PREFLIGHT L3] Mutant #5338 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:664:15: undefined: packages
+[DEBUG] [PREFLIGHT L3] Mutant #7210 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7211 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7212 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7229 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:64:19: undefined: subconfig
+[DEBUG] [PREFLIGHT L3] Mutant #7230 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:64:19: undefined: subconfig
+[DEBUG] [PREFLIGHT L3] Mutant #7231 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:64:19: undefined: subconfig
+[DEBUG] [PREFLIGHT L3] Mutant #7234 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:64:61: undefined: debugFilePath
+[DEBUG] [PREFLIGHT L3] Mutant #7235 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:66:51: undefined: debugFilePath
+[DEBUG] [PREFLIGHT L3] Mutant #7242 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:75:13: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] Mutant #7243 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:75:13: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] Mutant #5406 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:744:10: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] Mutant #7244 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:75:13: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] Mutant #5407 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go:744:10: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] Mutant #7247 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7248 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:558:11: undefined: config
+[DEBUG] [PREFLIGHT L3] interface_returns.go: 1 type errors found, bisecting 34 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #7249 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7252 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #9584 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go:57:31: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #7253 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] loop_body_removal.go: 9 type errors found, bisecting 15 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9443 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:47:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9445 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:39:15: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+[DEBUG] [PREFLIGHT L3] goroutine_removal.go: 3 type errors found, bisecting 41 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #480 rejected: -: cannot use (func() int literal)() (value of type int) as time.Duration value in argument to time.Sleep
+[DEBUG] [PREFLIGHT L3] Mutant #7259 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7261 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7268 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:99:11: invalid operation: ((func() error literal)()) / total (mismatched types error and int)
+[DEBUG] [PREFLIGHT L3] literals.go: 48 type errors found, bisecting 99 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #7269 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:99:11: cannot use (current * 100) * total (value of type int) as error value in return statement: int does not implement error (missing method Error)
+[DEBUG] [PREFLIGHT L3] Mutant #7300 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7301 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #8481 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:14:29: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #7302 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #8489 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:25:28: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8499 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:59:19: e.Type undefined (type *ast.CallExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #7326 rejected: -: cannot use (func() error literal)() (value of interface type error) as string value in assignment
+[DEBUG] [PREFLIGHT L3] Mutant #8533 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:68:12: e.Op undefined (type *ast.CompositeLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #8541 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:70:8: e.Name undefined (type *ast.UnaryExpr has no field or method Name)
+[DEBUG] [PREFLIGHT L3] Mutant #7348 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:188:24: undefined: diff
+[DEBUG] [PREFLIGHT L3] Mutant #7349 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:188:24: undefined: diff
+[DEBUG] [PREFLIGHT L3] Mutant #7350 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:188:24: undefined: diff
+[DEBUG] [PREFLIGHT L3] Mutant #7369 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7370 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7371 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7380 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:218:13: undefined: reporter
+[DEBUG] [PREFLIGHT L3] Mutant #7381 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:218:13: undefined: reporter
+[DEBUG] [PREFLIGHT L3] Mutant #7382 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:218:13: undefined: reporter
+[DEBUG] [PREFLIGHT L3] Mutant #7408 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7409 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7410 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7411 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] reporter.go: 1815 type errors found, bisecting 527 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #7413 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7414 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7415 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7427 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7428 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7429 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:266:16: undefined: cache
+[DEBUG] [PREFLIGHT L3] Mutant #7651 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:463:24: undefined: names
+[DEBUG] [PREFLIGHT L3] Mutant #7653 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:467:22: undefined: names
+[DEBUG] [PREFLIGHT L3] Mutant #7685 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:505:11: undefined: gowork
+[DEBUG] [PREFLIGHT L3] Mutant #7688 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:509:12: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #7709 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7711 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:541:9: undefined: dir
+[DEBUG] [PREFLIGHT L3] Mutant #7715 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #6475 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:59:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #7724 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:558:11: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #7726 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:563:10: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #6476 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:59:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6477 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:59:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #7728 rejected: -: not enough return values
+	have (unknown type)
+	want (unknown type, error)
+[DEBUG] [PREFLIGHT L3] Mutant #6484 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #7751 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go:602:12: undefined: badge
+[DEBUG] [PREFLIGHT L3] Mutant #6485 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] error_return_nil.go: 23 type errors found, bisecting 45 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9300 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #6486 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #9306 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #6487 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #9308 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9311 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9314 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9321 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9323 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9332 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9334 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #6490 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6491 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6492 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6496 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:79:18: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6497 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:79:18: undefined: baseline
+[DEBUG] [PREFLIGHT L3] transform.go: 8 type errors found, bisecting 459 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #6498 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:79:18: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6499 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:83:20: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6500 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:83:20: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6501 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:83:20: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6503 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6504 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6505 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:88:14: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6506 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6509 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6510 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6511 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6516 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:95:15: undefined: baseline
+[DEBUG] [PREFLIGHT L3] Mutant #6654 rejected: -: invalid operation: (func() error literal)() + stats.untested (mismatched types error and int)
+[DEBUG] [PREFLIGHT L3] Mutant #6655 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go:211:16: cannot use stats.killed + stats.survived - stats.untested (value of type int) as error value in return statement: int does not implement error (missing method Error)
+[DEBUG] [PREFLIGHT L3] Mutant #6684 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:273:38: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #6685 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:273:38: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #6686 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go:273:38: undefined: testing
+[DEBUG] [PREFLIGHT L3] Mutant #3993 rejected: -: too many return values
+	have (string)
+	want ()
+[DEBUG] [PREFLIGHT L3] Mutant #3994 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/transform.go:602:30: s.Body undefined (type *ast.BlockStmt has no field or method Body)
+[DEBUG] [PREFLIGHT L3] Mutant #6813 rejected: -: invalid operation: (func() error literal)() | os.O_WRONLY (mismatched types error and int)
+[DEBUG] [PREFLIGHT L3] Mutant #6814 rejected: -: cannot use (func() error literal)() (value of interface type error) as int value in argument to os.OpenFile
+[DEBUG] [PREFLIGHT L3] position.go: 2 type errors found, bisecting 6 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #3628 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go:15:26: n.TokPos undefined (type *ast.UnaryExpr has no field or method TokPos)
+[DEBUG] [PREFLIGHT L3] Mutant #3632 rejected: -: cannot use nil as token.Position value in return statement
+[DEBUG] [PREFLIGHT L3] Mutant #3998 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/transform.go:607:36: s.Body.List undefined (type []ast.Stmt has no field or method List)
+[DEBUG] [PREFLIGHT L3] preflight.go: 145 type errors found, bisecting 401 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #4094 rejected: -: invalid argument: index (func() string literal)() (value of type string) must be integer
+[DEBUG] [PREFLIGHT L3] subconfig.go: 1 type errors found, bisecting 7 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8314 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go:56:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #2236 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:109:9: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2241 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:117:9: undefined: valid
+[DEBUG] [PREFLIGHT L3] cli.go: 8 type errors found, bisecting 125 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #2261 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:141:9: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2268 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:147:25: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #1037 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:79:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1038 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:79:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1039 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:79:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1059 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:109:13: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #1068 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:109:13: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2310 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:226:6: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2312 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:227:11: undefined: valid
+[DEBUG] [PREFLIGHT L3] executor.go: 87 type errors found, bisecting 826 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #2314 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:228:38: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2338 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:298:101: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2339 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:299:10: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2402 rejected: -: invalid argument: index (func() string literal)() (value of type string) must be integer
+[DEBUG] [PREFLIGHT L3] Mutant #1262 rejected: -: cannot use (func() int literal)() (value of type int) as time.Duration value in struct literal
+[DEBUG] [PREFLIGHT L3] Mutant #2502 rejected: -: not enough return values
+	have (unknown type)
+	want ([]string, bool)
+[DEBUG] [PREFLIGHT L3] Mutant #1295 rejected: -: invalid operation: elapsed >= (func() int literal)() (mismatched types time.Duration and int)
+[DEBUG] [PREFLIGHT L3] Mutant #2532 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:635:9: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2537 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:639:9: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #2539 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:641:25: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #1737 rejected: -: cannot use (func() error literal)() (value of interface type error) as bool value in return statement
+[DEBUG] [PREFLIGHT L3] diff.go: 12 type errors found, bisecting 78 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #4828 rejected: -: not enough return values
+	have (nil)
+	want (FileLines, error)
+[DEBUG] [PREFLIGHT L3] Mutant #4842 rejected: -: not enough return values
+	have (int)
+	want (int, int)
+[DEBUG] [PREFLIGHT L3] Mutant #2547 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:646:116: undefined: valid
+[DEBUG] [PREFLIGHT L3] textfile.go: 128 type errors found, bisecting 224 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #2548 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:648:18: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #7057 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/reporter/textfile.go:85:82: cannot use shownCount + 200 (value of type int) as error value in return statement: int does not implement error (missing method Error)
+[DEBUG] [PREFLIGHT L3] ast.go: 6 type errors found, bisecting 163 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8376 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:91:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #8377 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:92:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #2555 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:654:56: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #8382 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:94:32: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #2556 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:656:18: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #8465 rejected: -: invalid operation: (func() ast.Node literal)() (value with invalid type) is not an interface
+[DEBUG] [PREFLIGHT L3] swap_case_bodies.go: 6 type errors found, bisecting 77 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9676 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/swap_case_bodies.go:58:5: undefined: swapIndex
+[DEBUG] [PREFLIGHT L3] cache.go: 2 type errors found, bisecting 99 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #2557 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:661:10: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #910 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go:42:27: undefined: name
+[DEBUG] [PREFLIGHT L3] Mutant #2558 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:664:13: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #990 rejected: -: cannot use nil as bool value in return statement
+[DEBUG] [PREFLIGHT L3] zero_value_return.go: 6 type errors found, bisecting 44 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9795 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9798 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9808 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9811 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] resolver.go: 28 type errors found, bisecting 205 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #7783 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:47:11: undefined: gowork
+[DEBUG] [PREFLIGHT L3] Mutant #2560 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:665:10: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #7862 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:134:22: invalid operation: operator - not defined on fileDir (variable of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #2561 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go:666:11: undefined: valid
+[DEBUG] [PREFLIGHT L3] Mutant #7863 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:134:58: invalid operation: operator - not defined on e.dir (variable of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #7865 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:143:18: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] variable_replacement.go: 21 type errors found, bisecting 65 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #7866 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:143:18: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] Mutant #7867 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:143:18: undefined: orgpolicy
+[DEBUG] [PREFLIGHT L3] Mutant #9764 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:61:12: p.Key undefined (type *ast.SelectorExpr has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9766 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:63:25: p.Lhs undefined (type *ast.KeyValueExpr has no field or method Lhs)
+[DEBUG] [PREFLIGHT L3] Mutant #9768 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:69:12: p.Key undefined (type *ast.AssignStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9775 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:71:12: p.Type undefined (type *ast.RangeStmt has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #9779 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.TypeAssertExpr has no field or method Fun)
+[DEBUG] [PREFLIGHT L3] Mutant #9781 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:75:12: p.Type undefined (type *ast.CallExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #9783 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.CompositeLit has no field or method Fun)
+[DEBUG] [PREFLIGHT L3] Mutant #7958 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go:246:49: undefined: out
+[DEBUG] [PREFLIGHT L3] gowork.go: 40 type errors found, bisecting 97 mutants
+[DEBUG] [PREFLIGHT L3] mutants.go: 16 type errors found, bisecting 205 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #5922 rejected: -: cannot use (func() bool literal)() (value of type bool) as string value in argument to strings.HasPrefix
+[DEBUG] [PREFLIGHT L3] Mutant #5935 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/gowork/gowork.go:61:52: invalid operation: operator - not defined on mod (variable of type string)
+[DEBUG] [PREFLIGHT L3] error_handling.go: 6 type errors found, bisecting 54 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #377 rejected: -: not enough return values
+	have (string)
+	want (string, error)
+[DEBUG] [PREFLIGHT L3] Mutant #384 rejected: -: not enough return values
+	have (int)
+	want (int, error)
+[DEBUG] [PREFLIGHT L3] Mutant #399 rejected: -: not enough return values
+	have (int)
+	want (int, error)
+[DEBUG] [PREFLIGHT L3] Mutant #404 rejected: -: not enough return values
+	have (string)
+	want (string, error)
+[DEBUG] [PREFLIGHT L3] Mutant #2010 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:53:43: invalid operation: operator - not defined on dir (variable of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #2023 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2024 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2025 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2034 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2035 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2036 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #2180 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
 [DEBUG] After cache check: uncachedIndices nil=false
 [DEBUG] Checking module layout at /home/aclfe/Desktop/coding/Gorgon: go.work=false go.mod=true
 [DEBUG] Module layout detected, using workspace mode
 [DEBUG] [WORKSPACE] Single module mode: /home/aclfe/Desktop/coding/Gorgon
-[DEBUG] [WORKSPACE] Building mutated paths map from 20 mutants
-[DEBUG] [WORKSPACE] Mutated paths: 1 unique files
-[DEBUG] [WORKSPACE] Collected 84 packages from /home/aclfe/Desktop/coding/Gorgon
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/constant_replacement/constant_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/constant_replacement/constant_replacement_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/channel_returns/channel_returns.go to /tmp/gorgon-schemata-3035988039/examples/mutations/reference_returns/channel_returns/channel_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/function_call_removal/function_call_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-3035988039/examples/mutations/arithmetic_flip/arithmetic_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/loop_body_removal/loop_body_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/math_operators/binary_math.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/math_operators/binary_math.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go to /tmp/gorgon-schemata-3035988039/pkg/config/config.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/orgpolicy/enforce.go to /tmp/gorgon-schemata-3035988039/internal/orgpolicy/enforce.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip_test.go to /tmp/gorgon-schemata-3035988039/examples/mutations/arithmetic_flip/arithmetic_flip_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/example2.go to /tmp/gorgon-schemata-3035988039/examples/mutations/arithmetic_flip/example2.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/concurrency/goroutine_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/concurrency/goroutine_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_break_first/loop_break_first.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_break_first/loop_break_first_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/conditional_expression/common.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-3035988039/examples/mutations/variable_replacement/variable_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/swap_case_bodies.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/switch_mutations/swap_case_bodies.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config_test.go to /tmp/gorgon-schemata-3035988039/pkg/config/config_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_false.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/conditional_expression/for_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go to /tmp/gorgon-schemata-3035988039/pkg/config/orgpolicy.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/switch_remove_default.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/switch_mutations/switch_remove_default.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go to /tmp/gorgon-schemata-3035988039/internal/reporter/html.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/negate_condition/negate_condition.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/json.go to /tmp/gorgon-schemata-3035988039/internal/reporter/json.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/negate_condition/negate_condition_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/junit.go to /tmp/gorgon-schemata-3035988039/internal/reporter/junit.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go to /tmp/gorgon-schemata-3035988039/internal/reporter/reporter.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/sarif.go to /tmp/gorgon-schemata-3035988039/internal/reporter/sarif.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/tests/testutil/testutil.go to /tmp/gorgon-schemata-3035988039/tests/testutil/testutil.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/textfile.go to /tmp/gorgon-schemata-3035988039/internal/reporter/textfile.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go to /tmp/gorgon-schemata-3035988039/pkg/config/subconfig.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/nil_check_removal/nil_check_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/nil_check_removal/nil_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/boundary_value/boundary_value.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_true.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/conditional_expression/for_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_panic_recover/panic_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/defer_panic_recover/panic_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_false.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/conditional_expression/if_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/defer_removal/defer_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_true.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/conditional_expression/if_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/defer_removal/defer_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example.go to /tmp/gorgon-schemata-3035988039/pkg/testdata/subconfig/nested/example.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example_test.go to /tmp/gorgon-schemata-3035988039/pkg/testdata/subconfig/nested/example_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/nested.go to /tmp/gorgon-schemata-3035988039/pkg/testdata/subconfig/nested/nested.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go to /tmp/gorgon-schemata-3035988039/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/logical_operator/logical_operator.go to /tmp/gorgon-schemata-3035988039/examples/mutations/logical_operator/logical_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go to /tmp/gorgon-schemata-3035988039/examples/mutations/negate_condition/negate_condition.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go to /tmp/gorgon-schemata-3035988039/internal/subconfig/resolver.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/empty_body/empty_body.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/channel_returns.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/channel_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/empty_body/empty_body_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/common.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/common.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/interface_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-3035988039/examples/mutations/inc_dec_flip/inc_dec_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/map_returns.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/map_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/pointer_returns.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/pointer_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/slice_returns.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/reference_returns/slice_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/suppressions/sync.go to /tmp/gorgon-schemata-3035988039/internal/suppressions/sync.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/logical_operator/logical_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_check_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/error_handling/error_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go to /tmp/gorgon-schemata-3035988039/examples/mutations/bool_literal_return/bool_literal_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/error_handling/error_return_nil.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/boundary_value/boundary_value.go to /tmp/gorgon-schemata-3035988039/examples/mutations/boundary_value/boundary_value.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/nil_check_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/error_handling/nil_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go to /tmp/gorgon-schemata-3035988039/examples/mutations/error_handling/error_handling.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/error_return.go to /tmp/gorgon-schemata-3035988039/examples/mutations/zero_value_return/error_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/logger/logger.go to /tmp/gorgon-schemata-3035988039/internal/logger/logger.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-3035988039/examples/mutations/zero_value_return/zero_value_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/loop_break_removal/loop_break_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go to /tmp/gorgon-schemata-3035988039/internal/runner/runner.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/variable_replacement/variable_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go to /tmp/gorgon-schemata-3035988039/cmd/gorgon/main.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/gowork/gowork.go to /tmp/gorgon-schemata-3035988039/internal/gowork/gowork.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main_test.go to /tmp/gorgon-schemata-3035988039/cmd/gorgon/main_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/interface_returns/interface_returns.go to /tmp/gorgon-schemata-3035988039/examples/mutations/reference_returns/interface_returns/interface_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go to /tmp/gorgon-schemata-3035988039/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go to /tmp/gorgon-schemata-3035988039/internal/cache/cache.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go to /tmp/gorgon-schemata-3035988039/examples/mutations/condition_negation/condition_negation.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-3035988039/examples/mutations/loop_break_first/loop_break_first.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/defer_removal/defer_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/api.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/api.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/bench_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/bench_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go to /tmp/gorgon-schemata-3035988039/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/mutator_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/mutator_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/analysis/ast.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/variable_replacement/variable_replacement_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-3035988039/examples/mutations/assignment_operator/assignment_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go to /tmp/gorgon-schemata-3035988039/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/early_return_removal/early_return_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_body_removal/loop_body_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/analysis/literals.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/analysis/scope.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go to /tmp/gorgon-schemata-3035988039/pkg/testdata/subconfig/example.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-3035988039/examples/mutations/constant_replacement/constant_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example_test.go to /tmp/gorgon-schemata-3035988039/pkg/testdata/subconfig/example_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/baseline/baseline.go to /tmp/gorgon-schemata-3035988039/internal/baseline/baseline.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/goroutine_removal/goroutine_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/goroutine_removal/goroutine_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go to /tmp/gorgon-schemata-3035988039/internal/core/schemata_nodes/handlers.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go to /tmp/gorgon-schemata-3035988039/internal/core/schemata_nodes/position.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/early_return_removal/early_return_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/zero_value_return/zero_value_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/early_return_removal/early_return_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go to /tmp/gorgon-schemata-3035988039/examples/mutations/empty_body/empty_body.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-3035988039/examples/mutations/sign_toggle/sign_toggle.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/assignment_operator/assignment_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/function_call_removal/function_call_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go to /tmp/gorgon-schemata-3035988039/examples/mutations/reference_returns/pointer_returns/pointer_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/diff/diff.go to /tmp/gorgon-schemata-3035988039/internal/diff/diff.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/condition_negation/condition_negation.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/condition_negation/condition_negation.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go to /tmp/gorgon-schemata-3035988039/examples/mutations/type_edge_cases/type_edge_cases.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/binary_math/binary_math.go to /tmp/gorgon-schemata-3035988039/examples/mutations/binary_math/binary_math.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/sign_toggle/sign_toggle.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go to /tmp/gorgon-schemata-3035988039/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/slice_returns/slice_returns.go to /tmp/gorgon-schemata-3035988039/examples/mutations/reference_returns/slice_returns/slice_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go to /tmp/gorgon-schemata-3035988039/internal/engine/engine.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go to /tmp/gorgon-schemata-3035988039/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/site.go to /tmp/gorgon-schemata-3035988039/internal/engine/site.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go to /tmp/gorgon-schemata-3035988039/examples/mutations/panic_removal/panic_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/map_returns/map_returns.go to /tmp/gorgon-schemata-3035988039/examples/mutations/reference_returns/map_returns/map_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/consts.go to /tmp/gorgon-schemata-3035988039/internal/core/consts.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go to /tmp/gorgon-schemata-3035988039/internal/cli/cli.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/executor.go to /tmp/gorgon-schemata-3035988039/internal/core/executor.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_break_removal/loop_break_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/tree.go to /tmp/gorgon-schemata-3035988039/internal/engine/tree.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go to /tmp/gorgon-schemata-3035988039/internal/core/mutants.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli_test.go to /tmp/gorgon-schemata-3035988039/internal/cli/cli_test.go
+[DEBUG] [WORKSPACE] Building mutated paths map from 9454 mutants
+[DEBUG] [WORKSPACE] Mutated paths: 112 unique files
+[DEBUG] [WORKSPACE] Collected 85 packages from /home/aclfe/Desktop/coding/Gorgon
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/empty_body/empty_body_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli_test.go to /tmp/gorgon-schemata-1477315977/internal/cli/cli_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/variable_replacement/variable_replacement_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/notests/math.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/notests/math.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/site.go to /tmp/gorgon-schemata-1477315977/internal/engine/site.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/tests/testutil/testutil.go to /tmp/gorgon-schemata-1477315977/tests/testutil/testutil.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/loop_break_first/loop_break_first_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config_test.go to /tmp/gorgon-schemata-1477315977/pkg/config/config_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/tokens/tokens.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/tokens/tokens.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip_test.go to /tmp/gorgon-schemata-1477315977/examples/mutations/arithmetic_flip/arithmetic_flip_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main_test.go to /tmp/gorgon-schemata-1477315977/cmd/gorgon/main_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/defer_removal/defer_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/negate_condition/negate_condition_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/constant_replacement/constant_replacement_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/subconfig/nested/example.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example_test.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/subconfig/nested/example_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/nested.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/subconfig/nested/nested.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/workspace_test.go to /tmp/gorgon-schemata-1477315977/internal/core/workspace_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/subconfig/example.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example_test.go to /tmp/gorgon-schemata-1477315977/pkg/testdata/subconfig/example_test.go
 [DEBUG] [WORKSPACE] Waiting for all copy operations to complete...
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go to /tmp/gorgon-schemata-3035988039/internal/core/preflight.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/tokens/tokens.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/tokens/tokens.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go to /tmp/gorgon-schemata-3035988039/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata.go to /tmp/gorgon-schemata-3035988039/internal/core/schemata.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/transform.go to /tmp/gorgon-schemata-3035988039/internal/core/transform.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/utils.go to /tmp/gorgon-schemata-3035988039/internal/core/utils.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/workspace.go to /tmp/gorgon-schemata-3035988039/internal/core/workspace.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal_test.go to /tmp/gorgon-schemata-1477315977/pkg/mutator/operators/early_return_removal/early_return_removal_test.go
 [DEBUG] [WORKSPACE] Downloading dependencies...
 [DEBUG] [WORKSPACE] Dependencies downloaded
 [DEBUG] [WORKSPACE] Test file present: cmd/gorgon/main_test.go
 [DEBUG] [WORKSPACE] Test file present: examples/mutations/arithmetic_flip/arithmetic_flip_test.go
 [DEBUG] [WORKSPACE] Test file present: internal/cli/cli_test.go
+[DEBUG] [WORKSPACE] Test file present: internal/core/workspace_test.go
 [DEBUG] [WORKSPACE] Test file present: pkg/config/config_test.go
-[DEBUG] [WORKSPACE] Test file present: pkg/mutator/bench_test.go
-[DEBUG] [WORKSPACE] Test file present: pkg/mutator/mutator_test.go
 [DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/constant_replacement/constant_replacement_test.go
 [DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/defer_removal/defer_removal_test.go
 [DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/early_return_removal/early_return_removal_test.go
@@ -163,62 +401,148 @@
 [DEBUG] [WORKSPACE] Test file present: pkg/testdata/subconfig/example_test.go
 [DEBUG] [WORKSPACE] Test file present: pkg/testdata/subconfig/nested/example_test.go
 [DEBUG] [WORKSPACE] Setup complete
-[DEBUG] [SCHEMATA] Starting with 20 mutants
-[DEBUG] [SCHEMATA] Grouped into 1 AST files
-[DEBUG] [SCHEMATA] Processing 1 files with schemata transformation...
-[DEBUG] [SCHEMATA] Processing batch 1-1 of 1 files
-[DEBUG] [SCHEMATA] Batch complete, memory released
-[DEBUG] [SCHEMATA] All batches complete
-[DEBUG] [SCHEMATA] AST transformation complete, building file map...
-[INFO] [EXTERNAL] Copying external test suites to workspace
-[DEBUG] [EXTERNAL] Copied 1 files from /home/aclfe/Desktop/coding/Gorgon/tests/e2e to /tmp/gorgon-schemata-3035988039/tests/e2e
-[DEBUG] [EXTERNAL] Copied 3 files from /home/aclfe/Desktop/coding/Gorgon/tests/integration to /tmp/gorgon-schemata-3035988039/tests/integration
-[DEBUG] [EXTERNAL] Copied 4 files from /home/aclfe/Desktop/coding/Gorgon/tests/regression to /tmp/gorgon-schemata-3035988039/tests/regression
-[DEBUG] [EXTERNAL] Running: go [list -f {{.Dir}} ./tests/...] in /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Output: /tmp/gorgon-schemata-3035988039/tests/e2e
-/tmp/gorgon-schemata-3035988039/tests/integration
-/tmp/gorgon-schemata-3035988039/tests/regression
-/tmp/gorgon-schemata-3035988039/tests/testutil
-, Error: <nil>
-[DEBUG] [EXTERNAL] Building binaries for 4 resolved paths from workspace /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-1880524412/__tests_e2e.test ./tests/e2e] in /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-1880524412/__tests_e2e.test
-[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-1880524412/__tests_integration.test ./tests/integration] in /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-1880524412/__tests_integration.test
-[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-1880524412/__tests_regression.test ./tests/regression] in /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-1880524412/__tests_regression.test
-[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-1880524412/__tests_testutil.test ./tests/testutil] in /tmp/gorgon-schemata-3035988039
-[DEBUG] [EXTERNAL] Binary not created at /tmp/gorgon-external-bins-1880524412/__tests_testutil.test
-[DEBUG] [EXTERNAL] Built 3 binaries in /tmp/gorgon-external-bins-1880524412
-[INFO] [EXTERNAL] Built 3 binaries for suite "all-tests"
-[DEBUG] [COMPILE] Running: go test -c -vet=off -o /tmp/gorgon-schemata-3035988039/internal/badge/package.test ./internal/badge (in /tmp/gorgon-schemata-3035988039)
-[DEBUG] [COMPILE] Output: ?   	github.com/aclfe/gorgon/internal/badge	[no test files]
+[DEBUG] [SCHEMATA] Starting with 9454 mutants
+[DEBUG] [SCHEMATA] Grouped into 112 AST files
+[DEBUG] [SCHEMATA] Transforming 112 files one at a time...
+[DEBUG] [SCHEMATA] GC after file 11/112
+[DEBUG] [SCHEMATA] GC after file 21/112
+[DEBUG] [SCHEMATA] GC after file 31/112
+[DEBUG] [SCHEMATA] GC after file 41/112
+[DEBUG] [SCHEMATA] GC after file 51/112
+[DEBUG] [SCHEMATA] GC after file 61/112
+[DEBUG] [SCHEMATA] GC after file 71/112
+[DEBUG] [SCHEMATA] GC after file 81/112
+[DEBUG] [SCHEMATA] GC after file 91/112
+[DEBUG] [SCHEMATA] GC after file 101/112
+[DEBUG] [SCHEMATA] GC after file 111/112
+[DEBUG] [SCHEMATA] All files transformed
+[DEBUG] Schemata application completed successfully
+[DEBUG] Verifying schemata-transformed code compiles...
+[WARN] FATAL: Schemata-transformed code does not compile!
+[WARN] Build errors:
+# github.com/aclfe/gorgon/internal/cache
+internal/cache/cache.go:536:11: invalid operation: func() interface{} {…}() - 30 (mismatched types interface{} and untyped int)
+internal/cache/cache.go:603:10: invalid operation: func() interface{} {…}() + 30 (mismatched types interface{} and untyped int)
+internal/cache/cache.go:670:25: invalid argument: index cap (variable of type interface{}) must be integer
+# github.com/aclfe/gorgon/pkg/mutator/analysis
+pkg/mutator/analysis/ast.go:650:13: cannot use func() ast.Node {…}() (value of interface type ast.Node) as bool value in return statement
+pkg/mutator/analysis/ast.go:652:15: cannot use false (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:654:14: cannot use true (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:704:13: cannot use func() ast.Node {…}() (value of interface type ast.Node) as bool value in return statement
+pkg/mutator/analysis/ast.go:706:15: cannot use false (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:708:14: cannot use true (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:713:13: cannot use func() ast.Node {…}() (value of interface type ast.Node) as bool value in return statement
+pkg/mutator/analysis/ast.go:715:15: cannot use false (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:717:14: cannot use true (constant of type bool) as ast.Node value in return statement: bool does not implement ast.Node (missing method End)
+pkg/mutator/analysis/ast.go:767:13: cannot use func() ast.Node {…}() (value of interface type ast.Node) as bool value in return statement
+pkg/mutator/analysis/ast.go:767:13: too many errors
+# github.com/aclfe/gorgon/internal/diff
+internal/diff/diff.go:1445:16: invalid argument: index func() interface{} {…}() (value of type interface{}) must be integer
+# github.com/aclfe/gorgon/internal/baseline
+internal/baseline/baseline.go:203:12: invalid operation: func() interface{} {…}() >= func() *Data {…}().Score (operator >= not defined on interface)
+internal/baseline/baseline.go:226:12: invalid operation: func() interface{} {…}() <= func() *Data {…}().Score (operator <= not defined on interface)
+internal/baseline/baseline.go:248:11: invalid operation: func() interface{} {…}() < func() *Data {…}().Score (operator < not defined on interface)
+internal/baseline/baseline.go:290:12: invalid operation: func() interface{} {…}() >= func() *Data {…}().Score (operator >= not defined on interface)
+internal/baseline/baseline.go:313:12: invalid operation: func() interface{} {…}() <= func() *Data {…}().Score (operator <= not defined on interface)
+internal/baseline/baseline.go:335:11: invalid operation: func() interface{} {…}() < func() *Data {…}().Score (operator < not defined on interface)
+# github.com/aclfe/gorgon/examples/mutations/arithmetic_flip
+examples/mutations/arithmetic_flip/arithmetic_flip.go:9:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/arithmetic_flip/arithmetic_flip.go:38:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/arithmetic_flip/arithmetic_flip.go:136:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/arithmetic_flip/arithmetic_flip.go:165:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/arithmetic_flip/arithmetic_flip.go:167:11: invalid operation: func() interface{} {…}() - func() int {…}() (mismatched types interface{} and int)
+examples/mutations/arithmetic_flip/arithmetic_flip.go:199:10: invalid operation: func() interface{} {…}() + func() int {…}() (mismatched types interface{} and int)
+examples/mutations/arithmetic_flip/example2.go:5:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+# github.com/aclfe/gorgon/examples/mutations/binary_math
+examples/mutations/binary_math/binary_math.go:4:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/binary_math/binary_math.go:33:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+examples/mutations/binary_math/binary_math.go:62:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+# github.com/aclfe/gorgon/examples/mutations/error_handling
+examples/mutations/error_handling/error_handling.go:224:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+# github.com/aclfe/gorgon/examples/mutations/sign_toggle
+examples/mutations/sign_toggle/sign_toggle.go:13:9: cannot use func() interface{} {…}() (value of type interface{}) as int value in return statement: need type assertion
+# github.com/aclfe/gorgon/examples/mutations/variable_replacement
+examples/mutations/variable_replacement/variable_replacement.go:58:11: invalid operation: operator / not defined on result (variable of type interface{})
+examples/mutations/variable_replacement/variable_replacement.go:60:10: invalid operation: operator * not defined on result (variable of type interface{})
+examples/mutations/variable_replacement/variable_replacement.go:120:12: cannot use sum (variable of type interface{}) as int value in return statement: need type assertion
+examples/mutations/variable_replacement/variable_replacement.go:125:13: invalid operation: diff <= 0 (operator <= not defined on interface)
+examples/mutations/variable_replacement/variable_replacement.go:128:13: invalid operation: diff >= 0 (operator >= not defined on interface)
+examples/mutations/variable_replacement/variable_replacement.go:130:12: invalid operation: diff > 0 (operator > not defined on interface)
+examples/mutations/variable_replacement/variable_replacement.go:132:12: cannot use sum (variable of type interface{}) as int value in return statement: need type assertion
+examples/mutations/variable_replacement/variable_replacement.go:136:12: cannot use sum (variable of type interface{}) as int value in return statement: need type assertion
+examples/mutations/variable_replacement/variable_replacement.go:141:13: invalid operation: diff <= 0 (operator <= not defined on interface)
+examples/mutations/variable_replacement/variable_replacement.go:148:12: cannot use sum (variable of type interface{}) as int value in return statement: need type assertion
+examples/mutations/variable_replacement/variable_replacement.go:141:13: too many errors
+# github.com/aclfe/gorgon/internal/orgpolicy
+internal/orgpolicy/enforce.go:1192:15: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/orgpolicy/enforce.go:1195:15: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/orgpolicy/enforce.go:1197:14: invalid operation: n < 1 (operator < not defined on interface)
+internal/orgpolicy/enforce.go:1208:15: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/orgpolicy/enforce.go:1211:15: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/orgpolicy/enforce.go:1213:14: invalid operation: n < 1 (operator < not defined on interface)
+internal/orgpolicy/enforce.go:1219:11: cannot use n (variable of type interface{}) as int value in return statement: need type assertion
+internal/orgpolicy/enforce.go:1323:14: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/orgpolicy/enforce.go:1326:14: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/orgpolicy/enforce.go:1328:13: invalid operation: n < 1 (operator < not defined on interface)
+internal/orgpolicy/enforce.go:1328:13: too many errors
+# github.com/aclfe/gorgon/internal/cli
+internal/cli/cli.go:118674:15: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/cli/cli.go:118677:15: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/cli/cli.go:118679:14: invalid operation: n < 1 (operator < not defined on interface)
+internal/cli/cli.go:118690:15: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/cli/cli.go:118693:15: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/cli/cli.go:118695:14: invalid operation: n < 1 (operator < not defined on interface)
+internal/cli/cli.go:118701:11: cannot use n (variable of type interface{}) as int value in return statement: need type assertion
+internal/cli/cli.go:118805:14: invalid operation: n >= 1 (operator >= not defined on interface)
+internal/cli/cli.go:118808:14: invalid operation: n <= 1 (operator <= not defined on interface)
+internal/cli/cli.go:118810:13: invalid operation: n < 1 (operator < not defined on interface)
+internal/cli/cli.go:118810:13: too many errors
 
-[DEBUG] [COMPILE] Success, checking if binary exists at /tmp/gorgon-schemata-3035988039/internal/badge/package.test
-[INFO] No test binary for ./internal/badge — package has no test files, 20 mutant(s) marked untested
-[DEBUG] After unit tests, about to check external phase
-[INFO] [EXTERNAL] Running external suite phase with 1 suites
-[INFO] [EXTERNAL] No survivors to test against external suites
 Mutation Score: 0.00%
 Killed: 0
 Survived: 0
 Errors: 0
-Untested: 20
-Total: 20
+Untested: 5587
+Total: 9454
 
 Error Summary by Operator:
 
 Untested by Operator (binary missing - package failed to compile):
-  error_return_nil                    1/1 untested (100.0%)
-  swap_case_bodies                    4/4 untested (100.0%)
-  if_condition_false                  1/1 untested (100.0%)
-  negate_condition                    1/1 untested (100.0%)
-  error_check_removal                 1/1 untested (100.0%)
-  condition_negation                  5/5 untested (100.0%)
-  zero_value_return_string            1/1 untested (100.0%)
-  boundary_value                      4/4 untested (100.0%)
-  switch_remove_default               1/1 untested (100.0%)
-  if_condition_true                   1/1 untested (100.0%)
+  logical_operator                    159/308 untested (51.6%)
+  zero_value_return_numeric           14/15 untested (93.3%)
+  swap_case_bodies                    186/219 untested (84.9%)
+  nil_check_removal                   37/66 untested (56.1%)
+  panic_removal                       6/6 untested (100.0%)
+  pointer_returns                     57/76 untested (75.0%)
+  inc_dec_flip                        63/76 untested (82.9%)
+  loop_body_removal                   182/377 untested (48.3%)
+  defer_removal                       22/43 untested (51.2%)
+  binary_math                         6/6 untested (100.0%)
+  zero_value_return_string            75/96 untested (78.1%)
+  zero_value_return_bool              124/197 untested (62.9%)
+  function_call_removal               268/538 untested (49.8%)
+  arithmetic_flip                     81/112 untested (72.3%)
+  slice_returns                       7/7 untested (100.0%)
+  sign_toggle                         5/8 untested (62.5%)
+  if_condition_true                   645/1093 untested (59.0%)
+  if_condition_false                  645/1093 untested (59.0%)
+  goroutine_removal                   8/11 untested (72.7%)
+  error_check_removal                 54/103 untested (52.4%)
+  zero_value_return_error             31/67 untested (46.3%)
+  for_condition_false                 25/30 untested (83.3%)
+  variable_replacement                595/888 untested (67.0%)
+  loop_break_first                    182/377 untested (48.3%)
+  interface_returns                   2/2 untested (100.0%)
+  for_condition_true                  25/30 untested (83.3%)
+  error_return_nil                    19/31 untested (61.3%)
+  channel_returns                     3/3 untested (100.0%)
+  condition_negation                  758/1321 untested (57.4%)
+  empty_body                          65/86 untested (75.6%)
+  boundary_value                      172/252 untested (68.3%)
+  assignment_operator                 352/654 untested (53.8%)
+  switch_remove_default               27/31 untested (87.1%)
+  map_returns                         5/5 untested (100.0%)
+  negate_condition                    682/1227 untested (55.6%)
 
 Per-Mutant Compilation Errors (unlimited):
   (no detailed errors available)

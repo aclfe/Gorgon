@@ -103,9 +103,20 @@ func runGorgonWithConfig(t *testing.T, configContent, target string) string {
 	
 	cmd := exec.Command(gorgonBin, "-config="+configPath, target)
 	cmd.Dir = projectRoot
-	output, _ := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	
-	return string(output)
+	// Check for Schemata compilation failures
+	outputStr := string(output)
+	if strings.Contains(outputStr, "FATAL: Schemata-transformed code does not compile!") {
+		t.Fatalf("Schemata compilation failed:\n%s", outputStr)
+	}
+	
+	// Check for other critical errors that should fail tests
+	if err != nil && strings.Contains(outputStr, "Build errors:") {
+		t.Fatalf("Build errors detected:\n%s", outputStr)
+	}
+	
+	return outputStr
 }
 
 // findProjectRoot walks up from current directory to find go.mod

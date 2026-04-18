@@ -48,13 +48,11 @@ baseline:
 show_killed: true
 show_survived: true
 outputs:
-    - textfile:mutation-results.txt
-    - html:mutation-results.html
+    []
 cpu_profile: ""
 
 # === Suppressions (Auto-managed) ===
 suppress:
-    - location: examples/mutations/arithmetic_flip/arithmetic_flip.go:5
     - location: examples/mutations/panic_removal/panic_removal.go:13
       operators:
         - panic_removal
@@ -62,3 +60,4 @@ suppress:
     - location: examples/mutations/panic_removal/panic_removal.go:6
       operators:
         - panic_removal:9
+    - location: examples/mutations/arithmetic_flip/arithmetic_flip.go:5

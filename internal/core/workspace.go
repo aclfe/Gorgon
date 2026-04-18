@@ -22,12 +22,18 @@ import (
 
 func maxConcurrency() int { return runtime.NumCPU() }
 
+// Maximum mutants embedded per file in schemata mode. Files exceeding this
+// cap get their excess mutants deferred to standalone per-mutant mode, which
+// avoids generating compiler-killing 100k+ line files.
+const maxMutantsPerSchemataFile = 50
+
 type ModuleWorkspace struct {
-	TempDir      string
-	absModule    string
-	goWork       *gowork.Workspace
-	fileRelPaths map[string]string
-	mu           sync.Mutex
+	TempDir         string
+	absModule       string
+	goWork          *gowork.Workspace
+	fileRelPaths    map[string]string
+	deferredMutants []Mutant
+	mu              sync.Mutex
 }
 
 func NewModuleWorkspace() (*ModuleWorkspace, error) {
@@ -194,12 +200,8 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Lo
 
 func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, log *logger.Logger) (map[string][]*Mutant, bool, error) {
 	log.Debug("[SCHEMATA] Starting with %d mutants", len(mutants))
-	
-	g, _ := errgroup.WithContext(context.Background())
-	// Limit to 2 concurrent AST transformations to prevent OOM
-	// AST manipulation is extremely memory-intensive
-	g.SetLimit(2)
 
+	// Group mutants by AST file.
 	astToMutants := make(map[*ast.File][]*Mutant, len(mutants))
 	for i := range mutants {
 		m := &mutants[i]
@@ -222,143 +224,96 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 		}
 	}
 
-	sourceCache := make(map[string][]byte)
-	var cacheMu sync.Mutex
-
+	// Sort for deterministic processing order.
 	type astEntry struct {
-		astFile    *ast.File
-		mutants    []*Mutant
-		chunkIndex int // 0 for non-chunked files
+		astFile *ast.File
+		mutants []*Mutant
 	}
 	sortedASTs := make([]astEntry, 0, len(astToMutants))
-	
-	// Split files with too many mutants into separate entries
-	// Each chunk will be compiled in its own package copy
-	const maxMutantsPerFile = 500
 	for astFile, fileMutants := range astToMutants {
-		if !chunkLargeFiles || len(fileMutants) <= maxMutantsPerFile {
-			sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants, 0})
-		} else {
-			// Split into chunks - each chunk gets compiled separately
-			chunkIdx := 1
-			for i := 0; i < len(fileMutants); i += maxMutantsPerFile {
-				end := i + maxMutantsPerFile
-				if end > len(fileMutants) {
-					end = len(fileMutants)
-				}
-				sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants[i:end], chunkIdx})
-				chunkIdx++
-			}
-		}
+		sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants})
 	}
 	sort.Slice(sortedASTs, func(i, j int) bool {
-		if len(sortedASTs[i].mutants) == 0 || len(sortedASTs[j].mutants) == 0 {
+		mi, mj := sortedASTs[i].mutants, sortedASTs[j].mutants
+		if len(mi) == 0 || len(mj) == 0 {
 			return false
 		}
-		return sortedASTs[i].mutants[0].Site.File.Name() < sortedASTs[j].mutants[0].Site.File.Name()
+		return mi[0].Site.File.Name() < mj[0].Site.File.Name()
 	})
 
-	log.Debug("[SCHEMATA] Processing %d files with schemata transformation...", len(sortedASTs))
-	
-	// Process in batches to avoid OOM with large codebases
-	const batchSize = 50
-	for batchStart := 0; batchStart < len(sortedASTs); batchStart += batchSize {
-		batchEnd := batchStart + batchSize
-		if batchEnd > len(sortedASTs) {
-			batchEnd = len(sortedASTs)
-		}
-		batch := sortedASTs[batchStart:batchEnd]
-		
-		log.Debug("[SCHEMATA] Processing batch %d-%d of %d files", batchStart+1, batchEnd, len(sortedASTs))
-		
-		batchGroup, _ := errgroup.WithContext(context.Background())
-		batchGroup.SetLimit(2)
-		
-		for _, entry := range batch {
-			entry := entry
-			entryAST := entry.astFile
-			entryMutants := entry.mutants
-			chunkIdx := entry.chunkIndex
+	log.Debug("[SCHEMATA] Transforming %d files one at a time...", len(sortedASTs))
 
-			origPath := entryMutants[0].Site.File.Name()
-			if origPath == "" {
-				continue
+	var deferred []Mutant // excess mutants for standalone
+
+	// Source cache scoped to this loop — holds at most one file's bytes at a time
+	// since we nil it after each use.
+	for i := range sortedASTs {
+		entry := &sortedASTs[i]
+		if len(entry.mutants) == 0 || entry.mutants[0].Site.File == nil {
+			continue
+		}
+
+		origPath := entry.mutants[0].Site.File.Name()
+
+		toEmbed := entry.mutants
+		if len(toEmbed) > maxMutantsPerSchemataFile {
+			log.Debug("[SCHEMATA] %s has %d mutants, capping schemata at %d, deferring %d to standalone",
+				filepath.Base(origPath),
+				len(toEmbed), maxMutantsPerSchemataFile,
+				len(toEmbed)-maxMutantsPerSchemataFile)
+			// Defer the tail; they will be run in standalone mode after the
+			// schemata phase. Sort by ID first so the split is deterministic.
+			sort.Slice(toEmbed, func(a, b int) bool { return toEmbed[a].ID < toEmbed[b].ID })
+			for _, m := range toEmbed[maxMutantsPerSchemataFile:] {
+				mc := *m
+				deferred = append(deferred, mc)
 			}
-
-			batchGroup.Go(func() error {
-				cacheMu.Lock()
-				src, cached := sourceCache[origPath]
-				cacheMu.Unlock()
-
-				if !cached {
-					var err error
-					src, err = os.ReadFile(origPath)
-					if err != nil {
-						return fmt.Errorf("failed to read %s: %w", origPath, err)
-					}
-					cacheMu.Lock()
-					sourceCache[origPath] = src
-					cacheMu.Unlock()
-				}
-
-				rel, err := w.relPath(origPath)
-				if err != nil {
-					return fmt.Errorf("failed to compute rel path: %w", err)
-				}
-				
-				// For chunked files, create separate package directories
-				tempFile := filepath.Join(w.TempDir, rel)
-				if chunkIdx > 1 {  // Only create separate dirs for chunk 2+
-					dir := filepath.Dir(tempFile)
-					base := filepath.Base(tempFile)
-					// Create chunk-specific package directory
-					chunkDir := fmt.Sprintf("%s_chunk%d", dir, chunkIdx)
-					tempFile = filepath.Join(chunkDir, base)
-					
-					// Copy all files from the original package to the chunk directory
-					origDir := filepath.Dir(origPath)
-					if err := os.MkdirAll(chunkDir, 0o755); err == nil {
-						entries, _ := os.ReadDir(origDir)
-						for _, e := range entries {
-							if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
-								continue
-							}
-							srcFile := filepath.Join(origDir, e.Name())
-							dstFile := filepath.Join(chunkDir, e.Name())
-							copyFileWithBuffer(srcFile, dstFile)
-						}
-					}
-				}
-
-				posMap, err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants)
-				if err != nil {
-					return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-				}
-				for _, m := range entryMutants {
-					if pm, ok := posMap[m.ID]; ok {
-						m.TempLine = pm.TempLine
-						m.TempCol = pm.TempCol
-					}
-				}
-				return nil
-			})
+			toEmbed = toEmbed[:maxMutantsPerSchemataFile]
 		}
-		
-		if err := batchGroup.Wait(); err != nil {
-			return nil, false, err
+
+		src, err := os.ReadFile(origPath)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to read %s: %w", origPath, err)
 		}
-		
-		// Clear source cache after each batch to free memory
-		sourceCache = make(map[string][]byte)
-		log.Debug("[SCHEMATA] Batch complete, memory released")
+
+		rel, err := w.relPath(origPath)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to compute rel path: %w", err)
+		}
+		tempFile := filepath.Join(w.TempDir, rel)
+
+		posMap, err := ApplySchemataToAST(entry.astFile, entry.mutants[0].Site.Fset, tempFile, src, toEmbed)
+		if err != nil {
+			return nil, false, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+		}
+		for _, m := range toEmbed {
+			if pm, ok := posMap[m.ID]; ok {
+				m.TempLine = pm.TempLine
+				m.TempCol = pm.TempCol
+			}
+		}
+
+		// Release AST and source bytes immediately — the transformed file is
+		// on disk; we don't need the in-memory representation any more.
+		entry.astFile = nil
+		entry.mutants = nil
+		src = nil
+
+		// GC every 10 files. go/format allocates heavily per file;
+		// without periodic GC the heap grows faster than the finalizer runs.
+		if i > 0 && i%10 == 0 {
+			runtime.GC()
+			log.Debug("[SCHEMATA] GC after file %d/%d", i+1, len(sortedASTs))
+		}
 	}
-	
-	log.Debug("[SCHEMATA] All batches complete")
 
-	log.Debug("[SCHEMATA] AST transformation complete, building file map...")
-	
+	// Store deferred mutants so callers can run them standalone.
+	w.deferredMutants = deferred
+
+	log.Debug("[SCHEMATA] All files transformed")
+
+	// Build the temp-file → mutant map for helper injection.
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
-
 	sortedMutants := make([]*Mutant, len(mutants))
 	for i := range mutants {
 		sortedMutants[i] = &mutants[i]
@@ -366,8 +321,10 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 	sort.Slice(sortedMutants, func(i, j int) bool {
 		return sortedMutants[i].ID < sortedMutants[j].ID
 	})
-
 	for _, m := range sortedMutants {
+		if m.Site.File == nil {
+			continue
+		}
 		rel, err := w.relPath(m.Site.File.Name())
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to compute rel path: %w", err)
@@ -446,9 +403,6 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
 				}
 			}
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") {
 			continue
 		}
 

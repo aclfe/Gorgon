@@ -80,6 +80,27 @@ func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string,
 	return applySchemataToAST(fileAST, fset, filePath, src, fileMutants)
 }
 
+// ApplySchemataInMemory applies schemata to a fresh parse of src and returns
+// the mutated AST without any disk I/O. Used by preflight type-checking.
+func ApplySchemataInMemory(src []byte, filePath string, fset *token.FileSet, fileMutants []*Mutant) (*ast.File, error) {
+	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+
+	posToMutants := buildPositionToMutantsMap(fileMutants)
+	constNodes := findConstNodes(file)
+
+	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
+		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
+	})
+
+	fixUnusedImports(file)
+	fixUnusedLoopVarsAfterMutationFast(file)
+
+	return file, nil
+}
+
 func buildPositionMapping(mutants []*Mutant, fset *token.FileSet) map[int]PositionMapping {
 	result := make(map[int]PositionMapping, len(mutants))
 	for _, m := range mutants {
@@ -181,9 +202,7 @@ func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositio
 }
 
 func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) (map[int]PositionMapping, error) {
-
 	posToMutants := buildPositionToMutantsMap(fileMutants)
-
 	constNodes := findConstNodes(file)
 
 	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
@@ -197,11 +216,8 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 	buf.Reset()
 	if err := format.Node(buf, fset, file); err != nil {
 		formatBufPool.Put(buf)
-
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
-		} else {
-			fmt.Fprintf(os.Stderr, "[WARN] format.Node failed for %s and original source is empty, skipping restore\n", filePath)
 		}
 		return nil, nil
 	}
@@ -210,29 +226,70 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		formatBufPool.Put(buf)
 		if len(src) > 0 {
 			_ = os.WriteFile(filePath, src, filePermissions)
-			fmt.Fprintf(os.Stderr, "[WARN] formatted output for %s is empty, restoring original source\n", filePath)
-		} else {
-			fmt.Fprintf(os.Stderr, "[WARN] formatted output for %s is empty and no original source available\n", filePath)
 		}
 		return nil, nil
 	}
+
+	// Compute positions from the buffer BEFORE writing — eliminates the
+	// disk write+re-read cycle and keeps only one copy of the data live.
+	origPositions := buildPositionMapping(fileMutants, fset)
+	mutantIDs := extractMutantIDs(fileMutants)
+	positionMap := findMutantPositionsInBytes(buf.Bytes(), mutantIDs, origPositions)
 
 	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 		formatBufPool.Put(buf)
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
-
 	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
 		formatBufPool.Put(buf)
 		return nil, fmt.Errorf("write failed: %w", err)
 	}
-	formatBufPool.Put(buf)
+	formatBufPool.Put(buf) // released immediately after write, before returning
 
-	origPositions := buildPositionMapping(fileMutants, fset)
-	mutantIDs := extractMutantIDs(fileMutants)
-	positionMap := findMutantPositionsInFile(filePath, mutantIDs, origPositions)
 	return positionMap, nil
 }
+
+func findMutantPositionsInBytes(content []byte, mutantIDs []int, originalPositions map[int]PositionMapping) map[int]PositionMapping {
+	result := make(map[int]PositionMapping, len(mutantIDs))
+	for id, pos := range originalPositions {
+		result[id] = pos
+	}
+
+	needed := make(map[int]bool, len(mutantIDs))
+	for _, id := range mutantIDs {
+		needed[id] = true
+	}
+
+	prefix := []byte("activeMutantID == ")
+	lines := bytes.Split(content, []byte{'\n'})
+	for lineNum, line := range lines {
+		idx := bytes.Index(line, prefix)
+		if idx < 0 {
+			continue
+		}
+		rest := line[idx+len(prefix):]
+		end := 0
+		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+			end++
+		}
+		if end == 0 {
+			continue
+		}
+		id, err := strconv.Atoi(string(rest[:end]))
+		if err != nil || !needed[id] {
+			continue
+		}
+		orig := originalPositions[id]
+		result[id] = PositionMapping{
+			OriginalLine: orig.OriginalLine,
+			OriginalCol:  orig.OriginalCol,
+			TempLine:     lineNum + 1,
+			TempCol:      idx + 1,
+		}
+	}
+	return result
+}
+
 
 func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 	fmt.Fprintf(os.Stderr, "[DEBUG] InjectSchemataHelpers called with %d files\n", len(fileToMutants))
@@ -378,6 +435,13 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 		if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
 			return true
 		}
+		// Never wrap the X (range target) of a RangeStmt in an IIFE.
+		// The IIFE would return interface{} which cannot be ranged over.
+		if rangeStmt, ok := cursor.Parent().(*ast.RangeStmt); ok {
+			if node == rangeStmt.X {
+				return true
+			}
+		}
 	}
 
 	if constNodes[node] {
@@ -481,10 +545,17 @@ func fixUnusedImports(file *ast.File) {
 }
 
 func fixUnusedLoopVarsAfterMutationFast(file *ast.File) {
-
 	for _, decl := range file.Decls {
 		processDeclForLoopVars(decl)
 	}
+	// Also walk FuncLit bodies (e.g. closures passed to ast.Inspect),
+	// which are not reachable via the top-level decl walk above.
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fl, ok := n.(*ast.FuncLit); ok && fl.Body != nil {
+			processStmtsForLoopVars(fl.Body.List)
+		}
+		return true
+	})
 }
 
 func processDeclForLoopVars(decl ast.Decl) {
@@ -531,6 +602,18 @@ func processStmtsForLoopVars(stmts []ast.Stmt) {
 			processStmtsForLoopVars(s.Body)
 		case *ast.CommClause:
 			processStmtsForLoopVars(s.Body)
+		case *ast.SwitchStmt:
+			if s.Body != nil {
+				processStmtsForLoopVars(s.Body.List)
+			}
+		case *ast.TypeSwitchStmt:
+			if s.Body != nil {
+				processStmtsForLoopVars(s.Body.List)
+			}
+		case *ast.SelectStmt:
+			if s.Body != nil {
+				processStmtsForLoopVars(s.Body.List)
+			}
 		}
 		_ = i
 	}
@@ -617,5 +700,24 @@ func getPackageNameFromImport(imp *ast.ImportSpec) string {
 	}
 	path := strings.Trim(imp.Path.Value, `"`)
 	parts := strings.Split(path, "/")
-	return parts[len(parts)-1]
+	last := parts[len(parts)-1]
+
+	// Handle pure major-version path components: .../v2, .../v3 → use second-to-last
+	// e.g. github.com/foo/bar/v2 → "bar"
+	if len(last) > 1 && last[0] == 'v' {
+		if _, err := strconv.Atoi(last[1:]); err == nil && len(parts) >= 2 {
+			last = parts[len(parts)-2]
+		}
+	}
+
+	// Handle dot-version suffixes: yaml.v3 → "yaml", go-yaml.v2 → "go-yaml"
+	if idx := strings.LastIndex(last, "."); idx >= 0 {
+		suffix := last[idx+1:]
+		if len(suffix) > 1 && suffix[0] == 'v' {
+			if _, err := strconv.Atoi(suffix[1:]); err == nil {
+				last = last[:idx]
+			}
+		}
+	}
+	return last
 }

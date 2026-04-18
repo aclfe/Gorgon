@@ -1,153 +1,302 @@
 [INFO] Loaded sub-configs from 1 directories
-[DEBUG] GenerateAndRunSchemata called with externalCfg.Enabled=false, suites=0
+[DEBUG] External suites enabled with 1 suites
+[DEBUG] GenerateAndRunSchemata called with externalCfg.Enabled=true, suites=1
+[DEBUG] [MEM] Start of GenerateAndRunSchemata: Alloc=1MB TotalAlloc=3MB Sys=12MB NumGC=1
+[DEBUG] [MEM] After GenerateMutants (504 mutants): Alloc=5MB TotalAlloc=8MB Sys=20MB NumGC=2
+[DEBUG] [MEM] After filtering: Alloc=5MB TotalAlloc=8MB Sys=20MB NumGC=2
+[DEBUG] [PREFLIGHT L3] ast.go: 45 type errors found, bisecting 163 mutants
+[DEBUG] [PREFLIGHT L3] literals.go: 48 type errors found, bisecting 99 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #41 rejected: -: cannot use (func() bool literal)() (value of type bool) as ast.Node value in argument to ast.Inspect: bool does not implement ast.Node (missing method End)
+[DEBUG] [PREFLIGHT L3] Mutant #164 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:14:29: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #46 rejected: -: invalid operation: n == (func() bool literal)() (mismatched types ast.Node and bool)
+[DEBUG] [PREFLIGHT L3] Mutant #172 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:25:28: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #51 rejected: -: cannot use (func() bool literal)() (value of type bool) as ast.Node value in argument to findNode: bool does not implement ast.Node (missing method End)
+[DEBUG] [PREFLIGHT L3] Mutant #52 rejected: -: cannot use (func() bool literal)() (value of type bool) as ast.Node value in argument to findNode: bool does not implement ast.Node (missing method End)
+[DEBUG] [PREFLIGHT L3] Mutant #182 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:59:19: e.Type undefined (type *ast.CallExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #59 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:91:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #60 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:92:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #216 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:68:12: e.Op undefined (type *ast.CompositeLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #65 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:94:32: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #224 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:70:8: e.Name undefined (type *ast.UnaryExpr has no field or method Name)
+[DEBUG] [PREFLIGHT L3] Mutant #135 rejected: -: cannot use (func() bool literal)() (value of type bool) as ast.Node value in argument to ast.Inspect: bool does not implement ast.Node (missing method End)
+[DEBUG] [PREFLIGHT L3] Mutant #140 rejected: -: invalid operation: n == (func() bool literal)() (mismatched types ast.Node and bool)
+[DEBUG] [PREFLIGHT L3] scope.go: 71 type errors found, bisecting 242 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #148 rejected: -: invalid operation: (func() bool literal)() (value of type bool) is not an interface
+[DEBUG] [PREFLIGHT L3] Mutant #313 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:90:16: s.Decl undefined (type *ast.AssignStmt has no field or method Decl)
+[DEBUG] [PREFLIGHT L3] Mutant #336 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:71:8: s.Tok undefined (type *ast.DeclStmt has no field or method Tok)
+[DEBUG] [PREFLIGHT L3] Mutant #377 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:136:12: e.Kind undefined (type *ast.Ident has no field or method Kind)
+[DEBUG] [PREFLIGHT L3] Mutant #380 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:147:8: e.Op undefined (type *ast.BasicLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #385 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:160:24: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
+[DEBUG] [PREFLIGHT L3] Mutant #394 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:164:24: e.X undefined (type *ast.CallExpr has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #409 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:185:35: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #410 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:187:8: e.Len undefined (type *ast.StarExpr has no field or method Len)
+[DEBUG] [PREFLIGHT L3] Mutant #411 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:38: e.Key undefined (type *ast.ArrayType has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #416 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:190:10: invalid operation: operator - not defined on "[" + constExprToString(e.Len) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #418 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:10: invalid operation: operator - not defined on "map[" + TypeExprToString(e.Key) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #422 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:202:18: e.X undefined (type *ast.StructType has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #425 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:11: invalid operation: operator - not defined on id.Name + "." (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #426 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:29: e.Sel undefined (type *ast.ParenExpr has no field or method Sel)
+[DEBUG] [MEM] After RunPreflight: Alloc=9MB TotalAlloc=246MB Sys=33MB NumGC=40
 [DEBUG] After cache check: uncachedIndices nil=false
 [DEBUG] Checking module layout at /home/aclfe/Desktop/coding/Gorgon: go.work=false go.mod=true
 [DEBUG] Module layout detected, using workspace mode
+[DEBUG] [MEM] After workspace creation: Alloc=9MB TotalAlloc=246MB Sys=33MB NumGC=40
 [DEBUG] [WORKSPACE] Single module mode: /home/aclfe/Desktop/coding/Gorgon
-[DEBUG] [WORKSPACE] Building mutated paths map from 125 mutants
-[DEBUG] [WORKSPACE] Mutated paths: 1 unique files
-[DEBUG] [WORKSPACE] Collected 84 packages from /home/aclfe/Desktop/coding/Gorgon
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_break_first/loop_break_first.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_break_first/loop_break_first_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go to /tmp/gorgon-schemata-2030262860/examples/mutations/empty_body/empty_body.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go to /tmp/gorgon-schemata-2030262860/pkg/config/config.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config_test.go to /tmp/gorgon-schemata-2030262860/pkg/config/config_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go to /tmp/gorgon-schemata-2030262860/pkg/config/orgpolicy.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go to /tmp/gorgon-schemata-2030262860/pkg/config/subconfig.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/binary_math/binary_math.go to /tmp/gorgon-schemata-2030262860/examples/mutations/binary_math/binary_math.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go to /tmp/gorgon-schemata-2030262860/examples/mutations/condition_negation/condition_negation.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/nil_check_removal/nil_check_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/nil_check_removal/nil_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/tests/testutil/testutil.go to /tmp/gorgon-schemata-2030262860/tests/testutil/testutil.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go to /tmp/gorgon-schemata-2030262860/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-2030262860/examples/mutations/constant_replacement/constant_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/logical_operator/logical_operator.go to /tmp/gorgon-schemata-2030262860/examples/mutations/logical_operator/logical_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/function_call_removal/function_call_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-2030262860/examples/mutations/sign_toggle/sign_toggle.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go to /tmp/gorgon-schemata-2030262860/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go to /tmp/gorgon-schemata-2030262860/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go to /tmp/gorgon-schemata-2030262860/internal/cache/cache.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/map_returns/map_returns.go to /tmp/gorgon-schemata-2030262860/examples/mutations/reference_returns/map_returns/map_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/boundary_value/boundary_value.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/early_return_removal/early_return_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/early_return_removal/early_return_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go to /tmp/gorgon-schemata-2030262860/internal/core/schemata_nodes/handlers.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go to /tmp/gorgon-schemata-2030262860/internal/core/schemata_nodes/position.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go to /tmp/gorgon-schemata-2030262860/internal/runner/runner.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/goroutine_removal/goroutine_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/goroutine_removal/goroutine_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/badge/badge.go to /tmp/gorgon-schemata-2030262860/internal/badge/badge.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/gowork/gowork.go to /tmp/gorgon-schemata-2030262860/internal/gowork/gowork.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/orgpolicy/enforce.go to /tmp/gorgon-schemata-2030262860/internal/orgpolicy/enforce.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-2030262860/examples/mutations/variable_replacement/variable_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go to /tmp/gorgon-schemata-2030262860/internal/reporter/html.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/json.go to /tmp/gorgon-schemata-2030262860/internal/reporter/json.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/junit.go to /tmp/gorgon-schemata-2030262860/internal/reporter/junit.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go to /tmp/gorgon-schemata-2030262860/internal/reporter/reporter.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/api.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/api.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/sarif.go to /tmp/gorgon-schemata-2030262860/internal/reporter/sarif.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/bench_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/bench_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/textfile.go to /tmp/gorgon-schemata-2030262860/internal/reporter/textfile.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/mutator_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/mutator_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/interface_returns/interface_returns.go to /tmp/gorgon-schemata-2030262860/examples/mutations/reference_returns/interface_returns/interface_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/boundary_value/boundary_value.go to /tmp/gorgon-schemata-2030262860/examples/mutations/boundary_value/boundary_value.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli_test.go to /tmp/gorgon-schemata-2030262860/internal/cli/cli_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/defer_removal/defer_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/diff/diff.go to /tmp/gorgon-schemata-2030262860/internal/diff/diff.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/defer_removal/defer_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/swap_case_bodies.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/switch_mutations/swap_case_bodies.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/variable_replacement/variable_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/switch_remove_default.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/switch_mutations/switch_remove_default.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/variable_replacement/variable_replacement_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-2030262860/examples/mutations/inc_dec_flip/inc_dec_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/loop_break_removal/loop_break_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go to /tmp/gorgon-schemata-2030262860/examples/mutations/reference_returns/pointer_returns/pointer_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/panic_removal/panic_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/empty_body/empty_body.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/empty_body/empty_body_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/math_operators/binary_math.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/math_operators/binary_math.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go to /tmp/gorgon-schemata-2030262860/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/suppressions/sync.go to /tmp/gorgon-schemata-2030262860/internal/suppressions/sync.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/concurrency/goroutine_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/concurrency/goroutine_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/zero_value_return/zero_value_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go to /tmp/gorgon-schemata-2030262860/examples/mutations/error_handling/error_handling.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/early_return_removal/early_return_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go to /tmp/gorgon-schemata-2030262860/examples/mutations/negate_condition/negate_condition.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go to /tmp/gorgon-schemata-2030262860/examples/mutations/type_edge_cases/type_edge_cases.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go to /tmp/gorgon-schemata-2030262860/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go to /tmp/gorgon-schemata-2030262860/internal/subconfig/resolver.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/constant_replacement/constant_replacement.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/constant_replacement/constant_replacement_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example.go to /tmp/gorgon-schemata-2030262860/pkg/testdata/subconfig/nested/example.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/tokens/tokens.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/tokens/tokens.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/negate_condition/negate_condition.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go to /tmp/gorgon-schemata-2030262860/cmd/gorgon/main.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main_test.go to /tmp/gorgon-schemata-2030262860/cmd/gorgon/main_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/negate_condition/negate_condition_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/channel_returns/channel_returns.go to /tmp/gorgon-schemata-2030262860/examples/mutations/reference_returns/channel_returns/channel_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/slice_returns/slice_returns.go to /tmp/gorgon-schemata-2030262860/examples/mutations/reference_returns/slice_returns/slice_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/sign_toggle/sign_toggle.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/conditional_expression/common.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_check_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/error_handling/error_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_false.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/conditional_expression/for_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example_test.go to /tmp/gorgon-schemata-2030262860/pkg/testdata/subconfig/nested/example_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/error_handling/error_return_nil.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_true.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/conditional_expression/for_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/nested.go to /tmp/gorgon-schemata-2030262860/pkg/testdata/subconfig/nested/nested.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_false.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/conditional_expression/if_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_true.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/conditional_expression/if_condition_true.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/function_call_removal/function_call_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_body_removal/loop_body_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/nil_check_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/error_handling/nil_check_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/error_return.go to /tmp/gorgon-schemata-2030262860/examples/mutations/zero_value_return/error_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go to /tmp/gorgon-schemata-2030262860/examples/mutations/bool_literal_return/bool_literal_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/logical_operator/logical_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/channel_returns.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/channel_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/common.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/common.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/interface_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/map_returns.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/map_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/pointer_returns.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/pointer_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_panic_recover/panic_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/defer_panic_recover/panic_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-2030262860/examples/mutations/zero_value_return/zero_value_return.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-2030262860/examples/mutations/loop_break_first/loop_break_first.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/baseline/baseline.go to /tmp/gorgon-schemata-2030262860/internal/baseline/baseline.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go to /tmp/gorgon-schemata-2030262860/pkg/testdata/subconfig/example.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example_test.go to /tmp/gorgon-schemata-2030262860/pkg/testdata/subconfig/example_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go to /tmp/gorgon-schemata-2030262860/internal/engine/engine.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/site.go to /tmp/gorgon-schemata-2030262860/internal/engine/site.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/tree.go to /tmp/gorgon-schemata-2030262860/internal/engine/tree.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/slice_returns.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/reference_returns/slice_returns.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/defer_removal/defer_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/condition_negation/condition_negation.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/condition_negation/condition_negation.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-2030262860/examples/mutations/arithmetic_flip/arithmetic_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-2030262860/examples/mutations/assignment_operator/assignment_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/consts.go to /tmp/gorgon-schemata-2030262860/internal/core/consts.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go to /tmp/gorgon-schemata-2030262860/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip_test.go to /tmp/gorgon-schemata-2030262860/examples/mutations/arithmetic_flip/arithmetic_flip_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/example2.go to /tmp/gorgon-schemata-2030262860/examples/mutations/arithmetic_flip/example2.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-2030262860/examples/mutations/loop_body_removal/loop_body_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/logger/logger.go to /tmp/gorgon-schemata-2030262860/internal/logger/logger.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/assignment_operator/assignment_operator.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/analysis/ast.go
+[DEBUG] [WORKSPACE] Building mutated paths map from 475 mutants
+[DEBUG] [WORKSPACE] Mutated paths: 3 unique files
+[DEBUG] [WORKSPACE] Collected 85 packages from /home/aclfe/Desktop/coding/Gorgon
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/panic_removal/panic_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/panic_removal/panic_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/constant_replacement/constant_replacement.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/function_call_removal/function_call_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/constant_replacement/constant_replacement_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_check_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/error_handling/error_check_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go to /tmp/gorgon-schemata-742153444/examples/mutations/conditional_expression/if_condition_false/if_condition_false.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/subconfig/resolver.go to /tmp/gorgon-schemata-742153444/internal/subconfig/resolver.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/error_handling/error_return_nil.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go to /tmp/gorgon-schemata-742153444/pkg/config/config.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/condition_negation/condition_negation.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/condition_negation/condition_negation.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/nil_check_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/error_handling/nil_check_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example.go to /tmp/gorgon-schemata-742153444/pkg/testdata/subconfig/nested/example.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/config_test.go to /tmp/gorgon-schemata-742153444/pkg/config/config_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/example_test.go to /tmp/gorgon-schemata-742153444/pkg/testdata/subconfig/nested/example_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/defer_removal/defer_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/defer_removal/defer_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go to /tmp/gorgon-schemata-742153444/examples/mutations/conditional_expression/if_condition_true/if_condition_true.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go to /tmp/gorgon-schemata-742153444/pkg/config/orgpolicy.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/early_return_removal/early_return_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go to /tmp/gorgon-schemata-742153444/pkg/config/subconfig.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/empty_body/empty_body.go to /tmp/gorgon-schemata-742153444/examples/mutations/empty_body/empty_body.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/consts.go to /tmp/gorgon-schemata-742153444/internal/core/consts.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/map_returns/map_returns.go to /tmp/gorgon-schemata-742153444/examples/mutations/reference_returns/map_returns/map_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/executor.go to /tmp/gorgon-schemata-742153444/internal/core/executor.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/nested/nested.go to /tmp/gorgon-schemata-742153444/pkg/testdata/subconfig/nested/nested.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/function_call_removal/function_call_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/function_call_removal/function_call_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go to /tmp/gorgon-schemata-742153444/internal/core/mutants.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-742153444/examples/mutations/loop_break_first/loop_break_first.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go to /tmp/gorgon-schemata-742153444/internal/core/preflight.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/boundary_value/boundary_value.go to /tmp/gorgon-schemata-742153444/examples/mutations/boundary_value/boundary_value.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/logical_operator/logical_operator.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/logical_operator/logical_operator.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/type_edge_cases/type_edge_cases.go to /tmp/gorgon-schemata-742153444/examples/mutations/type_edge_cases/type_edge_cases.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/loop_body_removal/loop_body_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata.go to /tmp/gorgon-schemata-742153444/internal/core/schemata.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-742153444/examples/mutations/variable_replacement/variable_replacement.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/math_operators/binary_math.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/math_operators/binary_math.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/handlers.go to /tmp/gorgon-schemata-742153444/internal/core/schemata_nodes/handlers.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go to /tmp/gorgon-schemata-742153444/internal/core/schemata_nodes/position.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/transform.go to /tmp/gorgon-schemata-742153444/internal/core/transform.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/channel_returns/channel_returns.go to /tmp/gorgon-schemata-742153444/examples/mutations/reference_returns/channel_returns/channel_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/utils.go to /tmp/gorgon-schemata-742153444/internal/core/utils.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/tests/testutil/testutil.go to /tmp/gorgon-schemata-742153444/tests/testutil/testutil.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_break_removal/loop_break_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/tokens/tokens.go to /tmp/gorgon-schemata-742153444/pkg/mutator/tokens/tokens.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/workspace.go to /tmp/gorgon-schemata-742153444/internal/core/workspace.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/loop_break_removal/loop_break_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-742153444/examples/mutations/sign_toggle/sign_toggle.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go to /tmp/gorgon-schemata-742153444/internal/cli/cli.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/workspace_test.go to /tmp/gorgon-schemata-742153444/internal/core/workspace_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example.go to /tmp/gorgon-schemata-742153444/pkg/testdata/subconfig/example.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go to /tmp/gorgon-schemata-742153444/cmd/gorgon/main.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/subconfig/example_test.go to /tmp/gorgon-schemata-742153444/pkg/testdata/subconfig/example_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-742153444/examples/mutations/inc_dec_flip/inc_dec_flip.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli_test.go to /tmp/gorgon-schemata-742153444/internal/cli/cli_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main_test.go to /tmp/gorgon-schemata-742153444/cmd/gorgon/main_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go to /tmp/gorgon-schemata-742153444/examples/mutations/switch_mutations/swap_case_bodies/swap_case_bodies.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/suppressions/sync.go to /tmp/gorgon-schemata-742153444/internal/suppressions/sync.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/variable_replacement/variable_replacement.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/nil_check_removal/nil_check_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/nil_check_removal/nil_check_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go to /tmp/gorgon-schemata-742153444/examples/mutations/conditional_expression/for_condition_false/for_condition_false.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/variable_replacement/variable_replacement_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/slice_returns/slice_returns.go to /tmp/gorgon-schemata-742153444/examples/mutations/reference_returns/slice_returns/slice_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/constant_replacement/constant_replacement.go to /tmp/gorgon-schemata-742153444/examples/mutations/constant_replacement/constant_replacement.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go to /tmp/gorgon-schemata-742153444/examples/mutations/switch_mutations/switch_remove_default/switch_remove_default.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go to /tmp/gorgon-schemata-742153444/internal/cache/cache.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/html.go to /tmp/gorgon-schemata-742153444/internal/reporter/html.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/boundary_value/boundary_value.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/boundary_value/boundary_value.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/pointer_returns/pointer_returns.go to /tmp/gorgon-schemata-742153444/examples/mutations/reference_returns/pointer_returns/pointer_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/badge/badge.go to /tmp/gorgon-schemata-742153444/internal/badge/badge.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/json.go to /tmp/gorgon-schemata-742153444/internal/reporter/json.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/api.go to /tmp/gorgon-schemata-742153444/pkg/mutator/api.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_panic_recover/panic_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/defer_panic_recover/panic_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/junit.go to /tmp/gorgon-schemata-742153444/internal/reporter/junit.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/defer_removal/defer_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/negate_condition/negate_condition.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/reporter.go to /tmp/gorgon-schemata-742153444/internal/reporter/reporter.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/channel_returns.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/channel_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/common.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/common.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/negate_condition/negate_condition_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/negate_condition/negate_condition_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/interface_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/sarif.go to /tmp/gorgon-schemata-742153444/internal/reporter/sarif.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/swap_case_bodies.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/switch_mutations/swap_case_bodies.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/map_returns.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/map_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/reporter/textfile.go to /tmp/gorgon-schemata-742153444/internal/reporter/textfile.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/defer_removal/defer_removal_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/defer_removal/defer_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/switch_mutations/switch_remove_default.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/switch_mutations/switch_remove_default.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/pointer_returns.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/pointer_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/logical_operator/logical_operator.go to /tmp/gorgon-schemata-742153444/examples/mutations/logical_operator/logical_operator.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/error_return.go to /tmp/gorgon-schemata-742153444/examples/mutations/zero_value_return/error_return.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/slice_returns.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/reference_returns/slice_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/arithmetic_flip/arithmetic_flip.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/early_return_removal/early_return_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-742153444/examples/mutations/zero_value_return/zero_value_return.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/empty_body/empty_body.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/early_return_removal/early_return_removal_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/early_return_removal/early_return_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/inc_dec_flip/inc_dec_flip.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/empty_body/empty_body_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-742153444/examples/mutations/assignment_operator/assignment_operator.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/assignment_operator/assignment_operator.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_body_removal/loop_body_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_break_first/loop_break_first.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/gowork/gowork.go to /tmp/gorgon-schemata-742153444/internal/gowork/gowork.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first_test.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/loop_break_first/loop_break_first_test.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/negate_condition/negate_condition.go to /tmp/gorgon-schemata-742153444/examples/mutations/negate_condition/negate_condition.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/engine.go to /tmp/gorgon-schemata-742153444/internal/engine/engine.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/testdata/notests/math.go to /tmp/gorgon-schemata-742153444/pkg/testdata/notests/math.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/bool_literal_return/bool_literal_return.go to /tmp/gorgon-schemata-742153444/examples/mutations/bool_literal_return/bool_literal_return.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/condition_negation/condition_negation.go to /tmp/gorgon-schemata-742153444/examples/mutations/condition_negation/condition_negation.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/conditional_expression/common.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/site.go to /tmp/gorgon-schemata-742153444/internal/engine/site.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/error_handling/error_handling.go to /tmp/gorgon-schemata-742153444/examples/mutations/error_handling/error_handling.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/reference_returns/interface_returns/interface_returns.go to /tmp/gorgon-schemata-742153444/examples/mutations/reference_returns/interface_returns/interface_returns.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_false.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/conditional_expression/for_condition_false.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/engine/tree.go to /tmp/gorgon-schemata-742153444/internal/engine/tree.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/baseline/baseline.go to /tmp/gorgon-schemata-742153444/internal/baseline/baseline.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/logger/logger.go to /tmp/gorgon-schemata-742153444/internal/logger/logger.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/for_condition_true.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/conditional_expression/for_condition_true.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/orgpolicy/enforce.go to /tmp/gorgon-schemata-742153444/internal/orgpolicy/enforce.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/runner/runner.go to /tmp/gorgon-schemata-742153444/internal/runner/runner.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_false.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/conditional_expression/if_condition_false.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/concurrency/goroutine_removal.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/concurrency/goroutine_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/sign_toggle/sign_toggle.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/sign_toggle/sign_toggle.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip.go to /tmp/gorgon-schemata-742153444/examples/mutations/arithmetic_flip/arithmetic_flip.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/binary_math/binary_math.go to /tmp/gorgon-schemata-742153444/examples/mutations/binary_math/binary_math.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go to /tmp/gorgon-schemata-742153444/examples/mutations/conditional_expression/for_condition_true/for_condition_true.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/if_condition_true.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/conditional_expression/if_condition_true.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/arithmetic_flip_test.go to /tmp/gorgon-schemata-742153444/examples/mutations/arithmetic_flip/arithmetic_flip_test.go
 [DEBUG] [WORKSPACE] Waiting for all copy operations to complete...
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/analysis/literals.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_break_removal/loop_break_removal.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go to /tmp/gorgon-schemata-2030262860/pkg/mutator/analysis/scope.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/executor.go to /tmp/gorgon-schemata-2030262860/internal/core/executor.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go to /tmp/gorgon-schemata-2030262860/internal/core/mutants.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/preflight.go to /tmp/gorgon-schemata-2030262860/internal/core/preflight.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata.go to /tmp/gorgon-schemata-2030262860/internal/core/schemata.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/transform.go to /tmp/gorgon-schemata-2030262860/internal/core/transform.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/utils.go to /tmp/gorgon-schemata-2030262860/internal/core/utils.go
-[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/core/workspace.go to /tmp/gorgon-schemata-2030262860/internal/core/workspace.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/internal/diff/diff.go to /tmp/gorgon-schemata-742153444/internal/diff/diff.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go to /tmp/gorgon-schemata-742153444/pkg/mutator/operators/zero_value_return/zero_value_return.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/goroutine_removal/goroutine_removal.go to /tmp/gorgon-schemata-742153444/examples/mutations/goroutine_removal/goroutine_removal.go
+[DEBUG] [WORKSPACE] Copying /home/aclfe/Desktop/coding/Gorgon/examples/mutations/arithmetic_flip/example2.go to /tmp/gorgon-schemata-742153444/examples/mutations/arithmetic_flip/example2.go
+[DEBUG] [WORKSPACE] Downloading dependencies...
+[DEBUG] [WORKSPACE] Dependencies downloaded
+[DEBUG] [WORKSPACE] Test file present: cmd/gorgon/main_test.go
+[DEBUG] [WORKSPACE] Test file present: examples/mutations/arithmetic_flip/arithmetic_flip_test.go
+[DEBUG] [WORKSPACE] Test file present: internal/cli/cli_test.go
+[DEBUG] [WORKSPACE] Test file present: internal/core/workspace_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/config/config_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/constant_replacement/constant_replacement_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/defer_removal/defer_removal_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/early_return_removal/early_return_removal_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/empty_body/empty_body_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/loop_body_removal/loop_body_removal_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/loop_break_first/loop_break_first_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/loop_break_removal/loop_break_removal_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/negate_condition/negate_condition_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/mutator/operators/variable_replacement/variable_replacement_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/testdata/subconfig/example_test.go
+[DEBUG] [WORKSPACE] Test file present: pkg/testdata/subconfig/nested/example_test.go
 [DEBUG] [WORKSPACE] Setup complete
-[DEBUG] [SCHEMATA] Starting with 125 mutants
-[DEBUG] [SCHEMATA] Grouped into 1 AST files
-[DEBUG] [SCHEMATA] Processing 1 files with schemata transformation...
-[DEBUG] [SCHEMATA] Processing batch 1-1 of 1 files
-[DEBUG] [SCHEMATA] Batch complete, memory released
-[DEBUG] [SCHEMATA] All batches complete
-[DEBUG] [SCHEMATA] AST transformation complete, building file map...
-[DEBUG] [COMPILE] Running: go test -c -vet=off -o /tmp/gorgon-schemata-2030262860/internal/cli/package.test ./internal/cli (in /tmp/gorgon-schemata-2030262860)
+[DEBUG] [MEM] After workspace setup: Alloc=10MB TotalAlloc=247MB Sys=33MB NumGC=40
+[DEBUG] [SCHEMATA] Starting with 475 mutants
+[DEBUG] [SCHEMATA] Grouped into 3 AST files
+[DEBUG] [SCHEMATA] Transforming 3 files one at a time...
+[DEBUG] [SCHEMATA] ast.go has 153 mutants, capping schemata at 50, deferring 103 to standalone
+[DEBUG] [SCHEMATA] literals.go has 94 mutants, capping schemata at 50, deferring 44 to standalone
+[DEBUG] [SCHEMATA] scope.go has 228 mutants, capping schemata at 50, deferring 178 to standalone
+[DEBUG] [SCHEMATA] All files transformed
+[DEBUG] Schemata application completed successfully
+[DEBUG] [MEM] After applySchemata: Alloc=3MB TotalAlloc=252MB Sys=33MB NumGC=41
+[DEBUG] Verifying schemata-transformed code compiles...
+[DEBUG] [MEM] verifyBuildSequential start: Alloc=3MB TotalAlloc=252MB Sys=33MB NumGC=41
+[DEBUG] [VERIFY] Building 82 packages with memory-efficient batching
+[DEBUG] [MEM] After building batch 5-10/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=42
+[DEBUG] [MEM] After building batch 10-15/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=43
+[DEBUG] [MEM] After building batch 15-20/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=44
+[DEBUG] [MEM] After building batch 20-25/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=45
+[DEBUG] [MEM] After building batch 25-30/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=46
+[DEBUG] [MEM] After building batch 30-35/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=47
+[DEBUG] [MEM] After building batch 35-40/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=48
+[DEBUG] [MEM] After building batch 40-45/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=49
+[DEBUG] [MEM] After building batch 45-50/82: Alloc=1MB TotalAlloc=252MB Sys=33MB NumGC=50
+[DEBUG] [MEM] After building batch 50-55/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=51
+[DEBUG] [MEM] After building batch 55-60/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=52
+[DEBUG] [MEM] After building batch 60-65/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=53
+[DEBUG] [MEM] After building batch 65-70/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=54
+[DEBUG] [MEM] After building batch 70-75/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=55
+[DEBUG] [MEM] After building batch 75-80/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=56
+[DEBUG] [MEM] After building batch 80-82/82: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [MEM] verifyBuildSequential end: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] Schemata-transformed code compiles successfully
+[DEBUG] [MEM] After verifyAndCleanSchemata: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[INFO] [EXTERNAL] Copying external test suites to workspace
+[DEBUG] [EXTERNAL] Copied 1 files from /home/aclfe/Desktop/coding/Gorgon/tests/e2e to /tmp/gorgon-schemata-742153444/tests/e2e
+[DEBUG] [EXTERNAL] Copied 5 files from /home/aclfe/Desktop/coding/Gorgon/tests/integration to /tmp/gorgon-schemata-742153444/tests/integration
+[DEBUG] [EXTERNAL] Copied 4 files from /home/aclfe/Desktop/coding/Gorgon/tests/regression to /tmp/gorgon-schemata-742153444/tests/regression
+[DEBUG] [EXTERNAL] Running: go [list -f {{.Dir}} ./tests/...] in /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Output: /tmp/gorgon-schemata-742153444/tests/e2e
+/tmp/gorgon-schemata-742153444/tests/integration
+/tmp/gorgon-schemata-742153444/tests/regression
+/tmp/gorgon-schemata-742153444/tests/testutil
+, Error: <nil>
+[DEBUG] [EXTERNAL] Building binaries for 4 resolved paths from workspace /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3772063468/__tests_e2e.test ./tests/e2e] in /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-3772063468/__tests_e2e.test
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3772063468/__tests_integration.test ./tests/integration] in /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-3772063468/__tests_integration.test
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3772063468/__tests_regression.test ./tests/regression] in /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-3772063468/__tests_regression.test
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3772063468/__tests_testutil.test ./tests/testutil] in /tmp/gorgon-schemata-742153444
+[DEBUG] [EXTERNAL] Binary not created at /tmp/gorgon-external-bins-3772063468/__tests_testutil.test
+[DEBUG] [EXTERNAL] Built 3 binaries in /tmp/gorgon-external-bins-3772063468
+[INFO] [EXTERNAL] Built 3 binaries for suite "all-tests"
+[DEBUG] [MEM] After external suite setup: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [MEM] After buildPkgMap: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [MEM] Before compileAndRunPackages: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [MEM] compileAndRunPackages start: Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [MEM] After package sorting (1 packages): Alloc=1MB TotalAlloc=253MB Sys=33MB NumGC=57
+[DEBUG] [COMPILE] Running: go test -c -vet=off -o /tmp/gorgon-schemata-742153444/pkg/mutator/analysis/package.test ./pkg/mutator/analysis (in /tmp/gorgon-schemata-742153444)
+[DEBUG] [COMPILE] Output: ?   	github.com/aclfe/gorgon/pkg/mutator/analysis	[no test files]
+
+[DEBUG] [COMPILE] Success, checking if binary exists at /tmp/gorgon-schemata-742153444/pkg/mutator/analysis/package.test
+[INFO] No test binary for ./pkg/mutator/analysis — package has no test files, 475 mutant(s) marked untested
+[DEBUG] [MEM] After collecting results (475 results): Alloc=2MB TotalAlloc=254MB Sys=33MB NumGC=57
+[DEBUG] [MEM] compileAndRunPackages end: Alloc=2MB TotalAlloc=254MB Sys=33MB NumGC=57
+[DEBUG] [MEM] After compileAndRunPackages: Alloc=2MB TotalAlloc=254MB Sys=33MB NumGC=57
+[DEBUG] [MEM] After collectResults: Alloc=2MB TotalAlloc=254MB Sys=33MB NumGC=57
+[DEBUG] After unit tests, about to check external phase
+[INFO] [EXTERNAL] Running external suite phase with 1 suites
+[INFO] [EXTERNAL] No survivors to test against external suites
+Mutation Score: 0.00%
+Killed: 0
+Survived: 0
+Errors: 0
+Untested: 475
+Total: 475
+
+Error Summary by Operator:
+
+Untested by Operator (binary missing - package failed to compile):
+  assignment_operator                 14/14 untested (100.0%)
+  loop_body_removal                   14/14 untested (100.0%)
+  logical_operator                    33/33 untested (100.0%)
+  negate_condition                    70/70 untested (100.0%)
+  variable_replacement                39/39 untested (100.0%)
+  pointer_returns                     2/2 untested (100.0%)
+  condition_negation                  88/88 untested (100.0%)
+  boundary_value                      11/11 untested (100.0%)
+  loop_break_first                    14/14 untested (100.0%)
+  zero_value_return_string            5/5 untested (100.0%)
+  swap_case_bodies                    22/22 untested (100.0%)
+  switch_remove_default               5/5 untested (100.0%)
+  zero_value_return_bool              23/23 untested (100.0%)
+  nil_check_removal                   7/7 untested (100.0%)
+  function_call_removal               10/10 untested (100.0%)
+  if_condition_false                  59/59 untested (100.0%)
+  if_condition_true                   59/59 untested (100.0%)
+
+Per-Mutant Compilation Errors (unlimited):
+  (no detailed errors available)
+
+Error Count by Operator:
+
