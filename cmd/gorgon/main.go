@@ -38,13 +38,6 @@ import (
 func main() {
 	args := os.Args[1:]
 
-	// Intercept "baseline" subcommand — sets SaveBaseline and strips the word
-	saveBaseline := false
-	if len(args) > 0 && args[0] == "baseline" {
-		saveBaseline = true
-		args = args[1:]
-	}
-
 	flags, err := cli.Parse(args)
 	if err != nil {
 		runner.ExitWithError(err)
@@ -53,8 +46,6 @@ func main() {
 	if err := flags.ValidateChecks(); err != nil {
 		runner.ExitWithError(err)
 	}
-
-	flags.SaveBaseline = saveBaseline
 
 	
 	if len(flags.Targets) == 0 && flags.ConfigFile == "" && flags.PkgPath == "." {

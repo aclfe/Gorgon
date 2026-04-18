@@ -1,0 +1,153 @@
+name: 'Gorgon Mutation Testing'
+description: 'Run mutation testing on your Go code with Gorgon'
+author: 'Gorgon Contributors'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  version:
+    description: 'Gorgon version to use'
+    required: false
+    default: 'latest'
+  
+  config:
+    description: 'Path to gorgon.yml config file'
+    required: false
+    default: ''
+  
+  targets:
+    description: 'Target paths to test (space-separated)'
+    required: false
+    default: './...'
+  
+  threshold:
+    description: 'Minimum mutation score threshold (0-100)'
+    required: false
+    default: '0'
+  
+  fail-on-threshold:
+    description: 'Fail the build if threshold is not met'
+    required: false
+    default: 'true'
+  
+  upload-badge:
+    description: 'Upload mutation score badge as artifact'
+    required: false
+    default: 'true'
+  
+  upload-reports:
+    description: 'Upload mutation reports as artifacts'
+    required: false
+    default: 'true'
+
+outputs:
+  mutation-score:
+    description: 'The mutation score percentage'
+    value: ${{ steps.run.outputs.score }}
+  
+  total-mutants:
+    description: 'Total number of mutants generated'
+    value: ${{ steps.run.outputs.total }}
+  
+  killed:
+    description: 'Number of killed mutants'
+    value: ${{ steps.run.outputs.killed }}
+  
+  survived:
+    description: 'Number of survived mutants'
+    value: ${{ steps.run.outputs.survived }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '>=1.21'
+    
+    - name: Install Gorgon
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          go install github.com/aclfe/gorgon/cmd/gorgon@latest
+        else
+          go install github.com/aclfe/gorgon/cmd/gorgon@${{ inputs.version }}
+        fi
+    
+    - name: Run Gorgon
+      id: run
+      shell: bash
+      run: |
+        set +e  # Don't exit on error
+        
+        # Build command
+        CMD="gorgon"
+        
+        if [ -n "${{ inputs.config }}" ]; then
+          CMD="$CMD -config=${{ inputs.config }}"
+        else
+          if [ "${{ inputs.threshold }}" != "0" ]; then
+            CMD="$CMD -threshold=${{ inputs.threshold }}"
+          fi
+        fi
+        
+        CMD="$CMD -output=gorgon-report.txt -format=textfile"
+        CMD="$CMD ${{ inputs.targets }}"
+        
+        echo "Running: $CMD"
+        $CMD
+        EXIT_CODE=$?
+        
+        # Extract score from baseline file if it exists
+        if [ -f ".gorgon-baseline.json" ]; then
+          SCORE=$(jq -r '.score' .gorgon-baseline.json 2>/dev/null || echo "0")
+          TOTAL=$(jq -r '.total' .gorgon-baseline.json 2>/dev/null || echo "0")
+          KILLED=$(jq -r '.killed' .gorgon-baseline.json 2>/dev/null || echo "0")
+          SURVIVED=$(jq -r '.survived' .gorgon-baseline.json 2>/dev/null || echo "0")
+        else
+          SCORE="0"
+          TOTAL="0"
+          KILLED="0"
+          SURVIVED="0"
+        fi
+        
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "total=$TOTAL" >> $GITHUB_OUTPUT
+        echo "killed=$KILLED" >> $GITHUB_OUTPUT
+        echo "survived=$SURVIVED" >> $GITHUB_OUTPUT
+        
+        # Generate badge
+        if [ "${{ inputs.upload-badge }}" = "true" ]; then
+          gorgon -badge=json > mutation-badge.json 2>/dev/null || echo '{"schemaVersion":1,"label":"mutation","message":"N/A","color":"lightgrey"}' > mutation-badge.json
+          gorgon -badge=svg > mutation-badge.svg 2>/dev/null || echo '<svg></svg>' > mutation-badge.svg
+        fi
+        
+        # Check threshold
+        if [ "${{ inputs.fail-on-threshold }}" = "true" ] && [ "$EXIT_CODE" != "0" ]; then
+          echo "::error::Mutation testing failed (score: $SCORE%, threshold: ${{ inputs.threshold }}%)"
+          exit $EXIT_CODE
+        fi
+        
+        exit 0
+    
+    - name: Upload Badge
+      if: inputs.upload-badge == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: mutation-badge
+        path: |
+          mutation-badge.json
+          mutation-badge.svg
+        retention-days: 90
+    
+    - name: Upload Reports
+      if: inputs.upload-reports == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: mutation-reports
+        path: |
+          gorgon-report.txt
+          .gorgon-baseline.json
+        retention-days: 90

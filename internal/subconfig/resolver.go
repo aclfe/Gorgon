@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aclfe/gorgon/internal/gowork"
+	"github.com/aclfe/gorgon/internal/orgpolicy"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -22,6 +24,7 @@ type entry struct {
 type Resolver struct {
 	projectRoot string
 	entries     []entry // sorted shallowest→deepest for chain resolution
+	policy      *config.OrgPolicy
 }
 
 // Discover walks projectRoot finding all gorgon.yml files in subdirectories.
@@ -39,7 +42,35 @@ func Discover(projectRoot, rootConfigPath string) (*Resolver, error) {
 
 	r := &Resolver{projectRoot: absRoot}
 
-	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
+	// Collect all roots to walk: workspace members + the workspace root itself.
+	roots := []string{absRoot}
+	if ws := gowork.Find(absRoot); ws != nil {
+		seen := map[string]bool{absRoot: true}
+		for _, mod := range ws.Modules {
+			if !seen[mod] {
+				roots = append(roots, mod)
+				seen[mod] = true
+			}
+		}
+	}
+
+	for _, root := range roots {
+		if err := r.walkRoot(root, absRoot, absRootConfig); err != nil {
+			return nil, err
+		}
+	}
+
+	// Sort shallowest first so chain resolution can iterate in order
+	sort.Slice(r.entries, func(i, j int) bool {
+		return len(r.entries[i].dir) < len(r.entries[j].dir)
+	})
+
+	return r, nil
+}
+
+// walkRoot is the per-root half of the old Discover body.
+func (r *Resolver) walkRoot(root, absRoot, absRootConfig string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -74,15 +105,15 @@ func Discover(projectRoot, rootConfigPath string) (*Resolver, error) {
 		})
 		return nil
 	})
+}
+
+// DiscoverWithPolicy is like Discover but threads an org policy through.
+func DiscoverWithPolicy(projectRoot, rootConfigPath string, policy *config.OrgPolicy) (*Resolver, error) {
+	r, err := Discover(projectRoot, rootConfigPath)
 	if err != nil {
 		return nil, err
 	}
-
-	// Sort shallowest first so chain resolution can iterate in order
-	sort.Slice(r.entries, func(i, j int) bool {
-		return len(r.entries[i].dir) < len(r.entries[j].dir)
-	})
-
+	r.policy = policy
 	return r, nil
 }
 
@@ -104,6 +135,16 @@ func (r *Resolver) chain(filePath string) []*config.SubConfig {
 			chain = append(chain, e.config)
 		}
 	}
+
+	// Apply org policy locked settings to each sub-config in the chain
+	if r.policy != nil && !r.policy.IsZero() && len(r.policy.LockedSettings) > 0 {
+		filtered := make([]*config.SubConfig, len(chain))
+		for i, sc := range chain {
+			filtered[i] = orgpolicy.ApplyToSubConfig(sc, nil, r.policy)
+		}
+		return filtered
+	}
+
 	return chain // already sorted shallowest→deepest from Discover
 }
 

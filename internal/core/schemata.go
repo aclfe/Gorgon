@@ -133,12 +133,19 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 
 	projectRootAbs, _ := filepath.Abs(projectRoot)
-	log.Debug("Checking for go.mod at projectRoot: %s", filepath.Join(projectRootAbs, "go.mod"))
-	if !fileExists(filepath.Join(projectRootAbs, "go.mod")) {
-		log.Debug("No go.mod found, using standalone mode")
+
+	// A go.work file at projectRoot is sufficient — each member module
+	// has its own go.mod, but the workspace root itself may not.
+	hasGoWork := fileExists(filepath.Join(projectRootAbs, "go.work"))
+	hasGoMod := fileExists(filepath.Join(projectRootAbs, "go.mod"))
+
+	log.Debug("Checking module layout at %s: go.work=%v go.mod=%v", projectRootAbs, hasGoWork, hasGoMod)
+
+	if !hasGoWork && !hasGoMod {
+		log.Debug("Neither go.work nor go.mod found, using standalone mode")
 		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
 	}
-	log.Debug("go.mod found, using workspace mode")
+	log.Debug("Module layout detected, using workspace mode")
 
 	ws, err := NewModuleWorkspace()
 	if err != nil {

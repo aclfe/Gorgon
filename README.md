@@ -16,6 +16,9 @@ gorgon -threshold=80 ./path         # fail if mutation score is below 80%
 gorgon -cache ./path                # cache results between runs
 gorgon -diff HEAD~1 ./path          # only mutate changed lines
 gorgon -diff=path/to/file.patch ./path
+
+# Go workspaces (go.work) are automatically detected
+gorgon ./...                        # tests all modules in workspace
 ```
 
 ### Flags
@@ -109,6 +112,7 @@ skip_func:
 diff: ""
 base: ""
 debug: false
+go_version: ""  # Override detected Go version (e.g., "1.25", "1.26")
 
 # === Baseline / Ratchet ===
 baseline:
@@ -125,6 +129,7 @@ outputs:
   - html:gorgon-report
   - json:mutation-results.json
 cpu_profile: ""
+badge: ""  # Generate badge: "json" or "svg"
 
 # === Directory Rules ===
 dir_rules:
@@ -143,6 +148,177 @@ suppress: []
 ```
 gorgon -config=gorgon.yml ./path
 ```
+
+## Badge Generation
+
+Generate shields.io-compatible badges to display mutation score in your README.
+
+### Configuration
+
+Add to your `gorgon.yml`:
+
+```yaml
+badge: json  # or "svg"
+```
+
+When you run Gorgon, it will automatically generate the badge file in your project directory.
+
+### Generate JSON Badge
+
+```yaml
+# gorgon.yml
+badge: json
+outputs:
+  - textfile:report.txt
+```
+
+```bash
+gorgon -config=gorgon.yml ./...
+# Creates: mutation-badge.json
+```
+
+Output:
+```json
+{
+  "schemaVersion": 1,
+  "label": "mutation",
+  "message": "85.3%",
+  "color": "#4c1"
+}
+```
+
+Host this JSON file and use it with shields.io:
+```markdown
+![Mutation Score](https://img.shields.io/endpoint?url=https://your-site.com/mutation-badge.json)
+```
+
+### Generate SVG Badge
+
+```yaml
+# gorgon.yml
+badge: svg
+```
+
+```bash
+gorgon -config=gorgon.yml ./...
+# Creates: mutation-badge.svg
+```
+
+Commit the SVG to your repo and reference it:
+```markdown
+![Mutation Score](./mutation-badge.svg)
+```
+
+### Badge Colors
+
+- **Green** (≥80%): `#4c1`
+- **Yellow-Green** (≥60%): `#97ca00`
+- **Yellow** (≥40%): `#dfb317`
+- **Orange** (≥20%): `#fe7d37`
+- **Red** (<20%): `#e05d44`
+
+## GitHub Actions
+
+### Quick Setup (2 lines)
+
+Add to `.github/workflows/mutation-test.yml`:
+
+```yaml
+- name: Run Mutation Testing
+  uses: gorgon/gorgon-action@v1
+```
+
+That's it! The action automatically:
+- Installs Gorgon
+- Runs mutation testing
+- Uploads badge and reports as artifacts
+- Fails the build if threshold not met
+
+### Full Configuration
+
+```yaml
+name: Mutation Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  mutation-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Gorgon
+        uses: gorgon/gorgon-action@v1
+        with:
+          config: 'gorgon.yml'          # Optional: path to config
+          targets: './...'               # Optional: target paths
+          threshold: '70'                # Optional: minimum score
+          fail-on-threshold: 'true'      # Optional: fail build
+          upload-badge: 'true'           # Optional: upload badge
+          upload-reports: 'true'         # Optional: upload reports
+      
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('gorgon-report.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              body: `## 🧬 Mutation Testing Results\n\n\`\`\`\n${report}\n\`\`\``
+            });
+```
+
+### Action Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `version` | Gorgon version to use | `latest` |
+| `config` | Path to gorgon.yml | `""` |
+| `targets` | Target paths (space-separated) | `./...` |
+| `threshold` | Minimum mutation score (0-100) | `0` |
+| `fail-on-threshold` | Fail build if threshold not met | `true` |
+| `upload-badge` | Upload badge as artifact | `true` |
+| `upload-reports` | Upload reports as artifacts | `true` |
+
+### Action Outputs
+
+| Output | Description |
+|--------|-------------|
+| `mutation-score` | The mutation score percentage |
+| `total-mutants` | Total number of mutants |
+| `killed` | Number of killed mutants |
+| `survived` | Number of survived mutants |
+
+### Using Outputs
+
+```yaml
+- name: Run Gorgon
+  id: gorgon
+  uses: gorgon/gorgon-action@v1
+
+- name: Check Score
+  run: |
+    echo "Mutation Score: ${{ steps.gorgon.outputs.mutation-score }}%"
+    echo "Killed: ${{ steps.gorgon.outputs.killed }}/${{ steps.gorgon.outputs.total }}"
+```
+
+### Artifacts
+
+The action uploads two artifacts:
+
+1. **mutation-badge** - JSON and SVG badge files
+2. **mutation-reports** - Text report and baseline file
+
+Download from the Actions tab or use in subsequent steps.
 
 ## CI Integration
 
@@ -583,6 +759,239 @@ dir_rules:
       - defer_removal
 ```
 
+## Go Workspace Support
+
+Gorgon fully supports Go workspaces (`go.work`) for multi-module monorepos. Workspace detection is automatic — no configuration required.
+
+### How It Works
+
+When you run Gorgon on a directory, it:
+
+1. **Searches for `go.work`** by walking up the directory tree
+2. **Falls back to `go.mod`** if no workspace is found (single-module mode)
+3. **Enumerates all workspace members** from `use` directives
+4. **Copies all modules** to the temporary test environment
+5. **Preserves cross-module dependencies** via `go.work` and `go.work.sum`
+
+### Example Workspace Layout
+
+```
+monorepo/
+├── go.work              # Workspace root
+├── go.work.sum
+├── gorgon.yml           # Optional: root config
+├── service-a/
+│   ├── go.mod
+│   ├── go.sum
+│   ├── gorgon.yml       # Optional: service-a specific config
+│   └── pkg/
+│       └── handler.go
+├── service-b/
+│   ├── go.mod
+│   ├── go.sum
+│   ├── gorgon.yml       # Optional: service-b specific config
+│   └── pkg/
+│       └── api.go
+└── shared/
+    ├── go.mod
+    └── pkg/
+        └── common.go
+```
+
+**go.work:**
+```go
+go 1.25
+
+use ./service-a
+use ./service-b
+use ./shared
+```
+
+### Running Gorgon on a Workspace
+
+```bash
+# From workspace root - tests all modules
+gorgon ./...
+
+# Target specific module
+gorgon ./service-a
+
+# Target multiple modules
+gorgon ./service-a ./service-b
+
+# With config (discovers sub-configs in all modules)
+gorgon -config=gorgon.yml ./...
+```
+
+### Cross-Module Imports
+
+Workspace mode preserves cross-module dependencies. If `service-a` imports `shared`, mutations in `shared` are correctly tested by `service-a`'s tests.
+
+```go
+// service-a/pkg/handler.go
+import "monorepo/shared/pkg"
+
+func Handle() {
+    return shared.Common() // mutation in shared.Common() is tested
+}
+```
+
+### Sub-Configs in Workspaces
+
+Each workspace member can have its own `gorgon.yml`:
+
+```yaml
+# service-a/gorgon.yml
+threshold: 90
+operators:
+  - arithmetic_flip
+  - boundary_value
+
+# service-b/gorgon.yml  
+threshold: 70
+operators:
+  - all
+```
+
+Sub-config discovery walks **all workspace members**, not just the workspace root. See [Per-Package Configuration](#per-package--per-module-configuration-overrides) for details on sub-config resolution.
+
+### Single-Module Compatibility
+
+Projects without `go.work` continue to work exactly as before:
+
+```
+project/
+├── go.mod
+├── go.sum
+└── pkg/
+    └── code.go
+```
+
+```bash
+gorgon ./...  # Works identically to v0.5
+```
+
+### Limitations
+
+**Out-of-tree modules**: If `go.work` references modules outside the workspace root (e.g., `use ../sibling`), Gorgon will reject files from those modules with a clear error. This is an uncommon pattern and can be addressed if needed.
+
+## Organization-Level Policy (Enterprise Governance)
+
+Large organizations need top-down policy enforcement that teams cannot weaken. The `gorgon-org.yml` file defines hard minimums and required settings that apply across all projects.
+
+### How It Works
+
+1. **Discovery**: Gorgon searches for `gorgon-org.yml` by walking up from the project root, or via `GORGON_ORG_POLICY` env var
+2. **Enforcement**: Policy constraints are applied **after** all sub-config resolution
+3. **Non-overrideable**: Teams cannot opt out or weaken org policy settings
+
+### Example Org Policy
+
+```yaml
+# gorgon-org.yml - placed at org root or set via GORGON_ORG_POLICY env var
+
+# Minimum score any package must achieve
+threshold_floor: 65.0
+
+# These operators run everywhere, regardless of team config
+required_operators:
+  - condition_negation
+  - arithmetic_flip
+  - error_handling
+
+# These operators are prohibited org-wide
+forbidden_operators:
+  - empty_body
+
+# Teams cannot change these settings
+locked_settings:
+  - skip_func      # teams cannot exempt functions
+  - exclude        # teams cannot exclude files
+
+# Generated code skipped everywhere
+forced_skip_paths:
+  - "*.pb.go"
+  - "mock_*.go"
+
+# All CI machines must use at least 4 cores
+min_concurrent: 4
+
+# Cache must always be on
+require_cache: true
+```
+
+### Policy Fields
+
+| Field | Description |
+|-------|-------------|
+| `threshold_floor` | Minimum mutation score. Sub-configs setting lower thresholds are raised to this value |
+| `required_operators` | Operators that must run everywhere. Injected into all configs |
+| `forbidden_operators` | Operators that are never allowed. Removed from all configs |
+| `locked_settings` | Settings teams cannot override: `skip`, `skip_func`, `exclude`, `include`, `tests`, `cache`, `concurrent`, `operators`, `threshold` |
+| `forced_skip_paths` | Paths always skipped (e.g., generated code) |
+| `forced_exclude_patterns` | Glob patterns always excluded |
+| `min_concurrent` | Minimum concurrency level |
+| `require_cache` | Force cache to be enabled |
+
+### Discovery Locations
+
+Gorgon searches for `gorgon-org.yml` in this order:
+
+1. **`GORGON_ORG_POLICY` env var** - Explicit path (highest priority)
+2. **Walk up from project root** - Searches parent directories
+3. **`$XDG_CONFIG_HOME/gorgon/gorgon-org.yml`** - User/org config directory
+
+### Violation Reporting
+
+When org policy constraints are applied, violations are logged:
+
+```
+Org policy applied 3 constraint(s):
+  org policy: threshold was "40.00", enforced to "65.00" (below org threshold_floor)
+  org policy: operators was "boundary_value", enforced to "condition_negation (injected)" (required by org policy)
+  org policy: cache was "false", enforced to "true" (require_cache set in org policy)
+```
+
+Control violation behavior in your team config:
+
+```yaml
+# gorgon.yml
+violation_mode: fail    # fail (default), warn, or silent
+```
+
+The org policy can lock this setting to prevent teams from silencing violations:
+
+```yaml
+# gorgon-org.yml
+locked_settings:
+  - violation_mode
+```
+
+### Team Config Options
+
+Teams can configure how they work **within** policy constraints:
+
+```yaml
+# gorgon.yml
+
+# How sub-configs inherit from parents
+sub_config_mode: merge  # merge (default), replace, or isolate
+
+# Propagate root threshold to sub-configs without their own
+threshold_inherit: true
+
+# How to handle policy violations
+violation_mode: fail  # fail (default), warn, or silent
+```
+
+### Benefits
+
+**Compliance**: Security-critical operators can be mandated org-wide  
+**Prevent gaming**: Teams cannot set `threshold: 0` to bypass quality gates  
+**Consistent standards**: Generated code handling, concurrency, caching enforced uniformly  
+**Separation of concerns**: Platform teams own policy, app teams own their configs  
+**Transparent**: Violations are logged so teams understand what was enforced  
+
 ## Per-Package / Per-Module Configuration Overrides
 
 This is a meaningful feature for monorepos. Sub-configs are named `gorgon.yml` and discovered during a tree walk. The root config is identified by being explicitly passed via `-config`; everything else found during the tree walk is a sub-config.
@@ -805,6 +1214,39 @@ When reporting results:
 3. Calculate mutation score for that package
 4. Check if score meets the package's threshold
 5. Report any packages that failed their threshold
+
+## Go Version Configuration
+
+Gorgon automatically detects the Go version from your project's `go.mod` file and uses it when generating temporary test modules. This ensures compatibility as Go evolves.
+
+### Auto-Detection
+
+By default, Gorgon reads the `go X.Y` directive from your project's `go.mod`:
+
+```go
+// go.mod
+module myproject
+
+go 1.25  // ← Gorgon uses this version
+```
+
+If detection fails, it falls back to `1.25`.
+
+### Manual Override
+
+Override the detected version in your config file:
+
+```yaml
+# gorgon.yml
+go_version: "1.26"  # Force specific Go version
+```
+
+**Use cases**:
+- Testing compatibility with a newer Go version
+- Working in environments where go.mod detection fails
+- Standardizing across multiple projects
+
+**Note**: The version must be in `X.Y` format (e.g., `1.25`, `1.26`).
 
 ## Output Files
 

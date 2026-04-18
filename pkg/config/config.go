@@ -37,7 +37,24 @@ type BaselineConfig struct {
 	NoRegression bool    `yaml:"no_regression"`
 	File         string  `yaml:"file,omitempty"`
 	Tolerance    float64 `yaml:"tolerance,omitempty"`
+	Save         bool    `yaml:"save,omitempty"` // Always save baseline after run
 }
+
+type SubConfigMode string
+
+const (
+	SubConfigMerge   SubConfigMode = "merge"   // Accumulate settings up the chain (default)
+	SubConfigReplace SubConfigMode = "replace" // Sub-config replaces parent for specified fields
+	SubConfigIsolate SubConfigMode = "isolate" // Each directory is standalone
+)
+
+type ViolationMode string
+
+const (
+	ViolationFail   ViolationMode = "fail"   // Hard failure on policy violation (default)
+	ViolationWarn   ViolationMode = "warn"   // Log violations but don't fail
+	ViolationSilent ViolationMode = "silent" // Apply constraints silently
+)
 
 type Config struct {
 	Operators         []string          `yaml:"operators"`
@@ -63,6 +80,11 @@ type Config struct {
 	UnitTestsEnabled  bool                 `yaml:"unit_tests_enabled"`
 	ExternalSuites    ExternalSuitesConfig `yaml:"external_suites"`
 	Baseline          BaselineConfig       `yaml:"baseline,omitempty"`
+	GoVersion         string               `yaml:"go_version,omitempty"` // Override detected Go version (e.g., "1.25")
+	SubConfigMode     SubConfigMode        `yaml:"sub_config_mode,omitempty"`
+	ThresholdInherit  bool                 `yaml:"threshold_inherit,omitempty"`
+	ViolationMode     ViolationMode        `yaml:"violation_mode,omitempty"`
+	Badge             string               `yaml:"badge,omitempty"` // "json" or "svg" - generates badge file
 }
 
 func Default() *Config {
