@@ -68,6 +68,7 @@ type Config struct {
 	ShowSurvived      bool              `yaml:"show_survived"`
 	Outputs           []string          `yaml:"outputs,omitempty"` // format:file pairs, e.g. ["junit:report.xml", "html:report"]
 	CPUProfile        string            `yaml:"cpu_profile"`
+	MemProfile        string            `yaml:"mem_profile"` // Write periodic heap profiles to this directory (e.g. "profiles")
 	Exclude           []string          `yaml:"exclude"`
 	Include           []string          `yaml:"include"`
 	Skip              []string          `yaml:"skip"`
@@ -313,6 +314,7 @@ func (c *Config) Save(path string) error {
 		}
 	}
 	lines = append(lines, fmt.Sprintf("cpu_profile: \"%s\"", c.CPUProfile))
+	lines = append(lines, fmt.Sprintf("mem_profile: \"%s\"", c.MemProfile))
 	lines = append(lines, "")
 	
 	if len(c.DirRules) > 0 {

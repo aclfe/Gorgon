@@ -50,6 +50,7 @@ show_survived: true
 outputs:
     []
 cpu_profile: ""
+mem_profile: "./profiles"  # Set to a directory path to capture heap profiles (e.g. "./profiles")
 
 # === Suppressions (Auto-managed) ===
 suppress:

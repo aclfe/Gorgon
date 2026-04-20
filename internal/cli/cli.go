@@ -19,6 +19,7 @@ type Flags struct {
 	Operators    string
 	Concurrent   string
 	Threshold    float64
+	MemProfile   string
 	UseCache     bool
 	DryRun       bool
 	Debug        bool
@@ -46,6 +47,7 @@ func Parse(args []string) (*Flags, error) {
 	fs.BoolVar(&f.ProgBar, "progbar", false, "Show progress percentage during execution")
 	fs.BoolVar(&f.ShowKilled, "show-killed", false, "Show killed mutants with test attribution")
 	fs.BoolVar(&f.ShowSurvived, "show-survived", false, "Show survived mutants in output")
+	fs.StringVar(&f.MemProfile, "mem-profile", "", "Write periodic heap profiles to this directory (e.g. profiles)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -84,6 +86,7 @@ func (f *Flags) LoadConfig() (*config.Config, error) {
 		cfg.Concurrent = f.Concurrent
 	}
 	cfg.Threshold = f.Threshold
+	cfg.MemProfile = f.MemProfile
 	cfg.Cache = f.UseCache
 	cfg.DryRun = f.DryRun
 	cfg.Diff = f.Diff
@@ -152,6 +155,7 @@ func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "  -progbar              show progress percentage during execution")
 	fmt.Fprintln(os.Stderr, "  -show-killed          show killed mutants with test attribution")
 	fmt.Fprintln(os.Stderr, "  -show-survived        show survived mutants in output")
+	fmt.Fprintln(os.Stderr, "  -mem-profile string  write periodic heap profiles to this directory (e.g. profiles)")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  gorgon examples/mutations")

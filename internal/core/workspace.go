@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"go/ast"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -22,18 +21,12 @@ import (
 
 func maxConcurrency() int { return runtime.NumCPU() }
 
-// Maximum mutants embedded per file in schemata mode. Files exceeding this
-// cap get their excess mutants deferred to standalone per-mutant mode, which
-// avoids generating compiler-killing 100k+ line files.
-const maxMutantsPerSchemataFile = 50
-
 type ModuleWorkspace struct {
-	TempDir         string
-	absModule       string
-	goWork          *gowork.Workspace
-	fileRelPaths    map[string]string
-	deferredMutants []Mutant
-	mu              sync.Mutex
+	TempDir      string
+	absModule    string
+	goWork       *gowork.Workspace
+	fileRelPaths map[string]string
+	mu           sync.Mutex
 }
 
 func NewModuleWorkspace() (*ModuleWorkspace, error) {
@@ -80,7 +73,7 @@ func (w *ModuleWorkspace) Cleanup() {
 	_ = os.RemoveAll(w.TempDir)
 }
 
-func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Logger) error {
+func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	// Detect go.work first; fall back to go.mod if absent.
 	ws := gowork.Find(baseDir)
 	w.goWork = ws
@@ -90,7 +83,6 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Lo
 	if ws != nil {
 		w.absModule = ws.Root
 		moduleRoots = ws.Modules
-		log.Debug("[WORKSPACE] Found go.work with %d modules", len(moduleRoots))
 	} else {
 		modDir := FindGoModDir(baseDir)
 		if modDir == "" {
@@ -102,17 +94,14 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Lo
 		}
 		w.absModule = abs
 		moduleRoots = []string{abs}
-		log.Debug("[WORKSPACE] Single module mode: %s", abs)
 	}
 
-	log.Debug("[WORKSPACE] Building mutated paths map from %d mutants", len(mutants))
 	mutatedPaths := make(map[string]bool, len(mutants))
 	for i := range mutants {
 		if mutants[i].Site.File != nil {
 			mutatedPaths[mutants[i].Site.File.Name()] = true
 		}
 	}
-	log.Debug("[WORKSPACE] Mutated paths: %d unique files", len(mutatedPaths))
 
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
@@ -159,49 +148,21 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant, log *logger.Lo
 		if err != nil {
 			return fmt.Errorf("failed to collect packages in %s: %w", modRoot, err)
 		}
-		log.Debug("[WORKSPACE] Collected %d packages from %s", len(allPkgs), modRoot)
 		for pkgRelDir := range allPkgs {
 			pkgRelDir := pkgRelDir
 			g.Go(func() error {
-				return w.copyPackageFromModule(modRoot, pkgRelDir, mutatedPaths, log)
+				return w.copyPackageFromModule(modRoot, pkgRelDir, mutatedPaths)
 			})
 		}
 	}
 
-	log.Debug("[WORKSPACE] Waiting for all copy operations to complete...")
-	if err := g.Wait(); err != nil {
-		return err
-	}
-
-	// Download dependencies after copying go.mod/go.sum
-	log.Debug("[WORKSPACE] Downloading dependencies...")
-	cmd := exec.Command("go", "mod", "download")
-	cmd.Dir = w.TempDir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Debug("[WORKSPACE] go mod download failed: %v, output: %s", err, string(output))
-		return fmt.Errorf("failed to download dependencies: %w", err)
-	}
-	log.Debug("[WORKSPACE] Dependencies downloaded")
-
-	// Debug: list files in temp directory
-	if log.IsDebug() {
-		filepath.Walk(w.TempDir, func(path string, info os.FileInfo, err error) error {
-			if err == nil && !info.IsDir() && strings.HasSuffix(path, "_test.go") {
-				rel, _ := filepath.Rel(w.TempDir, path)
-				log.Debug("[WORKSPACE] Test file present: %s", rel)
-			}
-			return nil
-		})
-	}
-
-	log.Debug("[WORKSPACE] Setup complete")
-	return nil
+	return g.Wait()
 }
 
-func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, log *logger.Logger) (map[string][]*Mutant, bool, error) {
-	log.Debug("[SCHEMATA] Starting with %d mutants", len(mutants))
+func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, bool, error) {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(maxConcurrency())
 
-	// Group mutants by AST file.
 	astToMutants := make(map[*ast.File][]*Mutant, len(mutants))
 	for i := range mutants {
 		m := &mutants[i]
@@ -209,7 +170,6 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 			astToMutants[m.Site.FileAST] = append(astToMutants[m.Site.FileAST], m)
 		}
 	}
-	log.Debug("[SCHEMATA] Grouped into %d AST files", len(astToMutants))
 
 	hasNonStdlib := false
 	for astFile := range astToMutants {
@@ -224,7 +184,9 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 		}
 	}
 
-	// Sort for deterministic processing order.
+	sourceCache := make(map[string][]byte)
+	var cacheMu sync.Mutex
+
 	type astEntry struct {
 		astFile *ast.File
 		mutants []*Mutant
@@ -234,86 +196,64 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 		sortedASTs = append(sortedASTs, astEntry{astFile, fileMutants})
 	}
 	sort.Slice(sortedASTs, func(i, j int) bool {
-		mi, mj := sortedASTs[i].mutants, sortedASTs[j].mutants
-		if len(mi) == 0 || len(mj) == 0 {
+		if len(sortedASTs[i].mutants) == 0 || len(sortedASTs[j].mutants) == 0 {
 			return false
 		}
-		return mi[0].Site.File.Name() < mj[0].Site.File.Name()
+		return sortedASTs[i].mutants[0].Site.File.Name() < sortedASTs[j].mutants[0].Site.File.Name()
 	})
 
-	log.Debug("[SCHEMATA] Transforming %d files one at a time...", len(sortedASTs))
+	for _, entry := range sortedASTs {
+		entryAST := entry.astFile
+		entryMutants := entry.mutants
 
-	var deferred []Mutant // excess mutants for standalone
-
-	// Source cache scoped to this loop — holds at most one file's bytes at a time
-	// since we nil it after each use.
-	for i := range sortedASTs {
-		entry := &sortedASTs[i]
-		if len(entry.mutants) == 0 || entry.mutants[0].Site.File == nil {
+		origPath := entryMutants[0].Site.File.Name()
+		if origPath == "" {
 			continue
 		}
 
-		origPath := entry.mutants[0].Site.File.Name()
+		g.Go(func() error {
 
-		toEmbed := entry.mutants
-		if len(toEmbed) > maxMutantsPerSchemataFile {
-			log.Debug("[SCHEMATA] %s has %d mutants, capping schemata at %d, deferring %d to standalone",
-				filepath.Base(origPath),
-				len(toEmbed), maxMutantsPerSchemataFile,
-				len(toEmbed)-maxMutantsPerSchemataFile)
-			// Defer the tail; they will be run in standalone mode after the
-			// schemata phase. Sort by ID first so the split is deterministic.
-			sort.Slice(toEmbed, func(a, b int) bool { return toEmbed[a].ID < toEmbed[b].ID })
-			for _, m := range toEmbed[maxMutantsPerSchemataFile:] {
-				mc := *m
-				deferred = append(deferred, mc)
+			cacheMu.Lock()
+			src, cached := sourceCache[origPath]
+			cacheMu.Unlock()
+
+			if !cached {
+				var err error
+				src, err = os.ReadFile(origPath)
+				if err != nil {
+					return fmt.Errorf("failed to read %s: %w", origPath, err)
+				}
+				cacheMu.Lock()
+				sourceCache[origPath] = src
+				cacheMu.Unlock()
 			}
-			toEmbed = toEmbed[:maxMutantsPerSchemataFile]
-		}
 
-		src, err := os.ReadFile(origPath)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to read %s: %w", origPath, err)
-		}
-
-		rel, err := w.relPath(origPath)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to compute rel path: %w", err)
-		}
-		tempFile := filepath.Join(w.TempDir, rel)
-
-		posMap, err := ApplySchemataToAST(entry.astFile, entry.mutants[0].Site.Fset, tempFile, src, toEmbed)
-		if err != nil {
-			return nil, false, fmt.Errorf("schemata failed on %s: %w", tempFile, err)
-		}
-		for _, m := range toEmbed {
-			if pm, ok := posMap[m.ID]; ok {
-				m.TempLine = pm.TempLine
-				m.TempCol = pm.TempCol
+			rel, err := w.relPath(origPath)
+			if err != nil {
+				return fmt.Errorf("failed to compute rel path: %w", err)
 			}
-		}
+			tempFile := filepath.Join(w.TempDir, rel)
 
-		// Release AST and source bytes immediately — the transformed file is
-		// on disk; we don't need the in-memory representation any more.
-		entry.astFile = nil
-		entry.mutants = nil
-		src = nil
-
-		// GC every 10 files. go/format allocates heavily per file;
-		// without periodic GC the heap grows faster than the finalizer runs.
-		if i > 0 && i%10 == 0 {
-			runtime.GC()
-			log.Debug("[SCHEMATA] GC after file %d/%d", i+1, len(sortedASTs))
-		}
+			posMap, err := ApplySchemataToAST(entryAST, entryMutants[0].Site.Fset, tempFile, src, entryMutants)
+			if err != nil {
+				return fmt.Errorf("schemata failed on %s: %w", tempFile, err)
+			}
+			for _, m := range entryMutants {
+				if pm, ok := posMap[m.ID]; ok {
+					m.TempLine = pm.TempLine
+					m.TempCol = pm.TempCol
+				}
+			}
+			return nil
+		})
 	}
 
-	// Store deferred mutants so callers can run them standalone.
-	w.deferredMutants = deferred
+	if err := g.Wait(); err != nil {
+		return nil, false, err
+	}
 
-	log.Debug("[SCHEMATA] All files transformed")
-
-	// Build the temp-file → mutant map for helper injection.
 	fileToMutants := make(map[string][]*Mutant, len(mutants))
+
 	sortedMutants := make([]*Mutant, len(mutants))
 	for i := range mutants {
 		sortedMutants[i] = &mutants[i]
@@ -321,10 +261,8 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant, chunkLargeFiles bool, 
 	sort.Slice(sortedMutants, func(i, j int) bool {
 		return sortedMutants[i].ID < sortedMutants[j].ID
 	})
+
 	for _, m := range sortedMutants {
-		if m.Site.File == nil {
-			continue
-		}
 		rel, err := w.relPath(m.Site.File.Name())
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to compute rel path: %w", err)
@@ -405,6 +343,9 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 			}
 			continue
 		}
+		if !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
 
 		if mutatedPaths[src] {
 			continue
@@ -420,7 +361,7 @@ func (w *ModuleWorkspace) copyPackage(absModule, pkgRelDir string, mutatedPaths 
 // copyPackageFromModule is like copyPackage but the relative dest path is
 // computed from modRoot, then placed under w.TempDir at the same relative
 // position it holds within w.absModule (the workspace root).
-func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutatedPaths map[string]bool, log *logger.Logger) error {
+func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutatedPaths map[string]bool) error {
 	srcDir := filepath.Join(modRoot, pkgRelDir)
 
 	// Destination is relative to workspace root (w.absModule), not modRoot.
@@ -461,7 +402,6 @@ func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutat
 		if mutatedPaths[src] {
 			continue
 		}
-		log.Debug("[WORKSPACE] Copying %s to %s", src, dst)
 		if err := copyFileWithBuffer(src, dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", src, err)
 		}

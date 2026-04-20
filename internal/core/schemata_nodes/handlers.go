@@ -19,11 +19,6 @@ type MutantForSite struct {
 	EnclosingFunc *ast.FuncDecl
 }
 
-type mutantResult struct {
-	id      int
-	retStmt *ast.ReturnStmt
-}
-
 type NodeType uint8
 
 const (
@@ -242,9 +237,11 @@ func wrapExprWithIf(mutated, original ast.Expr, mutantID int, returnType string,
 	exprType := inferExprType(original, returnType, typeMap)
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
-			Type: safeFuncType(&ast.FieldList{
-				List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
-			}),
+			Type: &ast.FuncType{
+				Results: &ast.FieldList{
+					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
+				},
+			},
 			Body: &ast.BlockStmt{
 				List: []ast.Stmt{
 					&ast.IfStmt{
@@ -298,9 +295,11 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
-			Type: safeFuncType(&ast.FieldList{
-				List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
-			}),
+			Type: &ast.FuncType{
+				Results: &ast.FieldList{
+					List: []*ast.Field{{Type: buildTypeExpr(exprType)}},
+				},
+			},
 			Body: &ast.BlockStmt{List: stmts},
 		},
 	}
@@ -373,15 +372,10 @@ func HandleRangeStmt(original ast.Node, mutants []MutantForSite, returnType stri
 }
 
 func HandleAssignStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
-    if assign, ok := original.(*ast.AssignStmt); ok && assign.Tok == token.DEFINE {
-        // Never wrap :=  — it would pull the declared variable out of scope.
-        // Expression-level operators will still mutate the RHS individually.
-        return original
-    }
-    if len(mutants) == 1 {
-        return applySingleMutant(original, mutants[0], returnType, file)
-    }
-    return WrapStatement(original, mutants, returnType, file)
+	if len(mutants) == 1 {
+		return applySingleMutant(original, mutants[0], returnType, file)
+	}
+	return WrapStatement(original, mutants, returnType, file)
 }
 
 func HandleDeferStmt(original ast.Node, mutants []MutantForSite, returnType string, file *ast.File) ast.Node {
@@ -400,17 +394,6 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		return original
 	}
 
-	// Parse multi-value return types
-	returnTypes := parseReturnTypes(returnType)
-	numReturns := len(returnTypes)
-	
-	// For multi-value returns, only wrap if we're mutating the entire return statement
-	// Don't wrap individual expressions within multi-value returns
-	if numReturns > 1 && len(originalRet.Results) != numReturns {
-		// Mismatch - skip wrapping to avoid compilation errors
-		return original
-	}
-
 	if len(mutants) == 1 {
 		mutant := mutants[0]
 		mutated := mutator.ApplyOperator(mutant.Op, original, returnType, file, mutant.EnclosingFunc)
@@ -418,22 +401,21 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 			return original
 		}
 		if retStmt, ok := mutated.(*ast.ReturnStmt); ok && len(retStmt.Results) > 0 {
-			// Check if mutated statement has multiple return values
-			if len(retStmt.Results) > 1 {
-				// Multi-value return - wrap the entire statement
-				return wrapMultiReturnWithSchemata(originalRet, retStmt, mutant.ID, returnTypes)
-			}
-			// Single-value return - wrap just the expression
 			expr := retStmt.Results[0]
-			if isNilExpr(expr) && !isNilableType(returnTypes[0]) {
+			// Skip type-unsafe nil mutations (e.g. nil returned as string or int).
+			if isNilExpr(expr) && !isNilableType(returnType) {
 				return original
 			}
-			return wrapReturnWithSchemata(originalRet, expr, mutant.ID, returnTypes[0])
+			return wrapReturnWithSchemata(originalRet, expr, mutant.ID, returnType)
 		}
 		return mutated
 	}
 
 	// Multi-mutant path
+	type mutantResult struct {
+		id   int
+		expr ast.Expr
+	}
 	var mutResults []mutantResult
 
 	for _, mutant := range mutants {
@@ -450,21 +432,14 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		if !ok || len(mutatedRet.Results) == 0 {
 			continue
 		}
-		
-		// Skip mutations that don't match the expected return count
-		if len(mutatedRet.Results) != len(returnTypes) {
+
+		expr := mutatedRet.Results[0]
+		// Skip type-unsafe nil mutations before they poison the package.
+		if isNilExpr(expr) && !isNilableType(returnType) {
 			continue
 		}
 
-		// Skip type-unsafe nil mutations
-		if numReturns == 1 {
-			expr := mutatedRet.Results[0]
-			if isNilExpr(expr) && !isNilableType(returnTypes[0]) {
-				continue
-			}
-		}
-
-		mutResults = append(mutResults, mutantResult{id: mutant.ID, retStmt: mutatedRet})
+		mutResults = append(mutResults, mutantResult{id: mutant.ID, expr: expr})
 	}
 
 	if len(mutResults) == 0 {
@@ -472,31 +447,21 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 	}
 
 	if len(mutResults) == 1 {
-		mr := mutResults[0]
-		if len(mr.retStmt.Results) > 1 {
-			// Multi-value return
-			return wrapMultiReturnWithSchemata(originalRet, mr.retStmt, mr.id, returnTypes)
-		}
-		// Single-value return
-		return wrapReturnWithSchemata(originalRet, mr.retStmt.Results[0], mr.id, returnTypes[0])
+		return wrapReturnWithSchemata(originalRet, mutResults[0].expr, mutResults[0].id, returnType)
 	}
 
-	// Multiple mutants - check if we have multi-value returns
-	hasMultiValue := len(originalRet.Results) > 1
-	if hasMultiValue {
-		return wrapMultiReturnMultiMutants(originalRet, mutResults, returnTypes)
-	}
-
-	// Single-value return with multiple mutants
 	origExpr := originalRet.Results[0]
-	typeExpr := buildTypeExpr(returnTypes[0])
+	// Always use the declared function return type for the closure.
+	// Do NOT narrow away from interface{} — nil is valid in interface{} context.
+	typeExpr := buildTypeExpr(returnType)
+
 
 	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
 	for _, mr := range mutResults {
 		stmts = append(stmts, &ast.IfStmt{
 			Cond: createMutantIDCondition(mr.id),
 			Body: &ast.BlockStmt{
-				List: []ast.Stmt{&ast.ReturnStmt{Results: mr.retStmt.Results}},
+				List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mr.expr}}},
 			},
 		})
 	}
@@ -506,85 +471,11 @@ func HandleReturnStmt(original ast.Node, mutants []MutantForSite, returnType str
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: safeFuncType(&ast.FieldList{
-						List: []*ast.Field{{Type: typeExpr}},
-					}),
-					Body: &ast.BlockStmt{List: stmts},
-				},
-			},
-		},
-	}
-}
-
-// parseReturnTypes splits comma-separated return types
-func parseReturnTypes(returnType string) []string {
-	if returnType == "" {
-		return []string{"interface{}"}
-	}
-	if !strings.Contains(returnType, ",") {
-		return []string{returnType}
-	}
-	types := strings.Split(returnType, ",")
-	for i := range types {
-		types[i] = strings.TrimSpace(types[i])
-	}
-	return types
-}
-
-// wrapMultiReturnWithSchemata wraps a multi-value return statement with schemata
-func wrapMultiReturnWithSchemata(original, mutated *ast.ReturnStmt, mutantID int, returnTypes []string) ast.Node {
-	// Build field list for function type
-	fields := make([]*ast.Field, len(returnTypes))
-	for i, typ := range returnTypes {
-		fields[i] = &ast.Field{Type: buildTypeExpr(typ)}
-	}
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{
-			&ast.CallExpr{
-				Fun: &ast.FuncLit{
-					Type: safeFuncType(&ast.FieldList{List: fields}),
-					Body: &ast.BlockStmt{
-						List: []ast.Stmt{
-							&ast.IfStmt{
-								Cond: createMutantIDCondition(mutantID),
-								Body: &ast.BlockStmt{
-									List: []ast.Stmt{&ast.ReturnStmt{Results: mutated.Results}},
-								},
-							},
-							&ast.ReturnStmt{Results: original.Results},
+					Type: &ast.FuncType{
+						Results: &ast.FieldList{
+							List: []*ast.Field{{Type: typeExpr}},
 						},
 					},
-				},
-			},
-		},
-	}
-}
-
-// wrapMultiReturnMultiMutants wraps multi-value returns with multiple mutants
-func wrapMultiReturnMultiMutants(original *ast.ReturnStmt, mutResults []mutantResult, returnTypes []string) ast.Node {
-	// Build field list for function type
-	fields := make([]*ast.Field, len(returnTypes))
-	for i, typ := range returnTypes {
-		fields[i] = &ast.Field{Type: buildTypeExpr(typ)}
-	}
-
-	stmts := make([]ast.Stmt, 0, len(mutResults)+1)
-	for _, mr := range mutResults {
-		stmts = append(stmts, &ast.IfStmt{
-			Cond: createMutantIDCondition(mr.id),
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{&ast.ReturnStmt{Results: mr.retStmt.Results}},
-			},
-		})
-	}
-	stmts = append(stmts, &ast.ReturnStmt{Results: original.Results})
-
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{
-			&ast.CallExpr{
-				Fun: &ast.FuncLit{
-					Type: safeFuncType(&ast.FieldList{List: fields}),
 					Body: &ast.BlockStmt{List: stmts},
 				},
 			},
@@ -605,9 +496,11 @@ func wrapReturnWithSchemata(original *ast.ReturnStmt, mutatedExpr ast.Expr, muta
 		Results: []ast.Expr{
 			&ast.CallExpr{
 				Fun: &ast.FuncLit{
-					Type: safeFuncType(&ast.FieldList{
-						List: []*ast.Field{{Type: typeExpr}},
-					}),
+					Type: &ast.FuncType{
+						Results: &ast.FieldList{
+							List: []*ast.Field{{Type: typeExpr}},
+						},
+					},
 					Body: &ast.BlockStmt{
 						List: []ast.Stmt{
 							&ast.IfStmt{
@@ -728,47 +621,12 @@ func WrapStatement(original ast.Node, mutants []MutantForSite, returnType string
 	})
 }
 
-func safeFuncType(results *ast.FieldList) *ast.FuncType {
-    return &ast.FuncType{
-        Params:  &ast.FieldList{}, // must not be nil
-        Results: results,
-    }
-}
-
-func isConcreteFallbackType(t string) bool {
-	if t == "" || t == "interface{}" {
-		return false
-	}
-	// Interface literal syntax: interface{ ... } or struct{ ... }
-	if strings.Contains(t, "{") {
-		return false
-	}
-	// Package-qualified types (ast.Node, io.Reader, etc.) may be interfaces.
-	// We can't distinguish struct vs interface at this syntactic level, so
-	// be conservative and exclude them from the fallback.
-	if strings.Contains(t, ".") {
-		return false
-	}
-	return true
-}
-
 func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]string) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
 		if typeMap != nil {
 			if typ, ok := typeMap[e.Name]; ok {
-				if strings.Contains(typ, ".") {
-					// Package-qualified types (ast.Node, io.Reader, etc.) may be
-					// interfaces. Use them only when context exactly matches —
-					// otherwise an ast.Node-typed IIFE ends up in a bool position
-					// and slips past the lenient importer in L3.
-					if typ == siteReturnType {
-						return typ
-					}
-					// Fall through to keyword/heuristic checks below
-				} else {
-					return typ
-				}
+				return typ
 			}
 		}
 		switch e.Name {
@@ -797,12 +655,7 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 			}
 			return "rune"
 		default:
-			// Use siteReturnType as fallback only when it is a concrete,
-			// unqualified type (int, float64, string, bool, *Foo, []T, etc.).
-			// Interface types like ast.Node contain a "." and must NOT be used
-			// here — doing so would wrap a bool expression in func() ast.Node{}
-			// which breaks type checking at the call site.
-			if isConcreteFallbackType(siteReturnType) {
+			if siteReturnType != "" && siteReturnType != "interface{}" {
 				return siteReturnType
 			}
 			return "interface{}"
@@ -825,54 +678,16 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 		if isComparisonOp(e.Op) || isLogicalOp(e.Op) {
 			return "bool"
 		}
-		// For arithmetic operators, propagate the concrete type from either
-		// operand. This fixes cases like `sum + 1` where `sum` is unknown but
-		// the literal `1` tells us the type is int, or where siteReturnType
-		// propagates correctly through one of the operands.
-		lType := inferExprType(e.X, siteReturnType, typeMap)
-		if lType != "" && lType != "interface{}" {
-			return lType
-		}
-		rType := inferExprType(e.Y, siteReturnType, typeMap)
-		if rType != "" && rType != "interface{}" {
-			return rType
-		}
-		return "interface{}"
+		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
 			return "bool"
 		}
 		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.CallExpr:
-		// If this is a schemata-generated IIFE (Fun is a FuncLit with a single
-		// return type), extract that type. This fixes nested-mutation scenarios:
-		// when inner expressions are already wrapped, the outer mutation must
-		// see through the wrapper to get the real type, not fall back to
-		// interface{}.
-		if fl, ok := e.Fun.(*ast.FuncLit); ok &&
-			fl.Type != nil &&
-			fl.Type.Results != nil &&
-			len(fl.Type.Results.List) == 1 {
-			if t := typeToString(fl.Type.Results.List[0].Type); t != "" {
-				return t
-			}
+		if siteReturnType != "" && siteReturnType != "interface{}" {
+			return siteReturnType
 		}
-		// Infer well-known builtin return types so IIFEs don't inherit the
-		// enclosing function's return type when used as sub-expressions.
-		if fn, ok := e.Fun.(*ast.Ident); ok {
-			switch fn.Name {
-			case "len", "cap":
-				return "int"
-			case "real", "imag":
-				return "float64"
-			case "new":
-				return "interface{}"
-			}
-		}
-		// For all other calls: do NOT fall back to siteReturnType.
-		// The call expression's own return type is independent of the
-		// enclosing function's return type. Using siteReturnType here was
-		// the source of "cannot use func() ast.Node{}() as bool" errors.
 		return "interface{}"
 	case *ast.StarExpr:
 		return "*" + inferExprType(e.X, siteReturnType, typeMap)
@@ -898,7 +713,6 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 	}
 	return "interface{}"
 }
-
 
 func isComparisonOp(op token.Token) bool {
 	switch op {

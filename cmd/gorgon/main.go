@@ -4,7 +4,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"runtime/pprof"
+	"time"
 
 	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/runner"
@@ -12,8 +15,8 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/assignment_operator"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/concurrency"
-	_ "github.com/aclfe/gorgon/pkg/mutator/operators/conditional_expression"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/conditional_expression"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/constant_replacement"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/defer_panic_recover"
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/defer_removal"
@@ -47,7 +50,6 @@ func main() {
 		runner.ExitWithError(err)
 	}
 
-	
 	if len(flags.Targets) == 0 && flags.ConfigFile == "" && flags.PkgPath == "." {
 		cli.PrintUsage()
 	}
@@ -56,7 +58,6 @@ func main() {
 		flags.Targets = []string{flags.PkgPath}
 	}
 
-	
 	cfg, err := flags.LoadConfig()
 	if err != nil {
 		runner.ExitWithError(err)
@@ -77,12 +78,49 @@ func main() {
 		}
 	}
 
+	if cfg.MemProfile != "" {
+		dir := cfg.MemProfile
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			runner.ExitWithError(fmt.Errorf("failed to create mem profile dir: %w", err))
+		}
+		fmt.Fprintf(os.Stderr, "[MEM PROFILER] STARTING - Dir: %s, Interval: 500ms\n", dir)
+
+		go func() {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+
+			start := time.Now()
+			for now := range ticker.C {
+				var ms runtime.MemStats
+				runtime.ReadMemStats(&ms)
+				heapMB := ms.HeapInuse / (1 << 20)
+
+				elapsed := now.Sub(start)
+				sec := int(elapsed.Seconds())
+				msec := elapsed.Milliseconds() % 1000
+
+				filename := fmt.Sprintf("%d_%03d_%dMB.prof", sec, msec, heapMB)
+				profPath := filepath.Join(dir, filename)
+
+				f, err := os.Create(profPath)
+				if err == nil {
+					pprof.WriteHeapProfile(f)
+					f.Close()
+					fmt.Fprintf(os.Stderr, "[MEM] wrote %s (%dMB heap)\n", filename, heapMB)
+				} else {
+					fmt.Fprintf(os.Stderr, "[MEM] error writing %s: %v\n", filename, err)
+				}
+			}
+		}()
+	}
+
 	configPath := flags.ConfigFile
 
-	
 	runErr := runner.Run(flags, cfg, flags.Targets, configPath)
 
-	
 	if cpuProfileFile != nil {
 		pprof.StopCPUProfile()
 		cpuProfileFile.Close()

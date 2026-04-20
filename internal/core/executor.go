@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -21,14 +20,6 @@ import (
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/pkg/config"
 )
-
-func logMemUsage(log *logger.Logger, msg string, args ...interface{}) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	prefix := fmt.Sprintf(msg, args...)
-	log.Debug("[MEM] %s: Alloc=%dMB TotalAlloc=%dMB Sys=%dMB NumGC=%d", 
-		prefix, m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
-}
 
 type ProgressTracker struct {
 	total       int
@@ -202,17 +193,17 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 
 	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-vet=off", "-o", e.testBinary, relPkg)
 	cmd.Dir = e.tempDir
-	e.log.Debug("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
+	// e.log.Debug("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		e.log.Warn("[COMPILE] FAILED for package %s: %v", relPkg, err)
 		e.log.Warn("[COMPILE] Error output:\n%s", string(out))
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
-	if len(out) > 0 {
-		e.log.Debug("[COMPILE] Output: %s", string(out))
-	}
-	e.log.Debug("[COMPILE] Success, checking if binary exists at %s", e.testBinary)
+	// if len(out) > 0 {
+	// 	e.log.Debug("[COMPILE] Output: %s", string(out))
+	// }
+	// e.log.Debug("[COMPILE] Success, checking if binary exists at %s", e.testBinary)
 
 	result := compileResultWithAttribution{
 		perMutant: make(map[int]error, len(mutantIDs)),
@@ -335,10 +326,10 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 		}
 	}
 
-	if e.log.IsDebug() {
-		e.log.Debug("Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s",
-			mutantID, status, e.pkgDir, e.timeout, killedBy, duration, e.testBinary, args, killOutput)
-	}
+	// if e.log.IsDebug() && status != "survived" {
+	// 	e.log.Debug("Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s",
+	// 		mutantID, status, e.pkgDir, e.timeout, killedBy, duration, e.testBinary, args, killOutput)
+	// }
 
 	return mutantResult{
 		id:           mutantID,
@@ -499,7 +490,6 @@ func (e *testExecutor) relPath() string {
 }
 
 func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker, log *logger.Logger) ([]mutantResult, error) {
-	logMemUsage(log, "compileAndRunPackages start")
 	resultsChan := make(chan mutantResult, sumMutantIDs(pkgToMutantIDs))
 	testGroup, testCtx := errgroup.WithContext(ctx)
 	testGroup.SetLimit(concurrent)
@@ -512,7 +502,6 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		pkgDirs = append(pkgDirs, pkgDir)
 	}
 	sort.Strings(pkgDirs)
-	logMemUsage(log, "After package sorting (%d packages)", len(pkgDirs))
 
 	for _, pkgDir := range pkgDirs {
 		mutantIDsForPkg := pkgToMutantIDs[pkgDir]
@@ -646,7 +635,6 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	for result := range resultsChan {
 		allResults = append(allResults, result)
 	}
-	logMemUsage(log, "After collecting results (%d results)", len(allResults))
 
 	sort.Slice(allResults, func(i, j int) bool {
 		return allResults[i].id < allResults[j].id
@@ -656,7 +644,6 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		prog.Finish()
 	}
 
-	logMemUsage(log, "compileAndRunPackages end")
 	return allResults, nil
 }
 
