@@ -268,9 +268,9 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 	if len(mutants) > 0 && mutants[0].EnclosingFunc != nil {
 		typeMap = analysis.BuildTypeMap(mutants[0].EnclosingFunc)
 	}
-	exprType := inferExprType(origExpr, returnType, typeMap)
 
 	stmts := make([]ast.Stmt, 0, len(mutants)+1)
+	var exprType string
 
 	for _, m := range mutants {
 		mutated := mutator.ApplyOperator(m.Op, original, returnType, file, m.EnclosingFunc)
@@ -281,6 +281,12 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 		if !ok {
 			continue
 		}
+		
+		// Infer type from first successful mutation
+		if exprType == "" {
+			exprType = inferExprType(mutExpr, returnType, typeMap)
+		}
+		
 		stmts = append(stmts, &ast.IfStmt{
 			Cond: createMutantIDCondition(m.ID),
 			Body: &ast.BlockStmt{List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{mutExpr}}}},
@@ -292,6 +298,11 @@ func wrapExpressionMulti(original ast.Node, mutants []MutantForSite, returnType 
 	}
 
 	stmts = append(stmts, &ast.ReturnStmt{Results: []ast.Expr{origExpr}})
+
+	// Fallback to original expression type if no mutations succeeded
+	if exprType == "" {
+		exprType = inferExprType(origExpr, returnType, typeMap)
+	}
 
 	return &ast.CallExpr{
 		Fun: &ast.FuncLit{
@@ -677,6 +688,10 @@ func inferExprType(expr ast.Expr, siteReturnType string, typeMap map[string]stri
 	case *ast.BinaryExpr:
 		if isComparisonOp(e.Op) || isLogicalOp(e.Op) {
 			return "bool"
+		}
+		// Arithmetic operations always return numeric types
+		if e.Op == token.ADD || e.Op == token.SUB || e.Op == token.MUL || e.Op == token.QUO || e.Op == token.REM {
+			return "int"
 		}
 		return inferExprType(e.X, siteReturnType, typeMap)
 	case *ast.UnaryExpr:

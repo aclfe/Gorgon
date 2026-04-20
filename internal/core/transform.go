@@ -17,6 +17,7 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
+	"github.com/aclfe/gorgon/internal/logger"
 )
 
 var formatBufPool = sync.Pool{
@@ -291,8 +292,10 @@ func findMutantPositionsInBytes(content []byte, mutantIDs []int, originalPositio
 }
 
 
-func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
-	fmt.Fprintf(os.Stderr, "[DEBUG] InjectSchemataHelpers called with %d files\n", len(fileToMutants))
+func InjectSchemataHelpers(fileToMutants map[string][]*Mutant, log *logger.Logger) error {
+	if log != nil {
+		log.Debug("InjectSchemataHelpers called with %d files", len(fileToMutants))
+	}
 
 	type pkgInfo struct {
 		files   []string
@@ -318,7 +321,9 @@ func InjectSchemataHelpers(fileToMutants map[string][]*Mutant) error {
 		}
 	}
 	
-	fmt.Fprintf(os.Stderr, "[DEBUG] Found %d unique package directories\n", len(pkgToInfo))
+	if log != nil {
+		log.Debug("Found %d unique package directories", len(pkgToInfo))
+	}
 
 	dirs := make([]string, 0, len(pkgToInfo))
 	for dir := range pkgToInfo {
@@ -358,19 +363,25 @@ func init() {
 `, pkgName)
 
 		helperFile := filepath.Join(dir, "gorgon_schemata.go")
-		fmt.Fprintf(os.Stderr, "[DEBUG] Creating helper file: %s (package: %s)\n", helperFile, pkgName)
+		if log != nil {
+			log.Debug("Creating helper file: %s (package: %s)", helperFile, pkgName)
+		}
 		existing, _ := os.ReadFile(helperFile)
 		if bytes.Contains(existing, []byte(helperSentinel)) {
 			if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
 				return fmt.Errorf("failed to overwrite helper: %w", err)
 			}
-			fmt.Fprintf(os.Stderr, "[DEBUG] Overwrote existing helper file: %s\n", helperFile)
+			if log != nil {
+				log.Debug("Overwrote existing helper file: %s", helperFile)
+			}
 			continue
 		}
 		if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
 			return fmt.Errorf("failed to write helper: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "[DEBUG] Created new helper file: %s\n", helperFile)
+		if log != nil {
+			log.Debug("Created new helper file: %s", helperFile)
+		}
 	}
 	return nil
 }

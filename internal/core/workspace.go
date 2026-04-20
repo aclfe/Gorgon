@@ -159,7 +159,7 @@ func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
 	return g.Wait()
 }
 
-func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant, bool, error) {
+func (w *ModuleWorkspace) applySchemata(mutants []Mutant, log *logger.Logger) (map[string][]*Mutant, bool, error) {
 	g, _ := errgroup.WithContext(context.Background())
 	g.SetLimit(maxConcurrency())
 
@@ -271,7 +271,7 @@ func (w *ModuleWorkspace) applySchemata(mutants []Mutant) (map[string][]*Mutant,
 		fileToMutants[tempFile] = append(fileToMutants[tempFile], m)
 	}
 
-	if err := InjectSchemataHelpers(fileToMutants); err != nil {
+	if err := InjectSchemataHelpers(fileToMutants, log); err != nil {
 		return nil, false, err
 	}
 

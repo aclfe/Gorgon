@@ -104,7 +104,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 		_ = MakeSelfContained(ws.TempDir)
 
-		if _, _, err := ws.applySchemata(mutants); err != nil {
+		if _, _, err := ws.applySchemata(mutants, log); err != nil {
 			return mutants, fmt.Errorf("schemata application failed: %w", err)
 		}
 
@@ -155,7 +155,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	_ = MakeSelfContained(ws.TempDir)
 
-	_, hasNonStdlib, err := ws.applySchemata(mutants)
+	_, hasNonStdlib, err := ws.applySchemata(mutants, log)
 	if err != nil {
 		log.Warn("CRITICAL: Schemata application failed: %v", err)
 		setMutantErrors(mutants, fmt.Errorf("schemata application failed: %w", err))
@@ -851,5 +851,5 @@ func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, kept []Muta
 		rel, _ := ws.relPath(origPath)
 		tempFileToMutants[filepath.Join(ws.TempDir, rel)] = fileMutants
 	}
-	return InjectSchemataHelpers(tempFileToMutants)
+	return InjectSchemataHelpers(tempFileToMutants, log)
 }

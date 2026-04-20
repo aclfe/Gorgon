@@ -856,7 +856,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		}
 	}
 
-	if err := InjectSchemataHelpers(tempFileToMutants); err != nil {
+	if err := InjectSchemataHelpers(tempFileToMutants, log); err != nil {
 		return err
 	}
 
