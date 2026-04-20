@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -161,7 +163,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 	log.Debug("Schemata application completed successfully")
 
-	// Verify the transformed code compiles with L4 retry logic
+	//Verify the transformed code compiles with L4 retry logic
 	log.Debug("Verifying schemata-transformed code compiles...")
 	mutants, err = verifyAndCleanSchemata(ctx, ws, mutants, log)
 	if err != nil {
@@ -814,13 +816,23 @@ func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, kept []Muta
 			return fmt.Errorf("restore %s: %w", tempPath, err)
 		}
 
-		// Re-apply schemata with only the kept mutants for this file.
 		if len(fileMutants) == 0 {
 			continue
 		}
 
+		// Re-parse a fresh AST from original source — never reuse Site.FileAST
+		// which has already been mutated in-place by the first applySchemata pass.
+		fset := token.NewFileSet()
+		freshAST, err := parser.ParseFile(fset, origPath, src, parser.ParseComments)
+		if err != nil {
+			return fmt.Errorf("re-parse %s: %w", origPath, err)
+		}
+		for _, m := range fileMutants {
+			m.Site.Fset = fset
+		}
+
 		log.Debug("[VERIFY] Re-applying schemata to %s with %d mutant(s)", filepath.Base(origPath), len(fileMutants))
-		posMap, err := ApplySchemataToAST(fileMutants[0].Site.FileAST, fileMutants[0].Site.Fset, tempPath, src, fileMutants)
+		posMap, err := ApplySchemataToAST(freshAST, fset, tempPath, src, fileMutants)
 		if err != nil {
 			return fmt.Errorf("re-apply schemata %s: %w", origPath, err)
 		}

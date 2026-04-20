@@ -490,11 +490,26 @@ func (e *testExecutor) relPath() string {
 }
 
 func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker, log *logger.Logger) ([]mutantResult, error) {
-	resultsChan := make(chan mutantResult, sumMutantIDs(pkgToMutantIDs))
+	resultsChan := make(chan mutantResult)
+	var allResults []mutantResult
+	var resultsMu sync.Mutex
+	
+	go func() {
+		for result := range resultsChan {
+			resultsMu.Lock()
+			allResults = append(allResults, result)
+			resultsMu.Unlock()
+		}
+	}()
+	
 	testGroup, testCtx := errgroup.WithContext(ctx)
 	testGroup.SetLimit(concurrent)
 
 	var compileGroup, compileCtx = errgroup.WithContext(ctx)
+	// compileConcurrent := concurrent
+	// if compileConcurrent > 2 {
+	// 	compileConcurrent = 2
+	// }
 	compileGroup.SetLimit(concurrent)
 
 	pkgDirs := make([]string, 0, len(pkgToMutantIDs))
@@ -514,7 +529,12 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, log)
 			pkgMuts := pkgToMutants[pkgDir]
 
-			currentSites := rebuildMutantSites(pkgMuts)
+			currentSites := make(map[int]MutantSite, len(mutantIDsForPkg))
+			for _, id := range mutantIDsForPkg {
+				if site, ok := mutantSites[id]; ok {
+					currentSites[id] = site
+				}
+			}
 
 			result := executor.compileWithAttribution(compileCtx, mutantIDsForPkg, currentSites)
 
@@ -616,35 +636,31 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	_ = compileGroup.Wait()
 
 	if err := testGroup.Wait(); err != nil {
-
 		close(resultsChan)
-		var allResults []mutantResult
-		for result := range resultsChan {
-			allResults = append(allResults, result)
-		}
+		resultsMu.Lock()
+		results := allResults
+		resultsMu.Unlock()
 
 		if prog != nil {
 			prog.Finish()
 		}
 
-		return allResults, fmt.Errorf("test execution failed: %w", err)
+		return results, fmt.Errorf("test execution failed: %w", err)
 	}
 	close(resultsChan)
 
-	var allResults []mutantResult
-	for result := range resultsChan {
-		allResults = append(allResults, result)
-	}
-
+	resultsMu.Lock()
 	sort.Slice(allResults, func(i, j int) bool {
 		return allResults[i].id < allResults[j].id
 	})
+	results := allResults
+	resultsMu.Unlock()
 
 	if prog != nil {
 		prog.Finish()
 	}
 
-	return allResults, nil
+	return results, nil
 }
 
 func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {

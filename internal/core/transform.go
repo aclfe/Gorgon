@@ -442,6 +442,14 @@ func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMuta
 				return true
 			}
 		}
+
+		if parentExpr, ok := cursor.Parent().(ast.Expr); ok {
+			parentPos := schemata_nodes.GetNodePosition(parentExpr, fset)
+			parentKey := posKey{Line: parentPos.Line, Column: parentPos.Column, Type: schemata_nodes.NodeTypeToUint8(parentExpr)}
+			if _, hasMutants := posToMutants[parentKey]; hasMutants {
+				return true
+			}
+		}
 	}
 
 	if constNodes[node] {

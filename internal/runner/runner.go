@@ -28,7 +28,20 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
+func cleanStaleTempDirs() {
+	entries, err := os.ReadDir(os.TempDir())
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() && strings.HasPrefix(e.Name(), "gorgon-schemata-") {
+			_ = os.RemoveAll(filepath.Join(os.TempDir(), e.Name()))
+		}
+	}
+}
+
 func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath string) error {
+	cleanStaleTempDirs()
 	if len(targets) == 0 {
 		cli.PrintUsage()
 	}

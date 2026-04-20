@@ -96,20 +96,23 @@ func main() {
 			for now := range ticker.C {
 				var ms runtime.MemStats
 				runtime.ReadMemStats(&ms)
-				heapMB := ms.HeapInuse / (1 << 20)
+
+				heapInuseMB := ms.HeapInuse / (1 << 20)
+				sysMB := ms.Sys / (1 << 20)
+				heapSysMB := ms.HeapSys / (1 << 20)
 
 				elapsed := now.Sub(start)
 				sec := int(elapsed.Seconds())
 				msec := elapsed.Milliseconds() % 1000
 
-				filename := fmt.Sprintf("%d_%03d_%dMB.prof", sec, msec, heapMB)
+				filename := fmt.Sprintf("%d_%03d_%dMB.prof", sec, msec, sysMB)
 				profPath := filepath.Join(dir, filename)
 
 				f, err := os.Create(profPath)
 				if err == nil {
 					pprof.WriteHeapProfile(f)
 					f.Close()
-					fmt.Fprintf(os.Stderr, "[MEM] wrote %s (%dMB heap)\n", filename, heapMB)
+					fmt.Fprintf(os.Stderr, "[MEM] wrote %s (HeapInuse=%dMB Sys=%dMB HeapSys=%dMB)\n", filename, heapInuseMB, sysMB, heapSysMB)
 				} else {
 					fmt.Fprintf(os.Stderr, "[MEM] error writing %s: %v\n", filename, err)
 				}

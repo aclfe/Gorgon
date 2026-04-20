@@ -1,136 +1,1156 @@
 [INFO] Loaded sub-configs from 1 directories
 [DEBUG] External suites enabled with 1 suites
 [DEBUG] GenerateAndRunSchemata called with externalCfg.Enabled=true, suites=1
-[DEBUG] [PREFLIGHT L3] scope.go: 71 type errors found, bisecting 242 mutants
-[DEBUG] [PREFLIGHT L3] enforce.go: go/types panicked on group of 140 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #8705 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:90:16: s.Decl undefined (type *ast.AssignStmt has no field or method Decl)
-[DEBUG] [PREFLIGHT L3] Mutant #8728 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:71:8: s.Tok undefined (type *ast.DeclStmt has no field or method Tok)
-[DEBUG] [PREFLIGHT L3] Mutant #8769 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:136:12: e.Kind undefined (type *ast.Ident has no field or method Kind)
-[DEBUG] [PREFLIGHT L3] Mutant #8772 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:147:8: e.Op undefined (type *ast.BasicLit has no field or method Op)
-[DEBUG] [PREFLIGHT L3] Mutant #8777 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:160:24: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
-[DEBUG] [PREFLIGHT L3] Mutant #8786 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:164:24: e.X undefined (type *ast.CallExpr has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #8801 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:185:35: e.X undefined (type *ast.Ident has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #8802 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:187:8: e.Len undefined (type *ast.StarExpr has no field or method Len)
-[DEBUG] [PREFLIGHT L3] Mutant #8803 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:38: e.Key undefined (type *ast.ArrayType has no field or method Key)
-[DEBUG] [PREFLIGHT L3] Mutant #8808 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:190:10: invalid operation: operator - not defined on "[" + constExprToString(e.Len) + "]" (value of type string)
-[DEBUG] [PREFLIGHT L3] Mutant #8810 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:10: invalid operation: operator - not defined on "map[" + TypeExprToString(e.Key) + "]" (value of type string)
-[DEBUG] [PREFLIGHT L3] Mutant #8814 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:202:18: e.X undefined (type *ast.StructType has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #8817 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:11: invalid operation: operator - not defined on id.Name + "." (value of type string)
-[DEBUG] [PREFLIGHT L3] Mutant #8818 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:29: e.Sel undefined (type *ast.ParenExpr has no field or method Sel)
-[DEBUG] [PREFLIGHT L3] zero_value_return.go: 6 type errors found, bisecting 44 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9869 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9873 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9882 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9886 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
-[DEBUG] [PREFLIGHT L3] diff.go: go/types panicked on group of 74 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] cache.go: go/types panicked on group of 92 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #937 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go:42:27: undefined: name
-[DEBUG] [PREFLIGHT L3] baseline.go: go/types panicked on group of 55 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] loop_body_removal.go: 9 type errors found, bisecting 15 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9518 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:47:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
-[DEBUG] [PREFLIGHT L3] Mutant #9520 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:39:15: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
-[DEBUG] [PREFLIGHT L3] mutants.go: go/types panicked on group of 199 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] executor.go: go/types panicked on group of 806 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] goroutine_removal.go: go/types panicked on group of 41 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] config.go: 18 type errors found, bisecting 230 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #8130 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
-[DEBUG] [PREFLIGHT L3] Mutant #8140 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
-[DEBUG] [PREFLIGHT L3] Mutant #8221 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:242:59: undefined: content
-[DEBUG] [PREFLIGHT L3] position.go: 2 type errors found, bisecting 6 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #3737 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go:15:26: n.TokPos undefined (type *ast.UnaryExpr has no field or method TokPos)
-[DEBUG] [PREFLIGHT L3] Mutant #3741 rejected: -: cannot use nil as token.Position value in return statement
-[DEBUG] [PREFLIGHT L3] tokens.go: 2 type errors found, bisecting 1 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9907 rejected: -: not enough return values
-	have (unknown type)
-	want (token.Token, bool)
-[DEBUG] [PREFLIGHT L3] Mutant #2194 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
-[DEBUG] [PREFLIGHT L3] html.go: go/types panicked on group of 198 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] schemata.go: go/types panicked on group of 662 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] runner.go: go/types panicked on group of 555 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] orgpolicy.go: 1 type errors found, bisecting 25 mutants
-[DEBUG] [PREFLIGHT L3] gowork.go: go/types panicked on group of 97 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #8364 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
-[DEBUG] [PREFLIGHT L3] assignment_operator.go: 160 type errors found, bisecting 38 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #8974 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go:34:13: expr.Name undefined (type *ast.BasicLit has no field or method Name)
-[DEBUG] [PREFLIGHT L3] loop_break_first.go: go/types panicked on group of 35 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #9533 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go:66:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
-[DEBUG] [PREFLIGHT L3] resolver.go: go/types panicked on group of 205 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] preflight.go: go/types panicked on group of 399 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] main.go: go/types panicked on group of 84 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #1 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #2 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #3 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #6 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] main.go: go/types panicked on group of 88 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #1 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #2 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #3 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #6 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
 [DEBUG] [PREFLIGHT L3] Mutant #9 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:54:3: undefined: cli
 [DEBUG] [PREFLIGHT L3] Mutant #10 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:54:3: undefined: cli
 [DEBUG] [PREFLIGHT L3] Mutant #11 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:54:3: undefined: cli
-[DEBUG] [PREFLIGHT L3] Mutant #22 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #23 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #24 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #22 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #23 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #24 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
 [DEBUG] [PREFLIGHT L3] Mutant #27 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:84:4: undefined: runner
 [DEBUG] [PREFLIGHT L3] Mutant #28 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:84:4: undefined: runner
 [DEBUG] [PREFLIGHT L3] Mutant #29 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:84:4: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #37 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #38 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #39 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] Mutant #42 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:122:12: undefined: runner
-[DEBUG] [PREFLIGHT L3] error_return_nil.go: go/types panicked on group of 45 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #9375 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9380 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9383 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9385 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
-[DEBUG] [PREFLIGHT L3] Mutant #9389 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
-[DEBUG] [PREFLIGHT L3] subconfig.go: 1 type errors found, bisecting 7 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #8389 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go:56:12: undefined: yaml
-[DEBUG] [PREFLIGHT L3] literals.go: 48 type errors found, bisecting 99 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #8556 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:14:29: e.X undefined (type *ast.BasicLit has no field or method X)
-[DEBUG] [PREFLIGHT L3] cli.go: 8 type errors found, bisecting 124 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #8564 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:25:28: e.X undefined (type *ast.BasicLit has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #8574 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:59:19: e.Type undefined (type *ast.CallExpr has no field or method Type)
-[DEBUG] [PREFLIGHT L3] Mutant #8608 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:68:12: e.Op undefined (type *ast.CompositeLit has no field or method Op)
-[DEBUG] [PREFLIGHT L3] Mutant #8616 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:70:8: e.Name undefined (type *ast.UnaryExpr has no field or method Name)
-[DEBUG] [PREFLIGHT L3] utils.go: go/types panicked on group of 249 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] early_return_removal.go: go/types panicked on group of 26 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] textfile.go: go/types panicked on group of 224 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #1065 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
-[DEBUG] [PREFLIGHT L3] Mutant #1066 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
-[DEBUG] [PREFLIGHT L3] Mutant #1067 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
-[DEBUG] [PREFLIGHT L3] Mutant #1087 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:112:13: undefined: mutator
-[DEBUG] [PREFLIGHT L3] Mutant #1096 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:112:13: undefined: mutator
-[DEBUG] [PREFLIGHT L3] common.go: 7 type errors found, bisecting 49 mutants
-[DEBUG] [PREFLIGHT L3] tree.go: go/types panicked on group of 488 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #9061 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:119:28: e.X undefined (type *ast.BasicLit has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #9062 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:121:12: e.Op undefined (type *ast.ParenExpr has no field or method Op)
-[DEBUG] [PREFLIGHT L3] Mutant #9063 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:126:53: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
-[DEBUG] [PREFLIGHT L3] variable_replacement.go: 21 type errors found, bisecting 65 mutants
-[DEBUG] [PREFLIGHT L3] empty_body.go: 10 type errors found, bisecting 67 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9839 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:61:12: p.Key undefined (type *ast.SelectorExpr has no field or method Key)
-[DEBUG] [PREFLIGHT L3] Mutant #9841 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:63:25: p.Lhs undefined (type *ast.KeyValueExpr has no field or method Lhs)
-[DEBUG] [PREFLIGHT L3] Mutant #9843 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:69:12: p.Key undefined (type *ast.AssignStmt has no field or method Key)
-[DEBUG] [PREFLIGHT L3] Mutant #9311 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:94:18: t.X undefined (type *ast.Ident has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #9850 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:71:12: p.Type undefined (type *ast.RangeStmt has no field or method Type)
-[DEBUG] [PREFLIGHT L3] Mutant #9315 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:92:12: t.Name undefined (type *ast.StarExpr has no field or method Name)
-[DEBUG] [PREFLIGHT L3] Mutant #9854 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.TypeAssertExpr has no field or method Fun)
-[DEBUG] [PREFLIGHT L3] Mutant #9856 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:75:12: p.Type undefined (type *ast.CallExpr has no field or method Type)
-[DEBUG] [PREFLIGHT L3] swap_case_bodies.go: go/types panicked on group of 77 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #9858 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.CompositeLit has no field or method Fun)
-[DEBUG] [PREFLIGHT L3] interface_returns.go: 1 type errors found, bisecting 34 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9659 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go:57:31: e.X undefined (type *ast.Ident has no field or method X)
-[DEBUG] [PREFLIGHT L3] transform.go: go/types panicked on group of 458 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] reporter.go: go/types panicked on group of 527 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #37 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #38 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #39 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
+[DEBUG] [PREFLIGHT L3] Mutant #42 rejected: /home/aclfe/Desktop/coding/Gorgon/cmd/gorgon/main.go:125:12: undefined: runner
 [DEBUG] [PREFLIGHT L3] ast.go: go/types panicked on group of 163 mutants, bisecting to find bad ones
-[DEBUG] [PREFLIGHT L3] Mutant #8451 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:91:15: undefined: closest
-[DEBUG] [PREFLIGHT L3] Mutant #8452 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:92:15: undefined: closest
-[DEBUG] [PREFLIGHT L3] Mutant #8457 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:94:32: undefined: closest
-[DEBUG] [PREFLIGHT L3] engine.go: go/types panicked on group of 547 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] tree.go: go/types panicked on group of 488 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #8498 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:91:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #8499 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:92:15: undefined: closest
+[DEBUG] [PREFLIGHT L3] Mutant #8504 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/ast.go:94:32: undefined: closest
 [DEBUG] [PREFLIGHT L3] constant_replacement.go: 50 type errors found, bisecting 119 mutants
-[DEBUG] [PREFLIGHT L3] Mutant #9085 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:50:28: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
-[DEBUG] [PREFLIGHT L3] Mutant #9098 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:58:28: parent.X undefined (type *ast.ReturnStmt has no field or method X)
-[DEBUG] [PREFLIGHT L3] Mutant #9105 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:70:28: parent.Values undefined (type *ast.BinaryExpr has no field or method Values)
-[DEBUG] [PREFLIGHT L3] Mutant #9111 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:83:30: parent.Elts undefined (type *ast.ValueSpec has no field or method Elts)
+[DEBUG] [PREFLIGHT L3] Mutant #9132 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:50:28: parent.Results undefined (type *ast.AssignStmt has no field or method Results)
+[DEBUG] [PREFLIGHT L3] Mutant #9145 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:58:28: parent.X undefined (type *ast.ReturnStmt has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #9152 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:70:28: parent.Values undefined (type *ast.BinaryExpr has no field or method Values)
+[DEBUG] [PREFLIGHT L3] Mutant #9158 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/constant_replacement/constant_replacement.go:83:30: parent.Elts undefined (type *ast.ValueSpec has no field or method Elts)
+[DEBUG] [PREFLIGHT L3] zero_value_return.go: 6 type errors found, bisecting 44 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9917 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9920 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9930 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9933 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/zero_value_return/zero_value_return.go:154:15: undefined: analysis
+[DEBUG] [PREFLIGHT L3] preflight.go: go/types panicked on group of 399 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] schemata.go: go/types panicked on group of 671 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] subconfig.go: 1 type errors found, bisecting 7 mutants
+[DEBUG] [PREFLIGHT L3] loop_break_first.go: go/types panicked on group of 35 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #9580 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_break_first/loop_break_first.go:66:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #8436 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/orgpolicy.go:56:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] goroutine_removal.go: go/types panicked on group of 41 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] common.go: 5 type errors found, bisecting 49 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9108 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:119:28: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #9109 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:121:12: e.Op undefined (type *ast.ParenExpr has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #9110 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/conditional_expression/common.go:126:53: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
+[DEBUG] [PREFLIGHT L3] gowork.go: go/types panicked on group of 97 mutants, bisecting to find bad ones
 [DEBUG] [PREFLIGHT L3] handlers.go: go/types panicked on group of 432 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] early_return_removal.go: go/types panicked on group of 26 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] empty_body.go: 6 type errors found, bisecting 67 mutants
+[DEBUG] [PREFLIGHT L3] reporter.go: go/types panicked on group of 527 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #9358 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:94:18: t.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #9362 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/empty_body/empty_body.go:92:12: t.Name undefined (type *ast.StarExpr has no field or method Name)
+[DEBUG] [PREFLIGHT L3] config.go: 18 type errors found, bisecting 230 mutants
+[DEBUG] [PREFLIGHT L3] error_return_nil.go: go/types panicked on group of 45 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #9422 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #8177 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #9428 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9430 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:5: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9433 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #9436 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/error_handling/error_return_nil.go:66:41: undefined: analysis
+[DEBUG] [PREFLIGHT L3] Mutant #8187 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #8268 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/config.go:242:59: undefined: content
+[DEBUG] [PREFLIGHT L3] tokens.go: 2 type errors found, bisecting 1 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9954 rejected: -: not enough return values
+	have (unknown type)
+	want (token.Token, bool)
+[DEBUG] [PREFLIGHT L3] orgpolicy.go: 1 type errors found, bisecting 25 mutants
+[DEBUG] [PREFLIGHT L3] literals.go: 20 type errors found, bisecting 99 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8411 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/config/subconfig.go:34:12: undefined: yaml
+[DEBUG] [PREFLIGHT L3] Mutant #8603 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:14:29: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8611 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:25:28: e.X undefined (type *ast.BasicLit has no field or method X)
+[DEBUG] [PREFLIGHT L3] assignment_operator.go: 48 type errors found, bisecting 38 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8621 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:59:19: e.Type undefined (type *ast.CallExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #9021 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/assignment_operator/assignment_operator.go:34:13: expr.Name undefined (type *ast.BasicLit has no field or method Name)
+[DEBUG] [PREFLIGHT L3] diff.go: 4 type errors found, bisecting 74 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #8655 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:68:12: e.Op undefined (type *ast.CompositeLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #4935 rejected: -: not enough return values
+	have (nil)
+	want (FileLines, error)
+[DEBUG] [PREFLIGHT L3] Mutant #8663 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/literals.go:70:8: e.Name undefined (type *ast.UnaryExpr has no field or method Name)
+[DEBUG] [PREFLIGHT L3] textfile.go: go/types panicked on group of 224 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] cli.go: 8 type errors found, bisecting 124 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #1069 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1070 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1071 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:81:9: undefined: config
+[DEBUG] [PREFLIGHT L3] Mutant #1091 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:112:13: undefined: mutator
+[DEBUG] [PREFLIGHT L3] Mutant #1100 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cli/cli.go:112:13: undefined: mutator
+[DEBUG] [PREFLIGHT L3] interface_returns.go: 1 type errors found, bisecting 34 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9706 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/reference_returns/interface_returns.go:57:31: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] resolver.go: go/types panicked on group of 205 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] runner.go: go/types panicked on group of 569 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] loop_body_removal.go: 9 type errors found, bisecting 15 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9565 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:47:17: stmt.Key undefined (type *ast.ForStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9567 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/loop_body_removal/loop_body_removal.go:39:15: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+[DEBUG] [PREFLIGHT L3] utils.go: go/types panicked on group of 249 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] scope.go: 71 type errors found, bisecting 242 mutants
+[DEBUG] [PREFLIGHT L3] position.go: 2 type errors found, bisecting 6 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #3767 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/schemata_nodes/position.go:15:26: n.TokPos undefined (type *ast.UnaryExpr has no field or method TokPos)
+[DEBUG] [PREFLIGHT L3] Mutant #3771 rejected: -: cannot use nil as token.Position value in return statement
+[DEBUG] [PREFLIGHT L3] Mutant #8752 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:90:16: s.Decl undefined (type *ast.AssignStmt has no field or method Decl)
+[DEBUG] [PREFLIGHT L3] enforce.go: go/types panicked on group of 140 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #8775 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:71:8: s.Tok undefined (type *ast.DeclStmt has no field or method Tok)
+[DEBUG] [PREFLIGHT L3] Mutant #8816 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:136:12: e.Kind undefined (type *ast.Ident has no field or method Kind)
+[DEBUG] [PREFLIGHT L3] transform.go: go/types panicked on group of 461 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #8819 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:147:8: e.Op undefined (type *ast.BasicLit has no field or method Op)
+[DEBUG] [PREFLIGHT L3] Mutant #8824 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:160:24: e.Y undefined (type *ast.UnaryExpr has no field or method Y)
+[DEBUG] [PREFLIGHT L3] Mutant #8833 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:164:24: e.X undefined (type *ast.CallExpr has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8848 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:185:35: e.X undefined (type *ast.Ident has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8849 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:187:8: e.Len undefined (type *ast.StarExpr has no field or method Len)
+[DEBUG] [PREFLIGHT L3] Mutant #8850 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:38: e.Key undefined (type *ast.ArrayType has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #8855 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:190:10: invalid operation: operator - not defined on "[" + constExprToString(e.Len) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #8857 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:192:10: invalid operation: operator - not defined on "map[" + TypeExprToString(e.Key) + "]" (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #8861 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:202:18: e.X undefined (type *ast.StructType has no field or method X)
+[DEBUG] [PREFLIGHT L3] Mutant #8864 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:11: invalid operation: operator - not defined on id.Name + "." (value of type string)
+[DEBUG] [PREFLIGHT L3] Mutant #8865 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/analysis/scope.go:203:29: e.Sel undefined (type *ast.ParenExpr has no field or method Sel)
+[DEBUG] [PREFLIGHT L3] executor.go: go/types panicked on group of 823 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] cache.go: go/types panicked on group of 92 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #941 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/cache/cache.go:42:27: undefined: name
+[DEBUG] [PREFLIGHT L3] engine.go: go/types panicked on group of 547 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] variable_replacement.go: 17 type errors found, bisecting 65 mutants
+[DEBUG] [PREFLIGHT L3] Mutant #9886 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:61:12: p.Key undefined (type *ast.SelectorExpr has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9888 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:63:25: p.Lhs undefined (type *ast.KeyValueExpr has no field or method Lhs)
+[DEBUG] [PREFLIGHT L3] Mutant #9890 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:69:12: p.Key undefined (type *ast.AssignStmt has no field or method Key)
+[DEBUG] [PREFLIGHT L3] Mutant #9897 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:71:12: p.Type undefined (type *ast.RangeStmt has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #9901 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.TypeAssertExpr has no field or method Fun)
+[DEBUG] [PREFLIGHT L3] Mutant #9903 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:75:12: p.Type undefined (type *ast.CallExpr has no field or method Type)
+[DEBUG] [PREFLIGHT L3] Mutant #9905 rejected: /home/aclfe/Desktop/coding/Gorgon/pkg/mutator/operators/variable_replacement/variable_replacement.go:73:12: p.Fun undefined (type *ast.CompositeLit has no field or method Fun)
+[DEBUG] [PREFLIGHT L3] Mutant #3993 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:203:4: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] html.go: go/types panicked on group of 198 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #3994 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:203:4: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] mutants.go: go/types panicked on group of 199 mutants, bisecting to find bad ones
+[DEBUG] [PREFLIGHT L3] Mutant #3995 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:203:4: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] Mutant #4005 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:203:4: undefined: schemata_nodes
+[DEBUG] [PREFLIGHT L3] Mutant #2215 rejected: /home/aclfe/Desktop/coding/Gorgon/internal/core/mutants.go:264:10: undefined: mutator
 [DEBUG] After cache check: uncachedIndices nil=false
 [DEBUG] Checking module layout at /home/aclfe/Desktop/coding/Gorgon: go.work=false go.mod=true
 [DEBUG] Module layout detected, using workspace mode
 [DEBUG] Schemata application completed successfully
 [DEBUG] Verifying schemata-transformed code compiles...
+[DEBUG] [VERIFY] Round 1: build failed, scanning for bad mutant IDs
+[DEBUG] [VERIFY] Round 1: removing 26 bad mutant(s): [989 1000 995 997 999 1003 1006 8507 8514 8508 8511 8509 8515 8523 6030 6025 6028 6029 6026 9583 9585 9587 9589 9591 511 512]
+[DEBUG] [VERIFY] Re-applying schemata to executor.go with 823 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to type_edge_cases.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 29 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to transform.go with 457 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to gowork.go with 92 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to workspace.go with 372 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to ast.go with 153 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to preflight.go with 399 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to subconfig.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 46 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to handlers.go with 432 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to literals.go with 94 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_handling.go with 43 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to schemata.go with 671 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to badge.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to utils.go with 249 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to bool_literal_return.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return_nil.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to config.go with 227 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 12 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to consts.go with 30 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to engine.go with 547 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 9 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 115 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sarif.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_check_removal.go with 48 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to orgpolicy.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 77 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to textfile.go with 224 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to resolver.go with 205 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to enforce.go with 140 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to scope.go with 228 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cache.go with 84 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 39 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to baseline.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to runner.go with 569 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to position.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to html.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to mutants.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 31 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to diff.go with 73 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cli.go with 119 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to example2.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to reporter.go with 527 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to tree.go with 488 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 65 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to junit.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to json.go with 27 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sync.go with 69 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logger.go with 49 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to main.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to api.go with 41 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 28 mutant(s)
+[DEBUG] [VERIFY] Round 2: build failed, scanning for bad mutant IDs
+[DEBUG] [VERIFY] Round 2: removing 24 bad mutant(s): [988 998 1009 8539 8540 8544 8551 8545 8548 8546 6043 6040 6041 6042 6046 6037 6036 9593 9594 9597 9595 9599 9601 9603]
+[DEBUG] [VERIFY] Re-applying schemata to utils.go with 249 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to schemata.go with 671 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to runner.go with 569 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to executor.go with 823 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to engine.go with 547 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 12 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to workspace.go with 372 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 39 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to junit.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to mutants.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to api.go with 41 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 115 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to preflight.go with 399 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to gowork.go with 85 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to json.go with 27 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to config.go with 227 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 31 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to tree.go with 488 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to diff.go with 73 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 77 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to literals.go with 94 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to textfile.go with 224 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to subconfig.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to orgpolicy.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cache.go with 81 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sarif.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to handlers.go with 432 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return_nil.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to scope.go with 228 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to badge.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_handling.go with 43 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logger.go with 49 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to main.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to resolver.go with 205 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to example2.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 28 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to type_edge_cases.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 22 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sync.go with 69 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cli.go with 119 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to consts.go with 30 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to position.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to html.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to baseline.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to ast.go with 146 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to bool_literal_return.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_check_removal.go with 48 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 46 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 9 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to enforce.go with 140 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to transform.go with 457 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 65 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to reporter.go with 527 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 10 mutant(s)
+[DEBUG] [VERIFY] Round 3: build failed, scanning for bad mutant IDs
+[DEBUG] [VERIFY] Round 3: removing 13 bad mutant(s): [987 996 1014 9596 9598 8569 8570 8574 7979 7982 7983 7984 7980]
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to json.go with 27 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 77 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to resolver.go with 200 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to example2.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to enforce.go with 140 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to ast.go with 143 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to bool_literal_return.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_check_removal.go with 48 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 28 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to handlers.go with 432 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return_nil.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sync.go with 69 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to executor.go with 823 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to schemata.go with 671 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_handling.go with 43 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 9 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to literals.go with 94 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to reporter.go with 527 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cache.go with 78 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to html.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to mutants.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to preflight.go with 399 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 65 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logger.go with 49 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to position.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 39 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to orgpolicy.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cli.go with 119 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to utils.go with 249 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to tree.go with 488 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 46 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to badge.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 12 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 31 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to baseline.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to transform.go with 457 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to textfile.go with 224 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to runner.go with 569 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 115 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to consts.go with 30 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to engine.go with 547 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to api.go with 41 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to config.go with 227 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to scope.go with 228 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to type_edge_cases.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to main.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to gowork.go with 85 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to subconfig.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to junit.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to diff.go with 73 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to workspace.go with 372 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sarif.go with 13 mutant(s)
+[DEBUG] [VERIFY] Round 4: build failed, scanning for bad mutant IDs
+[DEBUG] [VERIFY] Round 4: removing 56 bad mutant(s): [8003 8004 8008 8009 8010 8012 8013 8015 8021 8005 9420 9421 9423 9425 9426 9427 9431 9429 9439 9440 9441 9442 9443 9445 9447 9449 9802 9804 9808 9811 9813 9814 3425 3426 3417 3418 3420 3440 3443 3444 3446 3448 3450 3469 3470 3471 3473 3475 3477 3552 3553 3554 3555 9949 9951 9953]
+[DEBUG] [VERIFY] Re-applying schemata to executor.go with 823 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to runner.go with 569 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to engine.go with 547 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to tree.go with 488 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 28 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cli.go with 119 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to consts.go with 30 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to workspace.go with 372 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sarif.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to diff.go with 73 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logger.go with 49 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to mutants.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to junit.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to enforce.go with 140 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to html.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sync.go with 69 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to main.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to ast.go with 143 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to api.go with 41 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to handlers.go with 411 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to scope.go with 228 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to transform.go with 457 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 31 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to schemata.go with 671 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to type_edge_cases.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 65 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to orgpolicy.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to gowork.go with 85 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 12 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to example2.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to utils.go with 249 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 39 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 46 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to reporter.go with 527 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to literals.go with 94 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_check_removal.go with 48 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 115 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 9 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to preflight.go with 399 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to resolver.go with 190 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to subconfig.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to textfile.go with 224 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to position.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_handling.go with 43 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to badge.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to json.go with 27 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return_nil.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cache.go with 78 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to bool_literal_return.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to config.go with 227 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to baseline.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 4 mutant(s)
+[DEBUG] [VERIFY] Round 5: build failed, scanning for bad mutant IDs
+[DEBUG] [VERIFY] Round 5: removing 37 bad mutant(s): [8022 8023 8027 8028 8029 8031 8032 8034 8033 8024 3424 3419 3607 3611 3608 3610 3609 3613 3614 3618 3619 3620 3623 3615 9799 9800 9805 9815 9816 9450 9451 9452 9453 9454 9456 9458 9460]
+[DEBUG] [VERIFY] Re-applying schemata to sync.go with 69 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to type_edge_cases.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to mutants.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to config.go with 227 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to negate_condition.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to engine.go with 547 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to main.go with 71 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 31 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to api.go with 41 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to junit.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 12 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 26 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to reporter.go with 527 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to orgpolicy.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to panic_removal.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 11 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return_nil.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 9 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to arithmetic_flip.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 21 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sign_toggle.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_return.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_body_removal.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to defer_removal.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to example2.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to switch_remove_default.go with 25 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to html.go with 198 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to pointer_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to channel_returns.go with 2 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to sarif.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to transform.go with 457 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to resolver.go with 180 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to variable_replacement.go with 40 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cache.go with 78 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to preflight.go with 399 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to json.go with 27 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to assignment_operator.go with 37 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to textfile.go with 224 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 16 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_handling.go with 43 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to ast.go with 143 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to badge.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to handlers.go with 397 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to interface_returns.go with 33 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to runner.go with 569 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 5 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to baseline.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to cli.go with 119 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to consts.go with 30 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_first.go with 32 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to workspace.go with 372 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to position.go with 4 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to goroutine_removal.go with 39 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to bool_literal_return.go with 19 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to loop_break_removal.go with 58 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to utils.go with 249 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to scope.go with 228 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_false.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to subconfig.go with 6 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to inc_dec_flip.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to if_condition_true.go with 1 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to boundary_value.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to common.go with 46 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to gowork.go with 85 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to early_return_removal.go with 24 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to diff.go with 73 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to literals.go with 94 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logger.go with 49 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to constant_replacement.go with 115 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to schemata.go with 671 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to empty_body.go with 65 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to map_returns.go with 3 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to function_call_removal.go with 18 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to binary_math.go with 17 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to slice_returns.go with 13 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to enforce.go with 140 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to logical_operator.go with 10 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to error_check_removal.go with 48 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to swap_case_bodies.go with 66 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 28 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to condition_negation.go with 20 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to executor.go with 823 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to for_condition_true.go with 36 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to nil_check_removal.go with 55 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to tree.go with 488 mutant(s)
+[DEBUG] [VERIFY] Re-applying schemata to zero_value_return.go with 4 mutant(s)
+[WARN] [VERIFY] Still failing after 5 rounds — proceeding with remaining mutants
+[DEBUG] Schemata-transformed code compiles successfully
+[INFO] [EXTERNAL] Copying external test suites to workspace
+[DEBUG] [EXTERNAL] Copied 1 files from /home/aclfe/Desktop/coding/Gorgon/tests/e2e to /tmp/gorgon-schemata-912358718/tests/e2e
+[DEBUG] [EXTERNAL] Copied 5 files from /home/aclfe/Desktop/coding/Gorgon/tests/integration to /tmp/gorgon-schemata-912358718/tests/integration
+[DEBUG] [EXTERNAL] Copied 4 files from /home/aclfe/Desktop/coding/Gorgon/tests/regression to /tmp/gorgon-schemata-912358718/tests/regression
+[DEBUG] [EXTERNAL] Running: go [list -f {{.Dir}} ./tests/...] in /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Output: /tmp/gorgon-schemata-912358718/tests/e2e
+/tmp/gorgon-schemata-912358718/tests/integration
+/tmp/gorgon-schemata-912358718/tests/regression
+/tmp/gorgon-schemata-912358718/tests/testutil
+, Error: <nil>
+[DEBUG] [EXTERNAL] Building binaries for 4 resolved paths from workspace /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3739682152/__tests_e2e.test ./tests/e2e] in /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Binary created at /tmp/gorgon-external-bins-3739682152/__tests_e2e.test
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3739682152/__tests_integration.test ./tests/integration] in /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Build failed: # github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3739682152/__tests_regression.test ./tests/regression] in /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Build failed: # github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first
+pkg/mutator/operators/loop_break_first/loop_break_first.go:192:16: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:193:16: stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:194:16: stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+
+[DEBUG] [EXTERNAL] Building: go [test -c -vet=off -o /tmp/gorgon-external-bins-3739682152/__tests_testutil.test ./tests/testutil] in /tmp/gorgon-schemata-912358718
+[DEBUG] [EXTERNAL] Binary not created at /tmp/gorgon-external-bins-3739682152/__tests_testutil.test
+[DEBUG] [EXTERNAL] Built 1 binaries in /tmp/gorgon-external-bins-3739682152
+[INFO] [EXTERNAL] Built 1 binaries for suite "all-tests"
+[INFO] No test binary for ./examples/mutations/assignment_operator — package has no test files, 11 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/binary_math — package has no test files, 17 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/bool_literal_return — package has no test files, 19 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./cmd/gorgon: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+# github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first
+pkg/mutator/operators/loop_break_first/loop_break_first.go:192:16: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:193:16: stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:194:16: stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+
+[INFO] No test binary for ./cmd/gorgon — package has no test files, 71 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/boundary_value — package has no test files, 36 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/condition_negation — package has no test files, 20 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/conditional_expression/for_condition_true — package has no test files, 36 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/conditional_expression/for_condition_false — package has no test files, 26 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/conditional_expression/if_condition_false — package has no test files, 25 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/constant_replacement — package has no test files, 4 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/conditional_expression/if_condition_true — package has no test files, 25 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/defer_removal — package has no test files, 17 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/early_return_removal — package has no test files, 24 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/error_handling — package has no test files, 43 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/empty_body — package has no test files, 16 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/goroutine_removal — package has no test files, 39 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/logical_operator — package has no test files, 16 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/function_call_removal — package has no test files, 11 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/inc_dec_flip — package has no test files, 2 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/loop_break_removal — package has no test files, 58 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/loop_body_removal — package has no test files, 32 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/loop_break_first — package has no test files, 32 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/negate_condition — package has no test files, 17 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/reference_returns/channel_returns — package has no test files, 2 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/nil_check_removal — package has no test files, 28 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/panic_removal — package has no test files, 33 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/reference_returns/interface_returns — package has no test files, 4 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/reference_returns/map_returns — package has no test files, 3 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/reference_returns/pointer_returns — package has no test files, 4 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/reference_returns/slice_returns — package has no test files, 3 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/sign_toggle — package has no test files, 4 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/switch_mutations/swap_case_bodies — package has no test files, 21 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/switch_mutations/switch_remove_default — package has no test files, 25 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/type_edge_cases — package has no test files, 6 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/variable_replacement — package has no test files, 40 mutant(s) marked untested
+[INFO] No test binary for ./internal/badge — package has no test files, 18 mutant(s) marked untested
+[INFO] No test binary for ./examples/mutations/zero_value_return — package has no test files, 5 mutant(s) marked untested
+[INFO] No test binary for ./internal/baseline — package has no test files, 55 mutant(s) marked untested
+[INFO] No test binary for ./internal/cache — package has no test files, 78 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/core/schemata_nodes: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+FAIL	github.com/aclfe/gorgon/internal/core/schemata_nodes [build failed]
+FAIL
+
+[WARN] [COMPILE] FAILED for package ./internal/core: exit status 1
+[INFO] No test binary for ./internal/core/schemata_nodes — package has no test files, 401 mutant(s) marked untested
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+
+[INFO] No test binary for ./internal/diff — package has no test files, 73 mutant(s) marked untested
+[INFO] No test binary for ./internal/core — package has no test files, 3199 mutant(s) marked untested
+[INFO] No test binary for ./internal/gowork — package has no test files, 85 mutant(s) marked untested
+[INFO] No test binary for ./internal/logger — package has no test files, 49 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/engine: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+FAIL	github.com/aclfe/gorgon/internal/engine [build failed]
+FAIL
+
+[INFO] No test binary for ./internal/engine — package has no test files, 1035 mutant(s) marked untested
+[INFO] No test binary for ./internal/orgpolicy — package has no test files, 140 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/reporter: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+FAIL	github.com/aclfe/gorgon/internal/reporter [build failed]
+FAIL
+
+[INFO] No test binary for ./internal/reporter — package has no test files, 1013 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/subconfig: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+FAIL	github.com/aclfe/gorgon/internal/subconfig [build failed]
+FAIL
+
+[INFO] No test binary for ./internal/subconfig — package has no test files, 180 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/runner: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/subconfig
+internal/subconfig/resolver.go:1161:13: cannot use len(chain) + 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1163:12: cannot use len(chain) - 1 (value of type int) as []string value in return statement
+internal/subconfig/resolver.go:1172:9: invalid operation: i-- (non-numeric type []string)
+internal/subconfig/resolver.go:1176:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1184:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1187:26: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1189:25: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1191:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1195:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: invalid argument: index i (variable of type []string) must be integer
+internal/subconfig/resolver.go:1207:21: too many errors
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+FAIL	github.com/aclfe/gorgon/internal/runner [build failed]
+FAIL
+
+[INFO] No test binary for ./internal/runner — package has no test files, 569 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./internal/suppressions: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/internal/core/schemata_nodes
+internal/core/schemata_nodes/handlers.go:493:43: cannot use orig (variable of interface type ast.Expr) as ast.Stmt value in array or slice literal: ast.Expr does not implement ast.Stmt (missing method stmtNode)
+internal/core/schemata_nodes/handlers.go:2671:10: not enough return values
+	have (ast.Node)
+	want (ast.Stmt, bool)
+internal/core/schemata_nodes/handlers.go:2675:24: too many return values
+	have (ast.Stmt, bool)
+	want (ast.Node)
+internal/core/schemata_nodes/handlers.go:2685:13: e.Kind undefined (type *ast.Ident has no field or method Kind)
+internal/core/schemata_nodes/handlers.go:3109:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3111:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3122:32: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3124:31: e.Op undefined (type *ast.BasicLit has no field or method Op)
+internal/core/schemata_nodes/handlers.go:3130:27: e.X undefined (type *ast.BasicLit has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: e.X undefined (type *ast.CallExpr has no field or method X)
+internal/core/schemata_nodes/handlers.go:3379:33: too many errors
+FAIL	github.com/aclfe/gorgon/internal/suppressions [build failed]
+FAIL
+
+[INFO] No test binary for ./internal/suppressions — package has no test files, 69 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator — package has no test files, 41 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/analysis — package has no test files, 465 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/arithmetic_flip — package has no test files, 21 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/assignment_operator — package has no test files, 37 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/concurrency — package has no test files, 5 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/boundary_value — package has no test files, 10 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/condition_negation — package has no test files, 10 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/conditional_expression — package has no test files, 50 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/defer_panic_recover — package has no test files, 24 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/error_handling — package has no test files, 119 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/function_call_removal — package has no test files, 18 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/inc_dec_flip — package has no test files, 10 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/logical_operator — package has no test files, 10 mutant(s) marked untested
+[WARN] [COMPILE] FAILED for package ./pkg/mutator/operators/loop_break_first: exit status 1
+[WARN] [COMPILE] Error output:
+# github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first [github.com/aclfe/gorgon/pkg/mutator/operators/loop_break_first.test]
+pkg/mutator/operators/loop_break_first/loop_break_first.go:192:16: stmt.Init undefined (type *ast.RangeStmt has no field or method Init)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:193:16: stmt.Cond undefined (type *ast.RangeStmt has no field or method Cond)
+pkg/mutator/operators/loop_break_first/loop_break_first.go:194:16: stmt.Post undefined (type *ast.RangeStmt has no field or method Post)
+
+[INFO] No test binary for ./pkg/mutator/operators/loop_break_first — package has no test files, 20 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/math_operators — package has no test files, 10 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/reference_returns — package has no test files, 98 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/sign_toggle — package has no test files, 10 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/switch_mutations — package has no test files, 75 mutant(s) marked untested
+[INFO] No test binary for ./pkg/mutator/operators/zero_value_return — package has no test files, 37 mutant(s) marked untested
+[DEBUG] After unit tests, about to check external phase
+[INFO] [EXTERNAL] Running external suite phase with 1 suites
+[INFO] [EXTERNAL] Running 365 survivors against external suites
+Mutation Score: 50.21%
+Killed: 367
+Survived: 364
+Errors: 2
+Untested: 8809
+Total: 9543
+
+Error Summary by Operator:
+  condition_negation                  1/1321 errors (0.1%)
+  negate_condition                    1/1264 errors (0.1%)
+
+Untested by Operator (binary missing - package failed to compile):
+  panic_removal                       6/6 untested (100.0%)
+  map_returns                         5/5 untested (100.0%)
+  slice_returns                       5/5 untested (100.0%)
+  function_call_removal               498/545 untested (91.4%)
+  goroutine_removal                   13/13 untested (100.0%)
+  empty_body                          85/87 untested (97.7%)
+  boundary_value                      243/251 untested (96.8%)
+  zero_value_return_error             67/69 untested (97.1%)
+  switch_remove_default               30/32 untested (93.8%)
+  error_return_nil                    1/1 untested (100.0%)
+  condition_negation                  1209/1321 untested (91.5%)
+  nil_check_removal                   67/68 untested (98.5%)
+  zero_value_return_bool              153/191 untested (80.1%)
+  swap_case_bodies                    220/238 untested (92.4%)
+  interface_returns                   2/2 untested (100.0%)
+  if_condition_false                  1032/1113 untested (92.7%)
+  if_condition_true                   1034/1115 untested (92.7%)
+  loop_body_removal                   358/385 untested (93.0%)
+  for_condition_true                  31/31 untested (100.0%)
+  defer_removal                       45/45 untested (100.0%)
+  binary_math                         13/13 untested (100.0%)
+  variable_replacement                865/902 untested (95.9%)
+  assignment_operator                 573/664 untested (86.3%)
+  for_condition_false                 28/28 untested (100.0%)
+  inc_dec_flip                        78/78 untested (100.0%)
+  pointer_returns                     49/65 untested (75.4%)
+  negate_condition                    1190/1264 untested (94.1%)
+  arithmetic_flip                     103/110 untested (93.6%)
+  zero_value_return_numeric           10/11 untested (90.9%)
+  error_check_removal                 104/108 untested (96.3%)
+  sign_toggle                         8/8 untested (100.0%)
+  channel_returns                     3/3 untested (100.0%)
+  loop_break_first                    353/380 untested (92.9%)
+  logical_operator                    249/299 untested (83.3%)
+  zero_value_return_string            79/87 untested (90.8%)
+
+Top Compilation Error Types (showing up to 20 of 1 unique error messages):
+  • exit status 2
+
+Per-Mutant Compilation Errors (unlimited):
+  (negate_condition) exit status 2
+  (total: 1 error lines)
+
+Error Count by Operator:
+  negate_condition: 1 errors
+  condition_negation: 1 errors
+
+Top Killing Tests:
+  TestConstantReplacement_Registration               114 kills
+  TestEmptyBody_Registration                         64 kills
+  TestVariableReplacement_Registration               56 kills
+  TestEarlyReturnRemoval_Registration                25 kills
+  TestLoopBreakRemoval_Registration                  18 kills
+  TestNegateCondition_Registration                   15 kills
+  TestLoopBodyRemoval_Registration                   12 kills
+  TestParseConcurrent                                11 kills
+  TestDeferRemoval_Registration                      9 kills
+  TestLoadConfig                                     7 kills
+
