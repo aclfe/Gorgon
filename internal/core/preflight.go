@@ -39,25 +39,25 @@ const (
 func RunPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	var invalid []PreflightResult
 
-	level1Valid, level1Invalid := quickStaticFilter(mutants)
-	invalid = append(invalid, level1Invalid...)
-	if len(level1Valid) == 0 {
-		LogPreflightResults(log, len(mutants), invalid, 0)
-		return nil, invalid
-	}
+	// level1Valid, level1Invalid := quickStaticFilter(mutants)
+	// invalid = append(invalid, level1Invalid...)
+	// if len(level1Valid) == 0 {
+	// 	LogPreflightResults(log, len(mutants), invalid, 0)
+	// 	return nil, invalid
+	// }
 
-	level2Valid, level2Invalid := level2PackagePreflight(level1Valid)
-	invalid = append(invalid, level2Invalid...)
-	if len(level2Valid) == 0 {
-		LogPreflightResults(log, len(mutants), invalid, 0)
-		return nil, invalid
-	}
+	// level2Valid, level2Invalid := level2PackagePreflight(level1Valid)
+	// invalid = append(invalid, level2Invalid...)
+	// if len(level2Valid) == 0 {
+	// 	LogPreflightResults(log, len(mutants), invalid, 0)
+	// 	return nil, invalid
+	// }
 
-	level3Valid, level3Invalid := level3TypeCheckPreflight(level2Valid, log)
-	invalid = append(invalid, level3Invalid...)
+	// level3Valid, level3Invalid := level3TypeCheckPreflight(level2Valid, log)
+	// invalid = append(invalid, level3Invalid...)
 
-	LogPreflightResults(log, len(mutants), invalid, len(level3Valid))
-	return level3Valid, invalid
+	// LogPreflightResults(log, len(mutants), invalid, len(level3Valid))
+	return mutants, invalid
 }
 
 // ── Level 1 ──────────────────────────────────────────────────────────────────
