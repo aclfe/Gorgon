@@ -1,20 +1,5 @@
 package testing
 
-
-//
-
-
-
-
-
-
-
-
-
-//
-
-
-
 import (
 	"fmt"
 	"go/ast"
