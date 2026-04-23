@@ -853,3 +853,13 @@ func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, kept []Muta
 	}
 	return InjectSchemataHelpers(tempFileToMutants, log)
 }
+
+// Test helper for integration tests - calls GenerateAndRunSchemata with proper types
+func TestGenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
+	return GenerateAndRunSchemata(ctx, sites, operators, allOps, baseDir, projectRoot, dirRules, resolver, concurrent, cache, tests, testPaths, log, progbar, unitTestsEnabled, externalCfg, cfg)
+}
+
+// Test helper for extractMutantIDsFromBuildErrors
+func TestExtractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
+	return extractMutantIDsFromBuildErrors(tempDir, buildOutput)
+}
