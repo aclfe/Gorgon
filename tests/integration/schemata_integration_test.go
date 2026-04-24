@@ -1,11 +1,13 @@
 //go:build integration
 // +build integration
 
-package testing_test
+package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,63 +17,23 @@ import (
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/pkg/config"
+	"github.com/aclfe/gorgon/pkg/mutator"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/arithmetic_flip"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/boundary_value"
+	_ "github.com/aclfe/gorgon/pkg/mutator/operators/condition_negation"
+	"github.com/aclfe/gorgon/tests/testutil"
 )
 
-// setupIsolatedEnv sets up environment isolation for tests
-func setupIsolatedEnv(t *testing.T) {
-	t.Setenv("GOCACHE", t.TempDir())
-	t.Setenv("GOMODCACHE", t.TempDir())
-	t.Setenv("GOPATH", "")
-	t.Setenv("GOFLAGS", "")
-}
-
-// countTempDir returns the number of items in os.TempDir()
 func countTempDir() int {
 	dirs, _ := os.ReadDir(os.TempDir())
 	return len(dirs)
 }
 
-// createFixtureModule creates a simple Go module fixture
-func createFixtureModule(t *testing.T, dir string, files map[string]string) {
-	t.Helper()
-	for name, content := range files {
-		path := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatalf("failed to create dir: %v", err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatalf("failed to write file %s: %v", name, err)
-		}
-	}
-}
-
-// createFixtureWorkspace creates a Go workspace fixture
-func createFixtureWorkspace(t *testing.T, dir string, modules map[string]map[string]string) {
-	t.Helper()
-	// Create go.work
-	goWork := "go 1.25\n"
-	for name := range modules {
-		goWork += "use ./" + name + "\n"
-	}
-	if err := os.WriteFile(filepath.Join(dir, "go.work"), []byte(strings.TrimSpace(goWork)), 0644); err != nil {
-		t.Fatalf("failed to create go.work: %v", err)
-	}
-	// Create each module
-	for name, files := range modules {
-		moduleDir := filepath.Join(dir, name)
-		if err := os.MkdirAll(moduleDir, 0755); err != nil {
-			t.Fatalf("failed to create module dir: %v", err)
-		}
-		createFixtureModule(t, moduleDir, files)
-	}
-}
-
-// --------------------- Test 1: Zero Mutants Early Return
 func TestGenerateAndRunSchemata_ZeroMutantsEarlyReturn(t *testing.T) {
-	setupIsolatedEnv(t)
+	testutil.SetupIsolatedEnv(t)
 
 	dir := t.TempDir()
-	files := map[string]string{
+	testutil.CreateFixtureModule(t, dir, map[string]string{
 		"go.mod": `module testproject
 
 go 1.25
@@ -92,16 +54,14 @@ func TestAdd(t *testing.T) {
 	}
 }
 `,
-	}
-	createFixtureModule(t, dir, files)
+	})
 
 	log := logger.New(false)
 	cache := gcache.New()
 
-	// Pass empty sites slice - this is the real function
 	result, err := gcore.TestGenerateAndRunSchemata(
 		context.Background(),
-		[]engine.Site{}, // zero sites = zero mutants
+		[]engine.Site{},
 		nil, nil, dir, dir,
 		nil, nil, 1, cache, nil, nil, log, false, true,
 		config.ExternalSuitesConfig{}, nil,
@@ -115,222 +75,414 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-// --------------------- Test 2: All Cached No External Suites
 func TestGenerateAndRunSchemata_AllCachedNoExternal(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "progress_bar")
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(fixtureDir, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	result1, err := gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+	if err != nil {
+		t.Fatalf("first run unexpected error: %v", err)
+	}
+	if result1 == nil {
+		t.Fatal("first run returned nil result")
+	}
+
+	result2, err := gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+	if err != nil {
+		t.Fatalf("second run unexpected error: %v", err)
+	}
+	if result2 == nil {
+		t.Fatal("second run returned nil result")
+	}
+
+	if len(result1) != len(result2) {
+		t.Fatalf("result lengths differ: run1=%d, run2=%d", len(result1), len(result2))
+	}
+
+	for i := 0; i < len(result1); i++ {
+		if result1[i].Status != result2[i].Status {
+			t.Fatalf("mutant %d status differs: run1=%s, run2=%s", i, result1[i].Status, result2[i].Status)
+		}
+	}
 }
 
-// --------------------- Test 3: Module Layouts (go.mod vs go.work vs neither)
 func TestGenerateAndRunSchemata_ModuleLayouts(t *testing.T) {
 	tests := []struct {
 		desc     string
-		setup    func(t *testing.T, dir string)
-		hasGoMod bool
-		hasGoWork bool
+		fixture  string
+		operator string
 	}{
 		{
-			desc: "go.mod only",
-			setup: func(t *testing.T, dir string) {
-				files := map[string]string{
-					"go.mod": `module testproject
-
-go 1.25
-`,
-					"main.go": `package main
-
-func Add(a, b int) int { return a + b }
-`,
-					"main_test.go": `package main
-
-import "testing"
-
-func TestAdd(t *testing.T) {
-	if Add(2, 3) != 5 {
-		t.Error("failed")
-	}
-}
-`,
-				}
-				createFixtureModule(t, dir, files)
-			},
-			hasGoMod: true,
-			hasGoWork: false,
+			desc:     "arithmetic_flip",
+			fixture:  "arithmetic_flip",
+			operator: "arithmetic_flip",
 		},
 		{
-			desc: "go.work with modules",
-			setup: func(t *testing.T, dir string) {
-				modules := map[string]map[string]string{
-					"service-a": {
-						"go.mod": `module testproject/service-a
-
-go 1.25
-`,
-						"main.go": `package main
-
-func Add(a, b int) int { return a + b }
-`,
-						"main_test.go": `package main
-
-import "testing"
-
-func TestAdd(t *testing.T) {
-	if Add(2, 3) != 5 {
-		t.Error("failed")
-	}
-}
-`,
-					},
-				}
-				createFixtureWorkspace(t, dir, modules)
-			},
-			hasGoMod: true,
-			hasGoWork: true,
-		},
-		{
-			desc: "no module files",
-			setup: func(t *testing.T, dir string) {
-				files := map[string]string{
-					"main.go": `package main
-
-func Add(a, b int) int { return a + b }
-`,
-				}
-				createFixtureModule(t, dir, files)
-			},
-			hasGoMod: false,
-			hasGoWork: false,
+			desc:     "boundary_value",
+			fixture:  "boundary_value",
+			operator: "boundary_value",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			setupIsolatedEnv(t)
-			dir := t.TempDir()
-			tt.setup(t, dir)
+			testutil.SetupIsolatedEnv(t)
+
+			fixtureDir := filepath.Join("testdata", tt.fixture)
+			absPath, err := filepath.Abs(fixtureDir)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			log := logger.New(false)
 			cache := gcache.New()
 
+			eng := engine.NewEngine(false)
+			op, ok := mutator.Get(tt.operator)
+			if !ok {
+				t.Fatalf("%s operator not found", tt.operator)
+			}
+			eng.SetOperators([]mutator.Operator{op})
+			if err := eng.Traverse(absPath, nil); err != nil {
+				t.Fatalf("traverse failed: %v", err)
+			}
+			sites := eng.Sites()
+			if len(sites) == 0 {
+				t.Fatalf("no mutation sites found in fixture with %s operator", tt.operator)
+			}
+
 			result, err := gcore.TestGenerateAndRunSchemata(
 				context.Background(),
-				[]engine.Site{}, nil, nil, dir, dir,
+				sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
 				nil, nil, 1, cache, nil, nil, log, false, true,
 				config.ExternalSuitesConfig{}, nil,
 			)
 
 			if err != nil {
-				t.Logf("run error (may be expected): %v", err)
+				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if result == nil {
-				t.Log("no mutants generated (may be expected)")
+				t.Fatalf("expected non-nil result with %d sites", len(sites))
+			}
+
+			if len(result) == 0 {
+				t.Fatalf("expected non-zero result length with %d sites", len(sites))
 			}
 		})
 	}
 }
 
-// --------------------- Test 4: Progress Bar Lifecycle
 func TestGenerateAndRunSchemata_ProgressBarLifecycle(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "progress_bar")
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(fixtureDir, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	result, err := gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, true, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("returned nil result")
+	}
 }
 
-// --------------------- Test 5: External Suites Enabled
 func TestGenerateAndRunSchemata_ExternalSuites(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "external_suites")
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(fixtureDir, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	cfg := config.ExternalSuitesConfig{
+		Enabled: true,
+		RunMode: "after_unit",
+		Suites: []config.ExternalSuite{
+			{
+				Name:  "external-tests",
+				Paths: []string{fixtureDir},
+			},
+		},
+	}
+
+	result, err := gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		cfg, nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("returned nil result")
+	}
 }
 
-// --------------------- Test 6: Temp Leak Check for runStandalone
 func TestRunStandalone_TempLeakCheck(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	beforeCount := countTempDir()
+
+	fixtureDir := filepath.Join("testdata", "arithmetic_flip")
+	absPath, err := filepath.Abs(fixtureDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(absPath, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	_, err = gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	afterCount := countTempDir()
+
+	if afterCount != beforeCount {
+		t.Fatalf("temp dir count increased: before=%d, after=%d", beforeCount, afterCount)
+	}
 }
 
-// --------------------- Test 7: Context Cancellation
 func TestRunStandalone_ContextCancellation(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "arithmetic_flip")
+	absPath, err := filepath.Abs(fixtureDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log := logger.New(false)
+	cache := gcache.New()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(absPath, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	_, err = gcore.TestGenerateAndRunSchemata(
+		ctx,
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+
+	if err == nil {
+		t.Fatalf("expected error from cancelled context, got nil")
+	}
 }
 
-// --------------------- Test 8: Determinism Check
 func TestGenerateAndRunSchemata_Determinism(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "arithmetic_flip")
+	absPath, err := filepath.Abs(fixtureDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var results [2][]gcore.Mutant
+	for i := 0; i < 2; i++ {
+		log := logger.New(false)
+		cache := gcache.New()
+
+		eng := engine.NewEngine(false)
+		op, ok := mutator.Get("arithmetic_flip")
+		if !ok {
+			t.Fatal("arithmetic_flip operator not found")
+		}
+		eng.SetOperators([]mutator.Operator{op})
+		if err := eng.Traverse(absPath, nil); err != nil {
+			t.Fatalf("run %d traverse failed: %v", i+1, err)
+		}
+		sites := eng.Sites()
+		if len(sites) == 0 {
+			t.Fatalf("run %d no mutation sites found in fixture", i+1)
+		}
+
+		result, err := gcore.TestGenerateAndRunSchemata(
+			context.Background(),
+			sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+			nil, nil, 1, cache, nil, nil, log, false, true,
+			config.ExternalSuitesConfig{}, nil,
+		)
+
+		if err != nil {
+			t.Fatalf("run %d unexpected error: %v", i+1, err)
+		}
+
+		results[i] = result
+	}
+
+	if len(results[0]) != len(results[1]) {
+		t.Fatalf("result lengths differ: run1=%d, run2=%d", len(results[0]), len(results[1]))
+	}
+
+	for i := 0; i < len(results[0]); i++ {
+		if results[0][i].Status != results[1][i].Status {
+			t.Fatalf("mutant %d status differs: run1=%s, run2=%s", i, results[0][i].Status, results[1][i].Status)
+		}
+	}
 }
 
-// --------------------- Test 9: Accounting Invariant
 func TestGenerateAndRunSchemata_AccountingInvariant(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "arithmetic_flip")
+	absPath, err := filepath.Abs(fixtureDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(absPath, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	result, err := gcore.TestGenerateAndRunSchemata(
+		context.Background(),
+		sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+		nil, nil, 1, cache, nil, nil, log, false, true,
+		config.ExternalSuitesConfig{}, nil,
+	)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatalf("expected non-nil result with %d sites", len(sites))
+	}
+
+	validStatuses := map[string]bool{
+		"":              true,
+		"killed":        true,
+		"survived":      true,
+		"error":         true,
+		"timeout":       true,
+		"untested":      true,
+		"compile_error": true,
+	}
+
+	for i, m := range result {
+		if !validStatuses[m.Status] {
+			t.Fatalf("mutant %d has unknown status: %s", i, m.Status)
+		}
+	}
 }
 
-// --------------------- Test 10: Filter Mutants Without Tests
 func TestFilterMutantsWithoutTests_Packages(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
-}
-
-// --------------------- Test 11: Extract Mutant IDs From Build Errors
-func TestExtractMutantIDsFromBuildErrors_Window(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
-}
-
-// --------------------- Test 12: MakeSelfContained Idempotency
-func TestMakeSelfContained_Idempotency(t *testing.T) {
 	dir := t.TempDir()
 	goModPath := filepath.Join(dir, "go.mod")
 
-	// First call - creates go.mod with replace
-	content1 := `module testproject
-
-go 1.25
-`
-	if err := os.WriteFile(goModPath, []byte(content1), 0644); err != nil {
-		t.Fatalf("failed to write go.mod: %v", err)
-	}
-
-	// First call
-	err := gcore.MakeSelfContained(dir)
-	if err != nil {
-		t.Fatalf("first call failed: %v", err)
-	}
-
-	// Read result
-	result1, err := os.ReadFile(goModPath)
-	if err != nil {
-		t.Fatalf("failed to read go.mod: %v", err)
-	}
-
-	// Second call - should be idempotent
-	err = gcore.MakeSelfContained(dir)
-	if err != nil {
-		t.Fatalf("second call failed: %v", err)
-	}
-
-	// Read result
-	result2, err := os.ReadFile(goModPath)
-	if err != nil {
-		t.Fatalf("failed to read go.mod: %v", err)
-	}
-
-	// Should be identical
-	if string(result1) != string(result2) {
-		t.Fatalf("not idempotent:\nfirst:\n%s\nsecond:\n%s", result1, result2)
-	}
-
-	// Count lines
-	lines1 := strings.Count(string(result1), "\n")
-	lines2 := strings.Count(string(result2), "\n")
-
-	if lines1 != lines2 {
-		t.Fatalf("line count changed: first=%d, second=%d", lines1, lines2)
-	}
-}
-
-// --------------------- Test 13: MakeSelfContained Unreadable
-func TestMakeSelfContained_Unreadable(t *testing.T) {
-	// Skip if running as root - chmod 0o000 has no effect
-	if os.Getuid() == 0 {
-		t.Skip("cannot test permission denial as root")
-	}
-
-	dir := t.TempDir()
-	goModPath := filepath.Join(dir, "go.mod")
-
-	// Create unreadable go.mod
 	content := `module testproject
 
 go 1.25
@@ -339,55 +491,280 @@ go 1.25
 		t.Fatalf("failed to write go.mod: %v", err)
 	}
 
-	// Make unreadable
+	mainGo := `package main
+
+func Add(a, b int) int { return a + b }
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0644); err != nil {
+		t.Fatalf("failed to create main.go: %v", err)
+	}
+
+	mainTest := `package main
+
+import "testing"
+
+func TestAdd(t *testing.T) {
+	if Add(2, 3) != 5 {
+		t.Error("failed")
+	}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(mainTest), 0644); err != nil {
+		t.Fatalf("failed to create main_test.go: %v", err)
+	}
+
+	absBase, _ := filepath.Abs(dir)
+	coveredPackages := gcore.TestCollectPackagesWithTests(absBase)
+
+	if !coveredPackages["."] {
+		t.Fatalf("main package not covered by tests")
+	}
+}
+
+func TestExtractMutantIDsFromBuildErrors_Window(t *testing.T) {
+	dir := t.TempDir()
+
+	testFile := filepath.Join(dir, "test.go")
+	testContent := `package main
+
+func Add(a, b int) int {
+	return a + b // activeMutantID == 123
+}
+
+func main() {
+	_ = UndefinedFunction()
+}
+`
+	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	goMod := `module testproject
+
+go 1.25
+`
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	cmd := exec.CommandContext(context.Background(), "go", "build", "./...")
+	cmd.Dir = dir
+	output, _ := cmd.CombinedOutput()
+
+	t.Logf("Build output: %s", string(output))
+
+	ids := gcore.TestExtractMutantIDsFromBuildErrors(dir, string(output))
+
+	t.Logf("Found IDs: %v", ids)
+
+	found := false
+	for _, id := range ids {
+		if id == 123 {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("mutant ID 123 not found in build errors: %v", ids)
+	}
+}
+
+func TestMakeSelfContained_Idempotency(t *testing.T) {
+	dir := t.TempDir()
+	goModPath := filepath.Join(dir, "go.mod")
+
+	content1 := `module testproject
+
+go 1.25
+`
+	if err := os.WriteFile(goModPath, []byte(content1), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	err := gcore.MakeSelfContained(dir)
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	result1, err := os.ReadFile(goModPath)
+	if err != nil {
+		t.Fatalf("failed to read go.mod: %v", err)
+	}
+
+	err = gcore.MakeSelfContained(dir)
+	if err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+
+	result2, err := os.ReadFile(goModPath)
+	if err != nil {
+		t.Fatalf("failed to read go.mod: %v", err)
+	}
+
+	if string(result1) != string(result2) {
+		t.Fatalf("not idempotent:\nfirst:\n%s\nsecond:\n%s", string(result1), string(result2))
+	}
+
+	lines1 := strings.Count(string(result1), "\n")
+	lines2 := strings.Count(string(result2), "\n")
+
+	if lines1 != lines2 {
+		t.Fatalf("line count changed: first=%d, second=%d", lines1, lines2)
+	}
+}
+
+func TestMakeSelfContained_Unreadable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("cannot test permission denial as root")
+	}
+
+	dir := t.TempDir()
+	goModPath := filepath.Join(dir, "go.mod")
+
+	content := `module testproject
+
+go 1.25
+`
+	if err := os.WriteFile(goModPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
 	if err := os.Chmod(goModPath, 0o000); err != nil {
 		t.Fatalf("failed to chmod: %v", err)
 	}
 
-	// Should return error without panic
 	err := gcore.MakeSelfContained(dir)
 	if err == nil {
 		t.Fatalf("expected error for unreadable go.mod")
 	}
 
-	// Restore permissions for cleanup
 	_ = os.Chmod(goModPath, 0o644)
 }
 
-// --------------------- Test 14: External Phase Run Modes
 func TestRunExternalPhase_RunModes(t *testing.T) {
+	dir := t.TempDir()
+
+	goMod := `module testproject
+
+go 1.25
+`
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("failed to create go.mod: %v", err)
+	}
+
+	mainGo := `package main
+
+func Add(a, b int) int {
+	return a + b
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0644); err != nil {
+		t.Fatalf("failed to create main.go: %v", err)
+	}
+
+	mainTest := `package main
+
+import "testing"
+
+func TestAdd(t *testing.T) {
+	result := Add(2, 3)
+	if result != 5 {
+		t.Errorf("expected 5, got %d", result)
+	}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(mainTest), 0644); err != nil {
+		t.Fatalf("failed to create main_test.go: %v", err)
+	}
+
 	tests := []struct {
-		name     string
-		runMode  string
-		input    []string // mutant statuses
-		expected int      // expected targets
+		name    string
+		runMode string
 	}{
-		{"only mode", "only", []string{"killed", "survived", ""}, 3},
-		{"after_unit mode", "after_unit", []string{"killed", "survived", ""}, 2},
-		{"alongside mode", "alongside", []string{"killed", "survived", ""}, 3},
+		{"only mode", "only"},
+		{"after_unit mode", "after_unit"},
+		{"alongside mode", "alongside"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			targets := 0
-			for _, status := range tt.input {
-				if tt.runMode == "only" || tt.runMode == "alongside" {
-					targets++
-				} else if tt.runMode == "after_unit" {
-					if status == "survived" || status == "" {
-						targets++
-					}
-				}
+			testutil.SetupIsolatedEnv(t)
+
+			ws, err := gcore.NewModuleWorkspace()
+			if err != nil {
+				t.Fatalf("failed to create workspace: %v", err)
+			}
+			defer ws.Cleanup()
+
+			if err := ws.Setup(dir, nil); err != nil {
+				t.Fatalf("failed to setup workspace: %v", err)
 			}
 
-			if targets != tt.expected {
-				t.Fatalf("expected %d targets, got %d", tt.expected, targets)
+			cfg := config.ExternalSuitesConfig{
+				Enabled: true,
+				RunMode: tt.runMode,
+				Suites: []config.ExternalSuite{
+					{
+						Name:  "test-suite",
+						Paths: []string{dir},
+					},
+				},
+			}
+
+			log := logger.New(false)
+
+			mutants := []gcore.Mutant{
+				{ID: 1, Status: "survived"},
+				{ID: 2, Status: "killed"},
+			}
+
+			err = gcore.TestRunExternalPhase(context.Background(), ws, mutants, cfg, 1, log)
+
+			if err != nil {
+				t.Fatalf("runExternalPhase returned error: %v", err)
 			}
 		})
 	}
 }
 
-// --------------------- Test 15: Concurrent Limit Check
 func TestRunStandalone_ConcurrentLimit(t *testing.T) {
-	t.Skip("helper function is a stub - test skipped")
+	testutil.SetupIsolatedEnv(t)
+
+	fixtureDir := filepath.Join("testdata", "concurrent_limit")
+	log := logger.New(false)
+	cache := gcache.New()
+
+	eng := engine.NewEngine(false)
+	op, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatal("arithmetic_flip operator not found")
+	}
+	eng.SetOperators([]mutator.Operator{op})
+	if err := eng.Traverse(fixtureDir, nil); err != nil {
+		t.Fatalf("traverse failed: %v", err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatal("no mutation sites found in fixture")
+	}
+
+	concurrentLimits := []int{1, 2, 4}
+
+	for _, limit := range concurrentLimits {
+		t.Run(fmt.Sprintf("concurrent=%d", limit), func(t *testing.T) {
+			result, err := gcore.TestGenerateAndRunSchemata(
+				context.Background(),
+				sites, []mutator.Operator{op}, []mutator.Operator{op}, fixtureDir, fixtureDir,
+				nil, nil, limit, cache, nil, nil, log, false, true,
+				config.ExternalSuitesConfig{}, nil,
+			)
+			if err != nil {
+				t.Fatalf("concurrent=%d unexpected error: %v", limit, err)
+			}
+			if result == nil {
+				t.Fatalf("concurrent=%d returned nil result", limit)
+			}
+		})
+	}
 }

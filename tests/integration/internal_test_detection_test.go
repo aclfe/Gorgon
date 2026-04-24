@@ -1,4 +1,7 @@
-package testing_test
+//go:build integration
+// +build integration
+
+package integration
 
 import (
 	"context"
@@ -6,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aclfe/gorgon/internal/engine"
 	gorgontesting "github.com/aclfe/gorgon/internal/core"
+	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
@@ -19,10 +22,10 @@ func TestInternalTestDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	projectRoot := filepath.Join(cwd, "..", "..")
 	cliDir := filepath.Join(projectRoot, "internal", "cli")
-	
+
 	if _, err := os.Stat(cliDir); os.IsNotExist(err) {
 		t.Skipf("internal/cli directory not found at %s", cliDir)
 	}
@@ -112,10 +115,10 @@ func TestInternalTestDetection_NoTests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	projectRoot := filepath.Join(cwd, "..", "..")
 	notestsDir := filepath.Join(projectRoot, "pkg", "testdata", "notests")
-	
+
 	if _, err := os.Stat(notestsDir); os.IsNotExist(err) {
 		t.Skipf("pkg/testdata/notests directory not found at %s", notestsDir)
 	}

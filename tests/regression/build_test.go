@@ -1,4 +1,4 @@
-package testing_test
+package regression
 
 import (
 	"os/exec"

@@ -1,4 +1,7 @@
-package testing_test
+//go:build integration
+// +build integration
+
+package integration
 
 import (
 	"fmt"
@@ -16,9 +19,9 @@ import (
 // statements with multiple values (e.g., `return val, err`). The engine would extract
 // only the first return type, causing the generated closure to have a mismatched signature:
 //
-//   func() *config.Config {        // ← returns ONE value
-//       return nil, fmt.Errorf(...) // ← trying to return TWO values
-//   }()
+//	func() *config.Config {        // ← returns ONE value
+//	    return nil, fmt.Errorf(...) // ← trying to return TWO values
+//	}()
 //
 // This resulted in compilation errors like "not enough return values" or "too many return values",
 // causing all mutants to be marked as "untested" because the test binary couldn't be built.
@@ -41,7 +44,7 @@ func TestMultiValueReturnMutations(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	
+
 	sourceFile := filepath.Join(tmpDir, "multireturn.go")
 	sourceCode := `package multireturn
 
@@ -58,7 +61,7 @@ func MultiReturn(val int) (int, error) {
 	if err := os.WriteFile(sourceFile, []byte(sourceCode), 0644); err != nil {
 		t.Fatalf("Failed to write source file: %v", err)
 	}
-	
+
 	testFile := filepath.Join(tmpDir, "multireturn_test.go")
 	testCode := `package multireturn
 
@@ -82,7 +85,7 @@ func TestMultiReturn(t *testing.T) {
 	if err := os.WriteFile(testFile, []byte(testCode), 0644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
-	
+
 	goModFile := filepath.Join(tmpDir, "go.mod")
 	goModContent := `module multireturn
 
@@ -91,38 +94,38 @@ go 1.25
 	if err := os.WriteFile(goModFile, []byte(goModContent), 0644); err != nil {
 		t.Fatalf("Failed to write go.mod: %v", err)
 	}
-	
+
 	gorgonBin, err := findGorgonBinary()
 	if err != nil {
 		t.Fatalf("Failed to find gorgon binary: %v", err)
 	}
-	
+
 	cmd := exec.Command(gorgonBin, tmpDir)
 	output, err := cmd.CombinedOutput()
-	
+
 	outputStr := string(output)
 	t.Logf("Gorgon output:\n%s", outputStr)
-	
+
 	// Check for Schemata compilation failures first
 	if strings.Contains(outputStr, "FATAL: Schemata-transformed code does not compile!") {
 		t.Fatalf("Schemata compilation failed:\n%s", outputStr)
 	}
-	
+
 	if err != nil {
 		t.Fatalf("Gorgon execution failed: %v", err)
 	}
-	
+
 	if strings.Contains(outputStr, "not enough return values") {
 		t.Error("Found 'not enough return values' error - multi-value return bug not fixed")
 	}
 	if strings.Contains(outputStr, "too many return values") {
 		t.Error("Found 'too many return values' error - multi-value return bug not fixed")
 	}
-	
+
 	if strings.Contains(outputStr, "package has no test files") {
 		t.Error("Test binary was not created - compilation likely failed")
 	}
-	
+
 	if strings.Contains(outputStr, "Untested") {
 		lines := strings.Split(outputStr, "\n")
 		for _, line := range lines {
@@ -138,11 +141,11 @@ go 1.25
 			}
 		}
 	}
-	
+
 	if !strings.Contains(outputStr, "Mutation Score") {
 		t.Error("No mutation score found in output")
 	}
-	
+
 	lines := strings.Split(outputStr, "\n")
 	foundScore := false
 	for _, line := range lines {
@@ -158,7 +161,7 @@ go 1.25
 			break
 		}
 	}
-	
+
 	if !verifyMinimumMutationScore(outputStr, 50.0) {
 		t.Error("Mutation score is below 50% - expected tests to kill at least half the mutants")
 	}
@@ -169,16 +172,16 @@ func findGorgonBinary() (string, error) {
 	if _, err := os.Stat("./gorgon"); err == nil {
 		return "./gorgon", nil
 	}
-	
+
 	if _, err := os.Stat("../../gorgon"); err == nil {
 		return "../../gorgon", nil
 	}
-	
+
 	cmd := exec.Command("go", "build", "-o", "gorgon", "../../cmd/gorgon/main.go")
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}
-	
+
 	return "./gorgon", nil
 }
 
@@ -186,13 +189,13 @@ func findGorgonBinary() (string, error) {
 func verifyMinimumMutationScore(output string, minScore float64) bool {
 	lines := strings.Split(output, "\n")
 	foundHeader := false
-	
+
 	for _, line := range lines {
 		if strings.Contains(line, "Mutation Score") && strings.Contains(line, "Killed") {
 			foundHeader = true
 			continue
 		}
-		
+
 		if foundHeader && strings.Contains(line, "%") {
 			fields := strings.Fields(line)
 			if len(fields) > 0 {
@@ -205,6 +208,6 @@ func verifyMinimumMutationScore(output string, minScore float64) bool {
 			break
 		}
 	}
-	
+
 	return false
 }

@@ -1,4 +1,7 @@
-package testing_test
+//go:build integration
+// +build integration
+
+package integration
 
 // Integration tests for Gorgon/internal/core/preflight.go.
 //
@@ -25,7 +28,7 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator/operators/inc_dec_flip"
 	"github.com/aclfe/gorgon/pkg/mutator/operators/sign_toggle"
 	"github.com/aclfe/gorgon/pkg/mutator/operators/variable_replacement"
-	"github.com/aclfe/gorgon/tests/integration/mock_operators"
+	"github.com/aclfe/gorgon/tests/fixtures/mock_operators"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────

@@ -73,7 +73,7 @@ func (w *ModuleWorkspace) Cleanup() {
 	_ = os.RemoveAll(w.TempDir)
 }
 
-func (w *ModuleWorkspace) setup(baseDir string, mutants []Mutant) error {
+func (w *ModuleWorkspace) Setup(baseDir string, mutants []Mutant) error {
 	// Detect go.work first; fall back to go.mod if absent.
 	ws := gowork.Find(baseDir)
 	w.goWork = ws

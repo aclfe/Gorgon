@@ -98,7 +98,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		}
 		defer ws.Cleanup()
 
-		if err := ws.setup(baseDir, mutants); err != nil {
+		if err := ws.Setup(baseDir, mutants); err != nil {
 			return mutants, fmt.Errorf("workspace setup failed: %w", err)
 		}
 
@@ -137,7 +137,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	if !hasGoWork && !hasGoMod {
 		log.Debug("Neither go.work nor go.mod found, using standalone mode")
-		return runStandalone(mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
+		return runStandalone(ctx, mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
 	}
 	log.Debug("Module layout detected, using workspace mode")
 
@@ -148,7 +148,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 	defer ws.Cleanup()
 
-	if err := ws.setup(projectRoot, mutants); err != nil {
+	if err := ws.Setup(projectRoot, mutants); err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
 		return mutants, err
 	}
@@ -200,6 +200,23 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		return mutants, err
 	}
 
+	// DEBUG: expose key mismatch between the two package maps
+	log.Debug("[DEBUG-PKGMAP] buildPkgMap produced %d package keys:", len(pkgToMutantIDs))
+	for k, ids := range pkgToMutantIDs {
+		log.Debug("[DEBUG-PKGMAP] pkgToMutantIDs[%q] = %v", k, ids)
+	}
+	log.Debug("[DEBUG-PKGMAP] mutantIDToIndex: %v", mutantIDToIndex)
+
+	// DEBUG: verify every mutant ID appears in mutantIDToIndex
+	log.Debug("[DEBUG-INDEX] Checking mutantIDToIndex coverage:")
+	for _, m := range mutants {
+		if idx, ok := mutantIDToIndex[m.ID]; ok {
+			log.Debug("[DEBUG-INDEX] mutant %d → index %d ✓", m.ID, idx)
+		} else {
+			log.Debug("[DEBUG-INDEX] mutant %d → NOT IN INDEX ✗ (will never be classified)", m.ID)
+		}
+	}
+
 	mutantSites := make(map[int]MutantSite, len(mutants))
 	for i := range mutants {
 		m := &mutants[i]
@@ -226,12 +243,22 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		if m.Site.File == nil {
 			continue
 		}
-		rel, err := filepath.Rel(ws.absModule, m.Site.File.Name())
+		rel, err := ws.relPath(m.Site.File.Name())
 		if err != nil {
 			continue
 		}
 		pkgDir := filepath.Join(ws.TempDir, filepath.Dir(rel))
 		pkgToMutants[pkgDir] = append(pkgToMutants[pkgDir], m)
+	}
+
+	// DEBUG: compare keys against pkgToMutantIDs above
+	log.Debug("[DEBUG-PKGMAP] pkgToMutants has %d package keys:", len(pkgToMutants))
+	for k, ms := range pkgToMutants {
+		ids := make([]int, len(ms))
+		for i, m := range ms {
+			ids[i] = m.ID
+		}
+		log.Debug("[DEBUG-PKGMAP] pkgToMutants[%q] = mutant IDs %v", k, ids)
 	}
 
 	var prog *ProgressTracker
@@ -248,6 +275,16 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 		if len(results) > 0 {
 			collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
+		}
+
+		// DEBUG: show what collectResults actually matched
+		log.Debug("[DEBUG-COLLECT] After collectResults, raw result IDs and statuses:")
+		for _, r := range results {
+			log.Debug("[DEBUG-COLLECT] result id=%d status=%q", r.id, r.status)
+		}
+		log.Debug("[DEBUG-COLLECT] Mutant statuses after collection:")
+		for _, m := range mutants {
+			log.Debug("[DEBUG-COLLECT] mutant id=%d status=%q", m.ID, m.Status)
 		}
 
 		if err != nil {
@@ -272,7 +309,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	return mutants, nil
 }
 
-func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, log *logger.Logger) ([]Mutant, error) {
+func runStandalone(ctx context.Context, mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, log *logger.Logger) ([]Mutant, error) {
 
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
@@ -293,7 +330,7 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 	}
 	sort.Strings(pkgDirs)
 
-	g, ctx := errgroup.WithContext(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrent)
 
 	parentTempDir, err := os.MkdirTemp("", "gorgon-standalone-*")
@@ -317,7 +354,7 @@ func runStandalone(mutants []Mutant, uncachedIndices []int, concurrent int, cach
 				return ctx.Err()
 			default:
 			}
-			return runStandalonePackage(pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, log)
+			return runStandalonePackage(ctx, pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, log)
 		})
 	}
 
@@ -456,6 +493,7 @@ func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
 	}
 }
 
+// collectPackagesWithTests collects all packages that have test files
 func collectPackagesWithTests(absModule string) map[string]bool {
 	pkgs := make(map[string]bool)
 
@@ -679,6 +717,11 @@ func verifyBuildSequential(ctx context.Context, tempDir string, log *logger.Logg
 	return "", nil
 }
 
+// TestVerifyBuildSequential exposes verifyBuildSequential for integration tests.
+func TestVerifyBuildSequential(ctx context.Context, tempDir string, log *logger.Logger) (string, error) {
+	return verifyBuildSequential(ctx, tempDir, log)
+}
+
 // verifyAndCleanSchemata runs build verification with retry loop that removes bad mutants.
 func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
 	const maxRounds = 5
@@ -706,6 +749,13 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 			badSet[id] = true
 		}
 
+		// DEBUG: show what we're trying to match against
+		log.Debug("[DEBUG-VERIFY] badSet IDs to remove: %v", badIDs)
+		log.Debug("[DEBUG-VERIFY] mutant IDs currently in slice:")
+		for _, m := range mutants {
+			log.Debug("[DEBUG-VERIFY] mutant ID=%d status=%q — in badSet: %v", m.ID, m.Status, badSet[m.ID])
+		}
+
 		var kept []Mutant
 		for i := range mutants {
 			if badSet[mutants[i].ID] {
@@ -721,7 +771,7 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 		}
 
 		// Re-apply schemata to the affected files.
-		if err := reapplyAffectedFiles(ws, badSet, kept, log); err != nil {
+		if err := reapplyAffectedFiles(ws, badSet, mutants, kept, log); err != nil {
 			return nil, fmt.Errorf("re-apply after round %d: %w", round+1, err)
 		}
 		mutants = kept
@@ -741,6 +791,11 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 
 	prefix := []byte("activeMutantID == ")
 
+	// DEBUG: show what the compiler reported
+	for _, ce := range errors {
+		fmt.Printf("[DEBUG-EXTRACT] compiler error: file=%q line=%d msg=%q\n", ce.File, ce.Line, ce.Message)
+	}
+
 	for _, ce := range errors {
 		filePath := ce.File
 		if !filepath.IsAbs(filePath) {
@@ -752,12 +807,12 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 		}
 		lines := strings.Split(string(content), "\n")
 
-		// Scan a ±15 line window around the error.
-		lo := ce.Line - 16
+		// Scan only the exact error line (±1 for off-by-one safety).
+		lo := ce.Line - 2
 		if lo < 0 {
 			lo = 0
 		}
-		hi := ce.Line + 15
+		hi := ce.Line + 1
 		if hi > len(lines) {
 			hi = len(lines)
 		}
@@ -781,23 +836,42 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 			}
 			seen[id] = true
 			ids = append(ids, id)
+			// DEBUG: show what IDs were found in the scan window
+			fmt.Printf("[DEBUG-EXTRACT] found activeMutantID == %d in file %q near line %d\n", id, filePath, ce.Line)
 		}
 	}
+	// DEBUG: show what IDs were found in the scan window
+	fmt.Printf("[DEBUG-EXTRACT] extracted IDs from build output: %v\n", ids)
 	return ids
 }
 
 // reapplyAffectedFiles re-applies schemata to files that had bad mutants removed.
-func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, kept []Mutant, log *logger.Logger) error {
+func reapplyAffectedFiles(ws *ModuleWorkspace, removed map[int]bool, allMutants []Mutant, kept []Mutant, log *logger.Logger) error {
 	// Find which source files contained removed mutants.
 	affected := make(map[string][]*Mutant) // origPath → kept mutants for that file
 
+	// Determine affected files by looking at what was REMOVED.
+	for i := range allMutants {
+		m := &allMutants[i]
+		if !removed[m.ID] || m.Site.File == nil {
+			continue
+		}
+		p := m.Site.File.Name()
+		if _, ok := affected[p]; !ok {
+			affected[p] = nil // ensure the file is in the map even if no kept mutants
+		}
+	}
+
+	// Populate kept mutants per affected file.
 	for i := range kept {
 		m := &kept[i]
 		if m.Site.File == nil {
 			continue
 		}
 		p := m.Site.File.Name()
-		affected[p] = append(affected[p], m)
+		if _, ok := affected[p]; ok {
+			affected[p] = append(affected[p], m)
+		}
 	}
 
 	for origPath, fileMutants := range affected {
@@ -862,4 +936,41 @@ func TestGenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operat
 // Test helper for extractMutantIDsFromBuildErrors
 func TestExtractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 	return extractMutantIDsFromBuildErrors(tempDir, buildOutput)
+}
+
+// Test helper for integration tests - calls runExternalPhase
+func TestRunExternalPhase(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, cfg config.ExternalSuitesConfig, concurrent int, log *logger.Logger) error {
+	return runExternalPhase(ctx, ws, mutants, cfg, concurrent, log)
+}
+
+// Test helper for integration tests - calls collectPackagesWithTests
+func TestCollectPackagesWithTests(absModule string) map[string]bool {
+	return collectPackagesWithTests(absModule)
+}
+
+// TestApplySchemataToWorkspace applies the schemata transformation and returns
+// (tempDir, error) so integration tests can inspect the generated code structure.
+func TestApplySchemataToWorkspace(ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) (string, error) {
+	log.Debug("[DEBUG-IDS] IDs entering applySchemata: %v", func() []int {
+		ids := make([]int, len(mutants))
+		for i, m := range mutants {
+			ids[i] = m.ID
+		}
+		return ids
+	}())
+	_, _, err := ws.applySchemata(mutants, log)
+	log.Debug("[DEBUG-IDS] IDs after applySchemata: %v", func() []int {
+		ids := make([]int, len(mutants))
+		for i, m := range mutants {
+			ids[i] = m.ID
+		}
+		return ids
+	}())
+	return ws.TempDir, err
+}
+
+// TestVerifyAndCleanSchemata exposes the internal build-verify/retry loop so
+// integration tests can exercise it directly without going through the full pipeline.
+func TestVerifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
+	return verifyAndCleanSchemata(ctx, ws, mutants, log)
 }

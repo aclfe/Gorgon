@@ -21,6 +21,22 @@ import (
 	"github.com/aclfe/gorgon/pkg/config"
 )
 
+// removeDirWithPermissions removes a directory, handling permission errors
+func removeDirWithPermissions(dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		// Remove read-only files and directories by adding write permission
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+}
+
 type ProgressTracker struct {
 	total       int
 	lastPrinted int
@@ -493,8 +509,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 	resultsChan := make(chan mutantResult)
 	var allResults []mutantResult
 	var resultsMu sync.Mutex
-	
+	var collectorDone sync.WaitGroup
+	collectorDone.Add(1)
 	go func() {
+		defer collectorDone.Done()
 		for result := range resultsChan {
 			resultsMu.Lock()
 			allResults = append(allResults, result)
@@ -637,6 +655,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 
 	if err := testGroup.Wait(); err != nil {
 		close(resultsChan)
+		collectorDone.Wait()
 		resultsMu.Lock()
 		results := allResults
 		resultsMu.Unlock()
@@ -648,6 +667,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		return results, fmt.Errorf("test execution failed: %w", err)
 	}
 	close(resultsChan)
+	collectorDone.Wait()
 
 	resultsMu.Lock()
 	sort.Slice(allResults, func(i, j int) bool {
@@ -700,10 +720,11 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 	})
 }
 
-func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker, log *logger.Logger) error {
+func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker, log *logger.Logger) error {
 
 	entries, _ := os.ReadDir(workerTempDir)
 	for _, e := range entries {
+		_ = removeDirWithPermissions(filepath.Join(workerTempDir, e.Name()))
 		os.RemoveAll(filepath.Join(workerTempDir, e.Name()))
 	}
 
@@ -878,7 +899,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 
 	sites := rebuildMutantSites(pkgMutants)
 
-	result := executor.compileWithAttribution(context.Background(), mutantIDs, sites)
+	result := executor.compileWithAttribution(ctx, mutantIDs, sites)
 	for _, m := range pkgMutants {
 		err := result.perMutant[m.ID]
 		if err != nil {
@@ -934,7 +955,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 		return nil
 	}
 
-	baseline, baselineOK := executor.measureBaseline(context.Background())
+	baseline, baselineOK := executor.measureBaseline(ctx)
 
 	if baselineOK {
 		_, _ = executor.timeoutFor(baseline)
@@ -947,7 +968,7 @@ func runStandalonePackage(pkgDir string, pkgMutants []*Mutant, concurrent int, t
 	resultsChan := make(chan mutantResult, len(testableIDs))
 	sort.Ints(testableIDs)
 
-	executor.runMutantsConcurrent(context.Background(), testableIDs, concurrent, resultsChan, prog)
+	executor.runMutantsConcurrent(ctx, testableIDs, concurrent, resultsChan, prog)
 
 	idToMutant := make(map[int]*Mutant, len(pkgMutants))
 	for _, m := range pkgMutants {
