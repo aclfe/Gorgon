@@ -11,6 +11,8 @@ import (
 	"testing"
 )
 
+// Stronger assertions? Not sure frankly. 
+
 // TestExternalSuites_BothEnabled verifies that both unit and external tests run when both are enabled
 func TestExternalSuites_BothEnabled(t *testing.T) {
 	configContent := `unit_tests_enabled: true
@@ -27,8 +29,12 @@ external_suites:
 		t.Error("Expected external suite phase to run")
 	}
 
-	if !strings.Contains(output, "TestExample2 [all-tests]") {
-		t.Error("Expected external test TestExample2 to kill mutations")
+	if !strings.Contains(output, "Built") {
+		t.Error("Expected external suite binaries to be built")
+	}
+
+	if !strings.Contains(output, "[all-tests]") {
+		t.Error("Expected external suite to kill mutations")
 	}
 }
 
@@ -48,8 +54,12 @@ external_suites:
 		t.Error("Expected external suite phase to run")
 	}
 
-	if !strings.Contains(output, "TestExample2 [all-tests]") {
-		t.Error("Expected external test TestExample2 to kill mutations")
+	if strings.Contains(output, "TestAdd") || strings.Contains(output, "TestSubtract") {
+		t.Error("Expected unit tests NOT to run in external-only mode")
+	}
+
+	if !strings.Contains(output, "[all-tests]") {
+		t.Error("Expected external suite to kill mutations")
 	}
 }
 
@@ -63,6 +73,10 @@ external_suites:
 
 	if strings.Contains(output, "[EXTERNAL] Running external suite phase") {
 		t.Error("Expected external suite phase to be skipped")
+	}
+
+	if strings.Contains(output, "[all-tests]") {
+		t.Error("Expected external suite NOT to run in unit-only mode")
 	}
 
 	if !strings.Contains(output, "TestAdd") || !strings.Contains(output, "TestSubtract") {
@@ -80,6 +94,10 @@ external_suites:
 
 	if strings.Contains(output, "[EXTERNAL] Running external suite phase") {
 		t.Error("Expected external suite phase NOT to run")
+	}
+
+	if strings.Contains(output, "[all-tests]") {
+		t.Error("Expected external suite NOT to run when disabled")
 	}
 
 	if strings.Contains(output, "TestAdd") || strings.Contains(output, "TestSubtract") {

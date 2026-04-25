@@ -225,3 +225,26 @@ func RunPipelineWithOps(t *testing.T, sites []engine.Site, ops []mutator.Operato
 func NewEngine(debug bool) *engine.Engine {
 	return engine.NewEngine(debug)
 }
+
+// Background returns a plain background context.
+// Named wrapper so test files don't need to import context directly.
+func Background() context.Context {
+	return context.Background()
+}
+
+// MutantFile returns the source file name for a mutant, or "(no file)" if
+// Site.File is nil. Used in failure messages to identify which file a mutant
+// came from without dereferencing a nil pointer.
+func MutantFile(m gcore.Mutant) string {
+	if m.Site.File == nil {
+		return "(no file)"
+	}
+	return m.Site.File.Name()
+}
+
+// // TestWorkspaceRelPath exposes the internal relPath method so integration tests
+// // can verify that files outside the module root are correctly rejected and never
+// // produce "../"-escaping paths that could write outside TempDir.
+// func TestWorkspaceRelPath(ws *ModuleWorkspace, filePath string) (string, error) {
+// 	return ws.relPath(filePath)
+// }

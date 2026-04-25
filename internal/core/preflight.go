@@ -556,6 +556,15 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 	// Baseline errors from the unmodified file — absorbed before attribution.
 	baseline := computeBaselineErrors(filePath, src, siblings, helper, pkgDir, imp)
 
+	for msg := range baseline {
+		if !isImportStubError(msg) {
+			log.Debug("[PREFLIGHT L3] %s: real baseline type error detected (%q) — rejecting all %d mutant(s)",
+				filepath.Base(filePath), msg, len(mutants))
+			_, invalid := makeAllInvalid(mutants, "baseline type error: "+msg)
+			return nil, invalid
+		}
+	}
+
 	// Convert to pointers for ApplySchemataInMemory.
 	mutPtrs := make([]*Mutant, len(mutants))
 	for i := range mutants {
@@ -580,6 +589,12 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 	}
 
 	return mutants, nil
+}
+
+func isImportStubError(msg string) bool {
+	return strings.HasPrefix(msg, "undefined:") ||
+		strings.Contains(msg, "has no field or method") ||
+		strings.Contains(msg, "cannot refer to unexported")
 }
 
 func runTypeCheck(filePath string, src []byte, mutPtrs []*Mutant, siblings []siblingFile, helper, pkgDir string, imp types.Importer, baseline map[string]int) (newErrors []string, panicked bool) {

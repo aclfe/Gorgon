@@ -726,8 +726,11 @@ func TestVerifyBuildSequential(ctx context.Context, tempDir string, log *logger.
 func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
 	const maxRounds = 5
 
+	verifyCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
 	for round := 0; round < maxRounds; round++ {
-		buildOut, buildErr := verifyBuildSequential(ctx, ws.TempDir, log)
+		buildOut, buildErr := verifyBuildSequential(verifyCtx, ws.TempDir, log)
 		if buildErr == nil {
 			if round > 0 {
 				log.Debug("[VERIFY] Build clean after %d removal round(s)", round)
@@ -777,7 +780,7 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 		mutants = kept
 	}
 
-	if _, finalErr := verifyBuildSequential(ctx, ws.TempDir, log); finalErr != nil {
+	if _, finalErr := verifyBuildSequential(verifyCtx, ws.TempDir, log); finalErr != nil {
 		log.Warn("[VERIFY] Still failing after %d rounds — proceeding with remaining mutants", maxRounds)
 	}
 	return mutants, nil
@@ -973,4 +976,11 @@ func TestApplySchemataToWorkspace(ws *ModuleWorkspace, mutants []Mutant, log *lo
 // integration tests can exercise it directly without going through the full pipeline.
 func TestVerifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
 	return verifyAndCleanSchemata(ctx, ws, mutants, log)
+}
+
+// TestWorkspaceRelPath exposes the internal relPath method so integration tests
+// can verify that files outside the module root are correctly rejected and never
+// produce "../"-escaping paths that could write outside TempDir.
+func TestWorkspaceRelPath(ws *ModuleWorkspace, filePath string) (string, error) {
+	return ws.relPath(filePath)
 }
