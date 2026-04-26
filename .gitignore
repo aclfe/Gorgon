@@ -59,7 +59,4 @@ internal_notes
 scripts/external-regression.sh
 profiles
 
-# Test files
-internal/**/*_test.go
-tests/integration/**/*_test.go
-!tests/integration/schemata_integration_test.go
+TEST_COVERAGE_SUMMARY.md

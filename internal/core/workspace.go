@@ -369,10 +369,14 @@ func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutat
 	if err != nil {
 		modRelToWorkspace = filepath.Base(modRoot)
 	}
-	dstDir := filepath.Join(w.TempDir, modRelToWorkspace, pkgRelDir)
-	if dstDir == filepath.Join(w.TempDir, ".", pkgRelDir) {
+
+	// FIX: compare the relative string directly, not the joined path.
+	var dstDir string
+	if modRelToWorkspace == "." {
 		// modRoot IS the workspace root (single-module case)
 		dstDir = filepath.Join(w.TempDir, pkgRelDir)
+	} else {
+		dstDir = filepath.Join(w.TempDir, modRelToWorkspace, pkgRelDir)
 	}
 
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
