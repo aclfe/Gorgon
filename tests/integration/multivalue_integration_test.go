@@ -3,14 +3,7 @@
 
 package integration
 
-import (
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"testing"
-)
+import "testing"
 
 // TestMultiValueReturnMutations is a regression test for the multi-value return bug fix.
 //
@@ -38,5 +31,5 @@ import (
 // - Tests can kill mutations, achieving >50% mutation score
 // - The fix remains stable across code changes
 func TestMultiValueReturnMutations(t *testing.T) {
-	t.skip("TODO: I need to consider this more deeply if this issue will still persist. FOr now, its just a TODO")
+	t.Skip("TODO: I need to consider this more deeply if this issue will still persist. FOr now, its just a TODO")
 }
