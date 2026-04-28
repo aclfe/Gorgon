@@ -248,10 +248,8 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			}
 		}
 
-		// Always write textfile to stdout when using multi-outputs
-		writeTextToStdout := len(cfg.Outputs) > 0 && format != "textfile"
-
-		_, reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts, writeTextToStdout)
+		// Always write text report to terminal exactly once (handled inside reporter.Report)
+		_, reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts)
 		
 		// Generate badge even if report had errors (e.g., threshold failure)
 		if cfg.Badge != "" {

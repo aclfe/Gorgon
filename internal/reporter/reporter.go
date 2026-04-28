@@ -73,7 +73,7 @@ func computeStats(mutants []testing.Mutant, totalMutants int) ReportStats {
 	return s
 }
 
-func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string, blOpts BaselineOptions, writeTextToStdout bool) (ReportStats, error) {
+func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug bool, showKilled bool, showSurvived bool, outputFile string, debugFile string, format string, blOpts BaselineOptions) (ReportStats, error) {
 	stats := computeStats(mutants, totalMutants)
 
 	// Baseline / ratchet handling - do this BEFORE threshold checks
@@ -155,10 +155,11 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 		}
 	}
 
-	// Always write textfile to stdout when using multi-outputs
-	if writeTextToStdout {
+	// Always write text report to terminal exactly once.
+	// If the legacy path already wrote to stdout (because outputFile was ""), skip it.
+	if outputFile != "" || format != "textfile" {
 		if err := writeTextReport(mutants, stats, debug, showKilled, showSurvived, ""); err != nil {
-			return stats, fmt.Errorf("failed to write text report to stdout: %w", err)
+			return stats, fmt.Errorf("failed to write text report to terminal: %w", err)
 		}
 	}
 
@@ -174,6 +175,12 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 			if file == "" {
 				continue
 			}
+
+			// Skip if this spec was already handled by the legacy path above
+			if fmtType == format && file == outputFile {
+				continue
+			}
+
 			switch fmtType {
 			case "textfile":
 				if err := writeTextReport(mutants, stats, debug, showKilled, showSurvived, file); err != nil {

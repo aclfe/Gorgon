@@ -105,7 +105,6 @@ func runPipeline(t *testing.T, fixtureDir string) reporter.ReportStats {
 		"",
 		"",
 		reporter.BaselineOptions{},
-		false,
 	)
 	return stats
 }

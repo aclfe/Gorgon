@@ -13,16 +13,14 @@ import (
 
 func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKilled, showSurvived bool, outputFile string) error {
 	var outWriters []io.Writer
-	outWriters = append(outWriters, os.Stdout)
-
-	var outFile *os.File
-	if outputFile != "" {
+	if outputFile == "" {
+		outWriters = append(outWriters, os.Stdout)
+	} else {
 		f, err := os.Create(outputFile)
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer f.Close()
-		outFile = f
 		outWriters = append(outWriters, f)
 	}
 
@@ -30,10 +28,10 @@ func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKil
 	fileCache := make(map[string][]byte)
 
 	if debug {
-		fmt.Fprintln(os.Stdout, "=== Debug Information ===")
+		fmt.Fprintln(out, "=== Debug Information ===")
 
 		if stats.CompileError+stats.Error > 0 {
-			fmt.Fprintf(os.Stdout, "\nError Summary by Operator:\n")
+			fmt.Fprintf(out, "\nError Summary by Operator:\n")
 			opErrors := make(map[string]int)
 			opTotal := make(map[string]int)
 			for _, mutant := range mutants {
@@ -45,30 +43,30 @@ func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKil
 			for op, errCount := range opErrors {
 				total := opTotal[op]
 				pct := float64(errCount) / float64(total) * 100
-				fmt.Fprintf(os.Stdout, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
+				fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
 			}
 
 			uniqueErrors := extractUniqueCompilerErrors(mutants)
 			if len(uniqueErrors) > 0 {
-				fmt.Fprintf(os.Stdout, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
+				fmt.Fprintf(out, "\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors))
 				for i, errMsg := range uniqueErrors {
 					if i >= 20 {
-						fmt.Fprintf(os.Stdout, "  ... and %d more unique error types\n", len(uniqueErrors)-20)
+						fmt.Fprintf(out, "  ... and %d more unique error types\n", len(uniqueErrors)-20)
 						break
 					}
-					fmt.Fprintf(os.Stdout, "  • %s\n", errMsg)
+					fmt.Fprintf(out, "  • %s\n", errMsg)
 				}
 			}
 
-			fmt.Fprintf(os.Stdout, "\nPer-Mutant Compilation Errors:\n")
-			shownCount := writePerMutantErrors(os.Stdout, mutants, 200)
+			fmt.Fprintf(out, "\nPer-Mutant Compilation Errors:\n")
+			shownCount := writePerMutantErrors(out, mutants, 200)
 			if shownCount > 200 {
-				fmt.Fprintf(os.Stdout, "  ... and %d more unique error lines (total: %d)\n", shownCount-200, shownCount)
+				fmt.Fprintf(out, "  ... and %d more unique error lines (total: %d)\n", shownCount-200, shownCount)
 			} else if shownCount == 0 {
-				fmt.Fprintln(os.Stdout, "  (no detailed errors available)")
+				fmt.Fprintln(out, "  (no detailed errors available)")
 			}
 
-			fmt.Fprintf(os.Stdout, "\nError Count by Operator:\n")
+			fmt.Fprintf(out, "\nError Count by Operator:\n")
 			opErrorCount := make(map[string]int)
 			for _, mutant := range mutants {
 				if mutant.Status == testing.StatusError {
@@ -76,11 +74,11 @@ func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKil
 				}
 			}
 			for op, count := range opErrorCount {
-				fmt.Fprintf(os.Stdout, "  %s: %d errors\n", op, count)
+				fmt.Fprintf(out, "  %s: %d errors\n", op, count)
 			}
 		}
 
-		fmt.Fprintln(os.Stdout, "\n=== End Debug Information ===")
+		fmt.Fprintln(out, "\n=== End Debug Information ===")
 	}
 
 	errors := stats.CompileError + stats.Error
@@ -156,6 +154,5 @@ func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKil
 		}
 	}
 
-	_ = outFile
 	return nil
 }

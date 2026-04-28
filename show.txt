@@ -9,9 +9,9 @@ Top Killing Tests:
   TestLoopBodyRemoval_Registration                   12 kills
   TestDeferRemoval_Registration                      9 kills
   TestDivide                                         4 kills
-  TestEarlyReturnRemoval_Name                        1 kills
-  TestSubtract                                       1 kills
-  TestMultiply                                       1 kills
+  TestConstantReplacement_Name                       1 kills
+  TestDeferRemoval_Name                              1 kills
+  TestEmptyBody_Name                                 1 kills
 
 Killed Mutants:
 - #9420 /home/aclfe/Desktop/coding/GorgonMain/Gorgon/pkg/mutator/operators/defer_removal/defer_removal.go:12:5 (zero_value_return_string) killed by TestDeferRemoval_Name (5ms)
