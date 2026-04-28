@@ -23,9 +23,7 @@ type PreflightResult struct {
 }
 
 const (
-	StatusValid        = "valid"
-	StatusInvalid      = "invalid"
-	StatusCompileError = "error"
+	StatusValid = "valid"
 )
 
 // RunPreflight validates all mutants with three-level filtering.

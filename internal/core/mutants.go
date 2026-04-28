@@ -19,6 +19,17 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
+// Mutant status constants — single source of truth.
+const (
+	StatusKilled       = "killed"
+	StatusSurvived     = "survived"
+	StatusUntested     = "untested"
+	StatusInvalid      = "invalid"
+	StatusTimeout      = "timeout"
+	StatusError        = "error"
+	StatusCompileError = "error" // compile errors share the "error" status; distinguished by KilledBy == "(compiler)"
+)
+
 type Mutant struct {
 	ID           int
 	Site         engine.Site

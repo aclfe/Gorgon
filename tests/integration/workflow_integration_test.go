@@ -3,20 +3,57 @@
 
 package integration
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 // ============================================================================
 // WORKFLOW BASIC PIPELINE
 // ============================================================================
 
-// TestWorkflow_PipelineOutputStatsAddUp verifies pipeline output stats add up correctly
+// TestWorkflow_PipelineOutputStatsAddUp runs the full mutation testing pipeline on
+// the whole Gorgon repository and verifies:
 func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
-	t.Skip("TODO: Verify Total = Killed + Survived + Untested + CompileError + Error + Timeout")
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+
+	stats := runPipeline(t, repoRoot)
+
+	// Invariant 1: sum of all categories must equal total.
+	sum := stats.Killed + stats.Survived + stats.CompileError + stats.Error +
+		stats.Timeout + stats.Untested + stats.Invalid
+	if sum != stats.Total {
+		t.Errorf(
+			"category sum %d != total %d\n  killed=%d survived=%d compile_error=%d error=%d timeout=%d untested=%d invalid=%d",
+			sum, stats.Total,
+			stats.Killed, stats.Survived, stats.CompileError, stats.Error,
+			stats.Timeout, stats.Untested, stats.Invalid,
+		)
+	}
+
+	// Invariant 2: score formula matches computed value.
+	denom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout
+	if denom > 0 {
+		expected := float64(stats.Killed) / float64(denom) * 100
+		if d := stats.Score - expected; d < -0.01 || d > 0.01 {
+			t.Errorf("score %.4f != formula result %.4f (killed=%d denom=%d)",
+				stats.Score, expected, stats.Killed, denom)
+		}
+	}
+
+	if stats.Total == 0 {
+		t.Fatal("no mutants produced — repo traversal may be broken")
+	}
 }
 
-// TestWorkflow_MutationScoreCalculation verifies mutation score calculation
+// TestWorkflow_MutationScoreCalculation verifies the unified score formula:
+// Score = Killed / (Killed + Survived + Untested + Timeout) * 100
+// CompileError, Error, and Invalid are excluded from the denominator.
 func TestWorkflow_MutationScoreCalculation(t *testing.T) {
-	t.Skip("TODO: Verify Score = (Killed / (Killed + Survived)) * 100")
+	t.Skip("TODO: Verify the unified score formula is correct everywhere")
 }
 
 // TestWorkflow_NoMutantsLost verifies no mutants are lost during pipeline

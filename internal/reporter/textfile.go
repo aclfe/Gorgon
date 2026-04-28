@@ -9,28 +9,9 @@ import (
 	"time"
 
 	"github.com/aclfe/gorgon/internal/core"
-	"github.com/aclfe/gorgon/internal/subconfig"
 )
 
-func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, debug, showKilled, showSurvived bool, outputFile string) error {
-	killed := 0
-	survived := 0
-	errors := 0
-	untested := 0
-
-	for _, mutant := range mutants {
-		switch mutant.Status {
-		case "killed":
-			killed++
-		case "survived":
-			survived++
-		case "error":
-			errors++
-		case "untested":
-			untested++
-		}
-	}
-
+func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKilled, showSurvived bool, outputFile string) error {
 	var outWriters []io.Writer
 	outWriters = append(outWriters, os.Stdout)
 
@@ -51,13 +32,13 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 	if debug {
 		fmt.Fprintln(os.Stdout, "=== Debug Information ===")
 
-		if errors > 0 {
+		if stats.CompileError+stats.Error > 0 {
 			fmt.Fprintf(os.Stdout, "\nError Summary by Operator:\n")
 			opErrors := make(map[string]int)
 			opTotal := make(map[string]int)
 			for _, mutant := range mutants {
 				opTotal[mutant.Operator.Name()]++
-				if mutant.Status == "error" {
+				if mutant.Status == testing.StatusError {
 					opErrors[mutant.Operator.Name()]++
 				}
 			}
@@ -90,7 +71,7 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 			fmt.Fprintf(os.Stdout, "\nError Count by Operator:\n")
 			opErrorCount := make(map[string]int)
 			for _, mutant := range mutants {
-				if mutant.Status == "error" {
+				if mutant.Status == testing.StatusError {
 					opErrorCount[mutant.Operator.Name()]++
 				}
 			}
@@ -102,22 +83,17 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 		fmt.Fprintln(os.Stdout, "\n=== End Debug Information ===")
 	}
 
-	score := 0.0
-	effectiveTotal := killed + survived + untested
-	if effectiveTotal > 0 {
-		score = float64(killed) / float64(effectiveTotal) * percentageMultiplier
-	}
-
+	errors := stats.CompileError + stats.Error
 	writer := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tUntested\tTotal")
-	fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\n", score, killed, survived, errors, untested, totalMutants)
+	fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tTimeout\tUntested\tInvalid\tTotal")
+	fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", stats.Score, stats.Killed, stats.Survived, errors, stats.Timeout, stats.Untested, stats.Invalid, stats.Total)
 	writer.Flush()
 
-	if killed > 0 {
+	if stats.Killed > 0 {
 		fmt.Fprintln(out, "\nTop Killing Tests:")
 		testKills := make(map[string]int)
 		for _, mutant := range mutants {
-			if mutant.Status == "killed" && mutant.KilledBy != "" {
+			if mutant.Status == testing.StatusKilled && mutant.KilledBy != "" {
 				testKills[mutant.KilledBy]++
 			}
 		}
@@ -143,10 +119,10 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 		}
 	}
 
-	if killed > 0 && showKilled {
+	if stats.Killed > 0 && showKilled {
 		fmt.Fprintln(out, "\nKilled Mutants:")
 		for _, mutant := range mutants {
-			if mutant.Status == "killed" {
+			if mutant.Status == testing.StatusKilled {
 				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
 				killedBy := mutant.KilledBy
 				if killedBy == "" {
@@ -167,7 +143,7 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 		fmt.Fprintln(out, "\nSurvived Mutants:")
 		hasSurvived := false
 		for _, mutant := range mutants {
-			if mutant.Status == "survived" {
+			if mutant.Status == testing.StatusSurvived {
 				hasSurvived = true
 				col := getVisualColumn(fileCache, mutant.Site.File.Name(), mutant.Site.Line, mutant.Site.Column)
 				fmt.Fprintf(out, "- %s in %s:%d:%d (Operator: %s)\n",
@@ -177,16 +153,6 @@ func writeTextReport(mutants []testing.Mutant, totalMutants int, threshold float
 		}
 		if !hasSurvived {
 			fmt.Fprintln(out, "  (none)")
-		}
-	}
-
-	if threshold > 0 && effectiveTotal > 0 && score < threshold {
-		if resolver != nil && resolver.HasAnyOverrides() {
-			if err := checkPerPackageThresholds(mutants, threshold, resolver, out); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("mutation score %.2f%% is below threshold %.2f%%", score, threshold)
 		}
 	}
 

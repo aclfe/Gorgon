@@ -28,7 +28,7 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) (result []Mutant, retErr error) {
 
 	log.Debug("GenerateAndRunSchemata called with externalCfg.Enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
 
@@ -50,20 +50,31 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	// Run preflight validation: Level 1 (static) + Level 2 (type-check each mutant)
 	validMutants, allInvalid := RunPreflight(mutants, log)
 
-	// Mark the bad ones on the original list
+	// Collect invalid mutants with their status set, for inclusion in the final result.
+	var invalidMutants []Mutant
 	for _, r := range allInvalid {
 		for i := range mutants {
 			if mutants[i].ID == r.MutantID {
 				mutants[i].Status = r.Status
 				mutants[i].Error = r.Error
 				mutants[i].KillOutput = r.ErrorReason
+				invalidMutants = append(invalidMutants, mutants[i])
 				break
 			}
 		}
 	}
 
-	mutants = validMutants
+	// Total includes all mutants (valid + invalid) so reporter math always balances.
 	lastTotalMutants = len(mutants)
+	mutants = validMutants
+
+	// Ensure invalid mutants are always appended to the returned slice so
+	// computeStats can count them and Total == sum of all categories.
+	defer func() {
+		if len(invalidMutants) > 0 {
+			result = append(result, invalidMutants...)
+		}
+	}()
 
 	if len(mutants) == 0 {
 		return nil, nil
@@ -165,7 +176,10 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	//Verify the transformed code compiles with L4 retry logic
 	log.Debug("Verifying schemata-transformed code compiles...")
-	mutants, err = verifyAndCleanSchemata(ctx, ws, mutants, log)
+	var removedByVerify []Mutant
+	mutants, removedByVerify, err = verifyAndCleanSchemata(ctx, ws, mutants, log)
+	// Track removed mutants so they appear in final counts (compile-error status already set).
+	invalidMutants = append(invalidMutants, removedByVerify...)
 	if err != nil {
 		log.Warn("Schemata compilation failed, marking all mutants as errors to prevent OOM")
 		setMutantErrors(mutants, err)
@@ -302,6 +316,15 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		}
 	} else {
 		log.Debug("[EXTERNAL] Skipping external phase: enabled=%v, suites=%d, binaries=%d", externalCfg.Enabled, len(externalCfg.Suites), len(suiteBinaries))
+	}
+
+	// Any mutant that passed preflight and schemata verification but never
+	// received an execution result (e.g. its package path couldn't be resolved)
+	// is marked untested so Total always equals the sum of all categories.
+	for i := range mutants {
+		if mutants[i].Status == "" {
+			mutants[i].Status = StatusUntested
+		}
 	}
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
@@ -723,7 +746,9 @@ func TestVerifyBuildSequential(ctx context.Context, tempDir string, log *logger.
 }
 
 // verifyAndCleanSchemata runs build verification with retry loop that removes bad mutants.
-func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
+// Returns kept mutants, removed mutants (with compile-error status set), and any error.
+// Removed mutants are always returned so callers can include them in final counts.
+func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) (kept []Mutant, removed []Mutant, err error) {
 	const maxRounds = 5
 
 	verifyCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -735,14 +760,22 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 			if round > 0 {
 				log.Debug("[VERIFY] Build clean after %d removal round(s)", round)
 			}
-			return mutants, nil
+			return mutants, removed, nil
 		}
 
 		log.Debug("[VERIFY] Round %d: build failed, scanning for bad mutant IDs", round+1)
 
 		badIDs := extractMutantIDsFromBuildErrors(ws.TempDir, buildOut)
 		if len(badIDs) == 0 {
-			return nil, fmt.Errorf("schemata build failed (round %d), bad mutants unidentifiable:\n%s", round+1, buildOut)
+			for i := range mutants {
+				if mutants[i].Status == "" {
+					mutants[i].Status = StatusError
+					mutants[i].KilledBy = "(compiler)"
+					mutants[i].KillOutput = fmt.Sprintf("build verification failed (round %d): unidentifiable", round+1)
+				}
+			}
+			removed = append(removed, mutants...)
+			return nil, removed, fmt.Errorf("schemata build failed (round %d), bad mutants unidentifiable:\n%s", round+1, buildOut)
 		}
 
 		log.Debug("[VERIFY] Round %d: removing %d bad mutant(s): %v", round+1, len(badIDs), badIDs)
@@ -752,38 +785,55 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 			badSet[id] = true
 		}
 
-		// DEBUG: show what we're trying to match against
 		log.Debug("[DEBUG-VERIFY] badSet IDs to remove: %v", badIDs)
 		log.Debug("[DEBUG-VERIFY] mutant IDs currently in slice:")
 		for _, m := range mutants {
 			log.Debug("[DEBUG-VERIFY] mutant ID=%d status=%q — in badSet: %v", m.ID, m.Status, badSet[m.ID])
 		}
 
-		var kept []Mutant
+		var keptThisRound []Mutant
 		for i := range mutants {
 			if badSet[mutants[i].ID] {
-				mutants[i].Status = StatusCompileError
+				mutants[i].Status = StatusError
+				mutants[i].KilledBy = "(compiler)"
 				mutants[i].KillOutput = fmt.Sprintf("build verification: removed in round %d", round+1)
+				removed = append(removed, mutants[i])
 			} else {
-				kept = append(kept, mutants[i])
+				keptThisRound = append(keptThisRound, mutants[i])
 			}
 		}
 
-		if len(kept) == len(mutants) {
-			return nil, fmt.Errorf("build verification: bad mutants identified but none removed, aborting")
+		if len(keptThisRound) == len(mutants) {
+			for i := range keptThisRound {
+				if keptThisRound[i].Status == "" {
+					keptThisRound[i].Status = StatusError
+					keptThisRound[i].KilledBy = "(compiler)"
+					keptThisRound[i].KillOutput = fmt.Sprintf("build verification (round %d): bad IDs identified but none matched", round+1)
+				}
+			}
+			removed = append(removed, keptThisRound...)
+			return nil, removed, fmt.Errorf("build verification: bad mutants identified but none removed, aborting")
 		}
 
 		// Re-apply schemata to the affected files.
-		if err := reapplyAffectedFiles(ws, badSet, mutants, kept, log); err != nil {
-			return nil, fmt.Errorf("re-apply after round %d: %w", round+1, err)
+		if err := reapplyAffectedFiles(ws, badSet, mutants, keptThisRound, log); err != nil {
+			for i := range keptThisRound {
+				if keptThisRound[i].Status == "" {
+					keptThisRound[i].Status = StatusError
+					keptThisRound[i].KilledBy = "(compiler)"
+					keptThisRound[i].KillOutput = fmt.Sprintf("build verification (round %d): re-apply failed", round+1)
+				}
+			}
+			removed = append(removed, keptThisRound...)
+			return nil, removed, fmt.Errorf("re-apply after round %d: %w", round+1, err)
 		}
-		mutants = kept
+		mutants = keptThisRound
 	}
 
 	if _, finalErr := verifyBuildSequential(verifyCtx, ws.TempDir, log); finalErr != nil {
 		log.Warn("[VERIFY] Still failing after %d rounds — proceeding with remaining mutants", maxRounds)
 	}
-	return mutants, nil
+	return mutants, removed, nil
 }
 
 // extractMutantIDsFromBuildErrors scans temp files near error lines for activeMutantID patterns.
@@ -793,11 +843,6 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 	var ids []int
 
 	prefix := []byte("activeMutantID == ")
-
-	// DEBUG: show what the compiler reported
-	for _, ce := range errors {
-		fmt.Printf("[DEBUG-EXTRACT] compiler error: file=%q line=%d msg=%q\n", ce.File, ce.Line, ce.Message)
-	}
 
 	for _, ce := range errors {
 		filePath := ce.File
@@ -839,12 +884,8 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 			}
 			seen[id] = true
 			ids = append(ids, id)
-			// DEBUG: show what IDs were found in the scan window
-			fmt.Printf("[DEBUG-EXTRACT] found activeMutantID == %d in file %q near line %d\n", id, filePath, ce.Line)
 		}
 	}
-	// DEBUG: show what IDs were found in the scan window
-	fmt.Printf("[DEBUG-EXTRACT] extracted IDs from build output: %v\n", ids)
 	return ids
 }
 
@@ -974,7 +1015,7 @@ func TestApplySchemataToWorkspace(ws *ModuleWorkspace, mutants []Mutant, log *lo
 
 // TestVerifyAndCleanSchemata exposes the internal build-verify/retry loop so
 // integration tests can exercise it directly without going through the full pipeline.
-func TestVerifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, error) {
+func TestVerifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []Mutant, log *logger.Logger) ([]Mutant, []Mutant, error) {
 	return verifyAndCleanSchemata(ctx, ws, mutants, log)
 }
 

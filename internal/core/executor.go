@@ -212,8 +212,9 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 	// e.log.Debug("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		e.log.Warn("[COMPILE] FAILED for package %s: %v", relPkg, err)
-		e.log.Warn("[COMPILE] Error output:\n%s", string(out))
+		// e.log.Warn("[COMPILE] FAILED for package %s: %v", relPkg, err)
+		// e.log.Warn("[COMPILE] Error output:\n%s", string(out))
+		// FOR NOW I'M COMMENTING THESE. EXECUTOR SHOULD RETURN ERROR OUTPUT AND LET CALLER DECIDE WHAT TO DO WITH IT. IN THE FUTURE, WE MAY WANT TO LOG MORE VERBOSLY OR LESS VERBOSLY BASED ON LOG LEVEL.
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
 	// if len(out) > 0 {
@@ -320,7 +321,11 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 
 	isCompErr := isCompilationError(outStr)
 
-	if isCompErr {
+	if hardCtx.Err() != nil {
+		status = "timeout"
+		killedBy = "(timeout)"
+		killOutput = "test timed out"
+	} else if isCompErr {
 		status = "error"
 		killedBy = extractErrorType(outStr)
 		killOutput = outStr
@@ -593,7 +598,8 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					executor.log.Info("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
+					//executor.log.Info("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
+					// CHANGED BASED ON LOG LEVEL. 
 				}
 				return nil
 			}
@@ -941,7 +947,8 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 		if pkgRelPath == "" || pkgRelPath == "." {
 			pkgRelPath = filepath.Base(pkgDir)
 		}
-		fmt.Fprintf(os.Stderr, "[INFO] No test binary for ./%s — package has no test files, %d mutant(s) marked untested\n", pkgRelPath, len(testableIDs))
+		// fmt.Fprintf(os.Stderr, "[INFO] No test binary for ./%s — package has no test files, %d mutant(s) marked untested\n", pkgRelPath, len(testableIDs))
+		//CHANGING BASED ON LOG LEVEL
 		for _, m := range pkgMutants {
 			if m.Status == "" {
 				m.Status = "untested"

@@ -13,12 +13,15 @@ type jsonReport struct {
 }
 
 type jsonSummary struct {
-	Total    int     `json:"total"`
-	Killed   int     `json:"killed"`
-	Survived int     `json:"survived"`
-	Errors   int     `json:"errors"`
-	Untested int     `json:"untested"`
-	Score    float64 `json:"score"`
+	Total         int     `json:"total"`
+	Killed        int     `json:"killed"`
+	Survived      int     `json:"survived"`
+	CompileErrors int     `json:"compile_errors"`
+	Errors        int     `json:"errors"`
+	Timeout       int     `json:"timeout"`
+	Untested      int     `json:"untested"`
+	Invalid       int     `json:"invalid"`
+	Score         float64 `json:"score"`
 }
 
 type jsonMutant struct {
@@ -32,15 +35,18 @@ type jsonMutant struct {
 	Error    string `json:"error,omitempty"`
 }
 
-func writeJSONReport(mutants []testing.Mutant, totalMutants int, score float64, killed, survived, errors, untested int, outputFile string) error {
+func writeJSONReport(mutants []testing.Mutant, stats ReportStats, outputFile string) error {
 	report := jsonReport{
 		Summary: jsonSummary{
-			Total:    totalMutants,
-			Killed:   killed,
-			Survived: survived,
-			Errors:   errors,
-			Untested: untested,
-			Score:    score,
+			Total:         stats.Total,
+			Killed:        stats.Killed,
+			Survived:      stats.Survived,
+			CompileErrors: stats.CompileError,
+			Errors:        stats.Error,
+			Timeout:       stats.Timeout,
+			Untested:      stats.Untested,
+			Invalid:       stats.Invalid,
+			Score:         stats.Score,
 		},
 		Mutants: make([]jsonMutant, 0, len(mutants)),
 	}
