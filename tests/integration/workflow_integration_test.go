@@ -12,8 +12,7 @@ import (
 // WORKFLOW BASIC PIPELINE
 // ============================================================================
 
-// TestWorkflow_PipelineOutputStatsAddUp runs the full mutation testing pipeline on
-// the whole Gorgon repository and verifies:
+// TestWorkflow_PipelineOutputStatsAddUp both errors are possible. Verified test. 
 func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
 	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
@@ -22,7 +21,6 @@ func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
 
 	stats := runPipeline(t, repoRoot)
 
-	// Invariant 1: sum of all categories must equal total.
 	sum := stats.Killed + stats.Survived + stats.CompileError + stats.Error +
 		stats.Timeout + stats.Untested + stats.Invalid
 	if sum != stats.Total {
@@ -34,7 +32,6 @@ func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
 		)
 	}
 
-	// Invariant 2: score formula matches computed value.
 	denom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout
 	if denom > 0 {
 		expected := float64(stats.Killed) / float64(denom) * 100

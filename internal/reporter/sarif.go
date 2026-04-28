@@ -49,8 +49,9 @@ type sarifText struct {
 }
 
 type sarifRun struct {
-	Tool    sarifTool    `json:"tool"`
-	Results []sarifResult `json:"results"`
+	Tool       sarifTool     `json:"tool"`
+	Results    []sarifResult `json:"results"`
+	Properties interface{}   `json:"properties,omitempty"`
 }
 
 type sarifTool struct {
@@ -67,13 +68,13 @@ type sarifLog struct {
 	Runs    []sarifRun `json:"runs"`
 }
 
-func writeSARIFReport(mutants []testing.Mutant, outputFile string) error {
+func writeSARIFReport(mutants []testing.Mutant, stats ReportStats, outputFile string) error {
 	ruleMap := make(map[string]bool)
 	var results []sarifResult
 	var rules []sarifRule
 
 	for _, m := range mutants {
-		if m.Status == "survived" {
+		if m.Status == testing.StatusSurvived {
 			ruleID := m.Operator.Name()
 			
 			// Add rule if not seen
@@ -122,7 +123,8 @@ func writeSARIFReport(mutants []testing.Mutant, outputFile string) error {
 						Rules: rules,
 					},
 				},
-				Results: results,
+				Results:    results,
+				Properties: stats,
 			},
 		},
 	}

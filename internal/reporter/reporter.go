@@ -24,15 +24,16 @@ type BaselineOptions struct {
 
 // ReportStats holds all categorized mutant counts and the final score.
 type ReportStats struct {
-	Killed       int
-	Survived     int
-	Untested     int
-	CompileError int
-	Error        int
-	Timeout      int
-	Invalid      int
-	Total        int
-	Score        float64
+	Killed        int     `json:"killed" xml:"killed,attr"`
+	Survived      int     `json:"survived" xml:"survived,attr"`
+	Untested      int     `json:"untested" xml:"untested,attr"`
+	Timeout       int     `json:"timeout" xml:"timeout,attr"`
+	CompileErrors int     `json:"compile_errors" xml:"compile_errors,attr"`
+	RuntimeErrors int     `json:"runtime_errors" xml:"runtime_errors,attr"`
+	TotalErrors   int     `json:"total_errors" xml:"total_errors,attr"`
+	Invalid       int     `json:"invalid" xml:"invalid,attr"`
+	Total         int     `json:"total" xml:"total,attr"`
+	Score         float64 `json:"score" xml:"score,attr"`
 }
 
 const (
@@ -40,9 +41,182 @@ const (
 	tabWidth             = 4
 )
 
-// computeStats counts mutant statuses and calculates the unified score.
+// CalculateScore returns the mutation score based on the given counts.
 // Score = Killed / (Killed + Survived + Untested + Timeout) * 100
-// CompileError, Error, and Invalid are excluded from the score denominator.
+func CalculateScore(killed, survived, untested, timeout int) float64 {
+	denom := killed + survived + untested + timeout
+	if denom == 0 {
+		return 0
+	}
+	return float64(killed) / float64(denom) * percentageMultiplier
+}
+
+// ScoreClass returns "good", "amber", or "bad" based on score and threshold.
+// Used by HTML report for file-level and overall score coloring.
+func ScoreClass(score, threshold float64) string {
+	if threshold > 0 && score < threshold {
+		return "bad"
+	}
+	if score < 80 {
+		return "amber"
+	}
+	return "good"
+}
+
+// FormatTopKillingTests returns a formatted string of top killing tests.
+// Used by both textfile and debug output.
+func FormatTopKillingTests(mutants []testing.Mutant, maxShow int) string {
+	testKills := make(map[string]int)
+	for _, mutant := range mutants {
+		if mutant.Status == testing.StatusKilled && mutant.KilledBy != "" {
+			testKills[mutant.KilledBy]++
+		}
+	}
+
+	if len(testKills) == 0 {
+		return ""
+	}
+
+	type testKill struct {
+		name  string
+		count int
+	}
+	sortedTests := make([]testKill, 0, len(testKills))
+	for name, count := range testKills {
+		sortedTests = append(sortedTests, testKill{name, count})
+	}
+	sort.Slice(sortedTests, func(i, j int) bool {
+		return sortedTests[i].count > sortedTests[j].count
+	})
+
+	if len(sortedTests) < maxShow {
+		maxShow = len(sortedTests)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Top Killing Tests:\n")
+	for i := 0; i < maxShow; i++ {
+		sb.WriteString(fmt.Sprintf("  %-50s %d kills\n", sortedTests[i].name, sortedTests[i].count))
+	}
+	return sb.String()
+}
+
+// FormatDebugErrors returns formatted debug error output.
+// Used by both textfile debug output and reporter debug file.
+func FormatDebugErrors(mutants []testing.Mutant, stats ReportStats) string {
+	var sb strings.Builder
+
+	if stats.TotalErrors > 0 {
+		sb.WriteString("\nError Summary by Operator:\n")
+		opErrors := make(map[string]int)
+		opTotal := make(map[string]int)
+		for _, mutant := range mutants {
+			opTotal[mutant.Operator.Name()]++
+			if mutant.Status == testing.StatusError {
+				opErrors[mutant.Operator.Name()]++
+			}
+		}
+		for op, errCount := range opErrors {
+			total := opTotal[op]
+			pct := float64(errCount) / float64(total) * 100
+			sb.WriteString(fmt.Sprintf("  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct))
+		}
+
+		uniqueErrors := extractUniqueCompilerErrors(mutants)
+		if len(uniqueErrors) > 0 {
+			sb.WriteString(fmt.Sprintf("\nTop Compilation Error Types (showing up to 20 of %d unique error messages):\n", len(uniqueErrors)))
+			for i, errMsg := range uniqueErrors {
+				if i >= 20 {
+					sb.WriteString(fmt.Sprintf("  ... and %d more unique error types\n", len(uniqueErrors)-20))
+					break
+				}
+				sb.WriteString(fmt.Sprintf("  • %s\n", errMsg))
+			}
+		}
+
+		sb.WriteString("\nError Count by Operator:\n")
+		opErrorCount := make(map[string]int)
+		for _, mutant := range mutants {
+			if mutant.Status == testing.StatusError {
+				opErrorCount[mutant.Operator.Name()]++
+			}
+		}
+		for op, count := range opErrorCount {
+			sb.WriteString(fmt.Sprintf("  %s: %d errors\n", op, count))
+		}
+		sb.WriteString("\n")
+	}
+
+	if stats.Untested > 0 {
+		sb.WriteString("\nUntested by Operator (binary missing - package failed to compile):\n")
+		opUntested := make(map[string]int)
+		opTotal := make(map[string]int)
+		for _, mutant := range mutants {
+			opTotal[mutant.Operator.Name()]++
+			if mutant.Status == testing.StatusUntested {
+				opUntested[mutant.Operator.Name()]++
+			}
+		}
+		for op, untestCount := range opUntested {
+			total := opTotal[op]
+			if total == 0 {
+				total = 1
+			}
+			pct := float64(untestCount) / float64(total) * 100
+			sb.WriteString(fmt.Sprintf("  %-35s %d/%d untested (%.1f%%)\n", op, untestCount, total, pct))
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// GroupMutantsByFile groups mutants by file path.
+// Used by HTML report to organize mutants by file.
+func GroupMutantsByFile(mutants []testing.Mutant) map[string]map[int][]testing.Mutant {
+	byFile := make(map[string]map[int][]testing.Mutant)
+	for _, m := range mutants {
+		if m.Site.File == nil {
+			continue
+		}
+		filePath := m.Site.File.Name()
+		if byFile[filePath] == nil {
+			byFile[filePath] = make(map[int][]testing.Mutant)
+		}
+		byFile[filePath][m.Site.Line] = append(byFile[filePath][m.Site.Line], m)
+	}
+	return byFile
+}
+
+// StatsForFile calculates ReportStats for a subset of mutants (e.g., per-file).
+func StatsForFile(mutants []testing.Mutant) ReportStats {
+	var s ReportStats
+	for _, m := range mutants {
+		switch m.Status {
+		case testing.StatusKilled:
+			s.Killed++
+		case testing.StatusSurvived:
+			s.Survived++
+		case testing.StatusUntested:
+			s.Untested++
+		case testing.StatusTimeout:
+			s.Timeout++
+		case testing.StatusInvalid:
+			s.Invalid++
+		case testing.StatusError:
+			if m.KilledBy == "(compiler)" {
+				s.CompileErrors++
+			} else {
+				s.RuntimeErrors++
+			}
+		}
+	}
+	s.TotalErrors = s.CompileErrors + s.RuntimeErrors
+	s.Score = CalculateScore(s.Killed, s.Survived, s.Untested, s.Timeout)
+	return s
+}
+
+// computeStats counts mutant statuses and calculates the unified score.
 func computeStats(mutants []testing.Mutant, totalMutants int) ReportStats {
 	var s ReportStats
 	s.Total = totalMutants
@@ -60,16 +234,14 @@ func computeStats(mutants []testing.Mutant, totalMutants int) ReportStats {
 			s.Invalid++
 		case testing.StatusError:
 			if m.KilledBy == "(compiler)" {
-				s.CompileError++
+				s.CompileErrors++
 			} else {
-				s.Error++
+				s.RuntimeErrors++
 			}
 		}
 	}
-	denom := s.Killed + s.Survived + s.Untested + s.Timeout
-	if denom > 0 {
-		s.Score = float64(s.Killed) / float64(denom) * percentageMultiplier
-	}
+	s.TotalErrors = s.CompileErrors + s.RuntimeErrors
+	s.Score = CalculateScore(s.Killed, s.Survived, s.Untested, s.Timeout)
 	return s
 }
 
@@ -137,15 +309,15 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 				return stats, fmt.Errorf("failed to write text report: %w", err)
 			}
 		case "html":
-			if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, outputFile); err != nil {
+			if err := writeHTMLReport(mutants, stats, threshold, resolver, outputFile); err != nil {
 				return stats, fmt.Errorf("failed to write HTML report: %w", err)
 			}
 		case "junit":
-			if err := writeJUnitReport(mutants, outputFile); err != nil {
+			if err := writeJUnitReport(mutants, stats, outputFile); err != nil {
 				return stats, fmt.Errorf("failed to write JUnit report: %w", err)
 			}
 		case "sarif":
-			if err := writeSARIFReport(mutants, outputFile); err != nil {
+			if err := writeSARIFReport(mutants, stats, outputFile); err != nil {
 				return stats, fmt.Errorf("failed to write SARIF report: %w", err)
 			}
 		case "json":
@@ -187,15 +359,15 @@ func Report(mutants []testing.Mutant, totalMutants int, threshold float64, resol
 					fmt.Fprintf(os.Stderr, "Warning: failed to write text report to %s: %v\n", file, err)
 				}
 			case "html":
-				if err := writeHTMLReport(mutants, totalMutants, threshold, resolver, file); err != nil {
+				if err := writeHTMLReport(mutants, stats, threshold, resolver, file); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to write HTML report to %s: %v\n", file, err)
 				}
 			case "junit":
-				if err := writeJUnitReport(mutants, file); err != nil {
+				if err := writeJUnitReport(mutants, stats, file); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to write JUnit report to %s: %v\n", file, err)
 				}
 			case "sarif":
-				if err := writeSARIFReport(mutants, file); err != nil {
+				if err := writeSARIFReport(mutants, stats, file); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to write SARIF report to %s: %v\n", file, err)
 				}
 			case "json":
@@ -407,47 +579,15 @@ func writeDebugInfo(mutants []testing.Mutant, stats ReportStats, debugFile strin
 	fmt.Fprintf(out, "Mutation Score: %.2f%%\n", stats.Score)
 	fmt.Fprintf(out, "Killed: %d\n", stats.Killed)
 	fmt.Fprintf(out, "Survived: %d\n", stats.Survived)
-	fmt.Fprintf(out, "Compile Errors: %d\n", stats.CompileError)
-	fmt.Fprintf(out, "Errors: %d\n", stats.Error)
+	fmt.Fprintf(out, "Compile Errors: %d\n", stats.CompileErrors)
+	fmt.Fprintf(out, "Runtime Errors: %d\n", stats.RuntimeErrors)
 	fmt.Fprintf(out, "Timeouts: %d\n", stats.Timeout)
 	fmt.Fprintf(out, "Untested: %d\n", stats.Untested)
 	fmt.Fprintf(out, "Invalid: %d\n", stats.Invalid)
 	fmt.Fprintf(out, "Total: %d\n\n", stats.Total)
 
-	errors := stats.CompileError + stats.Error
-	if errors > 0 || stats.Untested > 0 {
-		fmt.Fprintf(out, "Error Summary by Operator:\n")
-		opErrors := make(map[string]int)
-		opTotal := make(map[string]int)
-		for _, mutant := range mutants {
-			opTotal[mutant.Operator.Name()]++
-			if mutant.Status == testing.StatusError {
-				opErrors[mutant.Operator.Name()]++
-			}
-		}
-		for op, errCount := range opErrors {
-			total := opTotal[op]
-			pct := float64(errCount) / float64(total) * 100
-			fmt.Fprintf(out, "  %-35s %d/%d errors (%.1f%%)\n", op, errCount, total, pct)
-		}
-
-		if stats.Untested > 0 {
-			fmt.Fprintf(out, "\nUntested by Operator (binary missing - package failed to compile):\n")
-			opUntested := make(map[string]int)
-			for _, mutant := range mutants {
-				if mutant.Status == testing.StatusUntested {
-					opUntested[mutant.Operator.Name()]++
-				}
-			}
-			for op, untestCount := range opUntested {
-				total := opTotal[op]
-				if total == 0 {
-					total = 1
-				}
-				pct := float64(untestCount) / float64(total) * 100
-				fmt.Fprintf(out, "  %-35s %d/%d untested (%.1f%%)\n", op, untestCount, total, pct)
-			}
-		}
+	if stats.TotalErrors > 0 || stats.Untested > 0 {
+		fmt.Fprint(out, FormatDebugErrors(mutants, stats))
 
 		uniqueErrors := extractUniqueCompilerErrors(mutants)
 		if len(uniqueErrors) > 0 {
@@ -468,49 +608,11 @@ func writeDebugInfo(mutants []testing.Mutant, stats ReportStats, debugFile strin
 		} else {
 			fmt.Fprintln(out, "  (no detailed errors available)")
 		}
-
-		fmt.Fprintf(out, "\nError Count by Operator:\n")
-		opErrorCount := make(map[string]int)
-		for _, mutant := range mutants {
-			if mutant.Status == testing.StatusError {
-				opErrorCount[mutant.Operator.Name()]++
-			}
-		}
-		for op, count := range opErrorCount {
-			fmt.Fprintf(out, "  %s: %d errors\n", op, count)
-		}
 		fmt.Fprintln(out)
 	}
 
 	if stats.Killed > 0 {
-		fmt.Fprintf(out, "Top Killing Tests:\n")
-		testKills := make(map[string]int)
-		for _, mutant := range mutants {
-			if mutant.Status == testing.StatusKilled && mutant.KilledBy != "" {
-				testKills[mutant.KilledBy]++
-			}
-		}
-
-		type testKill struct {
-			name  string
-			count int
-		}
-		sortedTests := make([]testKill, 0, len(testKills))
-		for name, count := range testKills {
-			sortedTests = append(sortedTests, testKill{name, count})
-		}
-		sort.Slice(sortedTests, func(i, j int) bool {
-			return sortedTests[i].count > sortedTests[j].count
-		})
-
-		maxShow := 10
-		if len(sortedTests) < maxShow {
-			maxShow = len(sortedTests)
-		}
-		for i := 0; i < maxShow; i++ {
-			fmt.Fprintf(out, "  %-50s %d kills\n", sortedTests[i].name, sortedTests[i].count)
-		}
-		fmt.Fprintln(out)
+		fmt.Fprintf(out, "%s\n", FormatTopKillingTests(mutants, 10))
 	}
 
 	return nil

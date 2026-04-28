@@ -8,20 +8,8 @@ import (
 )
 
 type jsonReport struct {
-	Summary jsonSummary  `json:"summary"`
+	Summary ReportStats  `json:"summary"`
 	Mutants []jsonMutant `json:"mutants"`
-}
-
-type jsonSummary struct {
-	Total         int     `json:"total"`
-	Killed        int     `json:"killed"`
-	Survived      int     `json:"survived"`
-	CompileErrors int     `json:"compile_errors"`
-	Errors        int     `json:"errors"`
-	Timeout       int     `json:"timeout"`
-	Untested      int     `json:"untested"`
-	Invalid       int     `json:"invalid"`
-	Score         float64 `json:"score"`
 }
 
 type jsonMutant struct {
@@ -37,17 +25,7 @@ type jsonMutant struct {
 
 func writeJSONReport(mutants []testing.Mutant, stats ReportStats, outputFile string) error {
 	report := jsonReport{
-		Summary: jsonSummary{
-			Total:         stats.Total,
-			Killed:        stats.Killed,
-			Survived:      stats.Survived,
-			CompileErrors: stats.CompileError,
-			Errors:        stats.Error,
-			Timeout:       stats.Timeout,
-			Untested:      stats.Untested,
-			Invalid:       stats.Invalid,
-			Score:         stats.Score,
-		},
+		Summary: stats,
 		Mutants: make([]jsonMutant, 0, len(mutants)),
 	}
 

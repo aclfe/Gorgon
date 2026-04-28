@@ -10,12 +10,9 @@ import (
 )
 
 type junitTestSuite struct {
-	XMLName   xml.Name        `xml:"testsuite"`
-	Name      string          `xml:"name,attr"`
-	Tests     int             `xml:"tests,attr"`
-	Failures  int             `xml:"failures,attr"`
-	Errors    int             `xml:"errors,attr"`
-	Skipped   int             `xml:"skipped,attr"`
+	XMLName xml.Name `xml:"testsuite"`
+	Name    string   `xml:"name,attr"`
+	ReportStats
 	Time      float64         `xml:"time,attr"`
 	TestCases []junitTestCase `xml:"testcase"`
 }
@@ -40,10 +37,10 @@ type junitSkipped struct {
 	Message string   `xml:"message,attr"`
 }
 
-func writeJUnitReport(mutants []testing.Mutant, outputFile string) error {
+func writeJUnitReport(mutants []testing.Mutant, stats ReportStats, outputFile string) error {
 	suite := junitTestSuite{
-		Name:  "Mutation Testing",
-		Tests: len(mutants),
+		Name:        "Mutation Testing",
+		ReportStats: stats,
 	}
 
 	for _, m := range mutants {
@@ -53,28 +50,34 @@ func writeJUnitReport(mutants []testing.Mutant, outputFile string) error {
 		}
 
 		switch m.Status {
-		case "killed":
+		case testing.StatusKilled:
 			tc.Time = m.KillDuration.Seconds()
-		case "survived":
-			suite.Failures++
+		case testing.StatusSurvived:
 			tc.Failure = &junitFailure{
 				Message: "Mutant survived",
-				Text:    fmt.Sprintf("Operator: %s\nFile: %s:%d\nMutant ID: %d", m.Operator.Name(), m.Site.File.Name(), m.Site.Line, m.ID),
+				Text:    formatMutantInfo(m),
 			}
-		case "error":
-			suite.Errors++
+		case testing.StatusTimeout:
+			tc.Failure = &junitFailure{
+				Message: "Mutant timeout",
+				Text:    formatMutantInfo(m),
+			}
+		case testing.StatusError:
 			errMsg := ""
 			if m.Error != nil {
 				errMsg = m.Error.Error()
 			}
 			tc.Failure = &junitFailure{
-				Message: "Compilation error",
+				Message: "Execution error",
 				Text:    errMsg,
 			}
-		case "untested":
-			suite.Skipped++
+		case testing.StatusUntested:
 			tc.Skipped = &junitSkipped{
-				Message: "Binary missing - package failed to compile",
+				Message: "Package failed to compile or has no tests",
+			}
+		case testing.StatusInvalid:
+			tc.Skipped = &junitSkipped{
+				Message: "Mutant marked invalid",
 			}
 		}
 
@@ -87,4 +90,8 @@ func writeJUnitReport(mutants []testing.Mutant, outputFile string) error {
 	}
 
 	return os.WriteFile(outputFile, append([]byte(xml.Header), data...), 0644)
+}
+
+func formatMutantInfo(m testing.Mutant) string {
+	return fmt.Sprintf("Operator: %s\nFile: %s:%d\nMutant ID: %d", m.Operator.Name(), m.Site.File.Name(), m.Site.Line, m.ID)
 }

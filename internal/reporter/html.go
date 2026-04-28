@@ -53,6 +53,7 @@ body { font-family: monospace; font-size: 12px; }
 .line-content { flex: 1; padding-left: 10px; white-space: pre; }
 .line-killed { background: #c8e6c9; }
 .line-survived { background: #ffcdd2; }
+.line-timeout { background: #fff9c4; }
 .line-error { background: #fff9c4; }
 .line-untested { background: #fff9c4; }
 .line-none { background: #fff; }
@@ -63,6 +64,7 @@ body { font-family: monospace; font-size: 12px; }
 .mutant-status { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 10px; font-weight: bold; margin-right: 5px; }
 .mutant-status.killed { background: #c8e6c9; color: #2e7d32; }
 .mutant-status.survived { background: #ffcdd2; color: #c62828; }
+.mutant-status.timeout { background: #fff9c4; color: #f57c00; }
 .mutant-status.error { background: #fff9c4; color: #f57c00; }
 .mutant-status.untested { background: #e0e0e0; color: #666; }
 </style>
@@ -79,23 +81,35 @@ body { font-family: monospace; font-size: 12px; }
 <div class="stats">
 <div class="stat">
 <span class="stat-label">Score:</span>
-<span class="stat-value score {{.ScoreClass}}">{{printf "%.1f" .Score}}%</span>
+<span class="stat-value score {{.ScoreClass}}">{{printf "%.1f" .Stats.Score}}%</span>
 </div>
 <div class="stat">
 <span class="stat-label">Killed:</span>
-<span class="stat-value">{{.Killed}}</span>
+<span class="stat-value">{{.Stats.Killed}}</span>
 </div>
 <div class="stat">
 <span class="stat-label">Survived:</span>
-<span class="stat-value">{{.Survived}}</span>
+<span class="stat-value">{{.Stats.Survived}}</span>
 </div>
 <div class="stat">
 <span class="stat-label">Errors:</span>
-<span class="stat-value">{{.Errors}}</span>
+<span class="stat-value">{{.Stats.TotalErrors}}</span>
+</div>
+<div class="stat">
+<span class="stat-label">Timeout:</span>
+<span class="stat-value">{{.Stats.Timeout}}</span>
+</div>
+<div class="stat">
+<span class="stat-label">Untested:</span>
+<span class="stat-value">{{.Stats.Untested}}</span>
+</div>
+<div class="stat">
+<span class="stat-label">Invalid:</span>
+<span class="stat-value">{{.Stats.Invalid}}</span>
 </div>
 <div class="stat">
 <span class="stat-label">Total:</span>
-<span class="stat-value">{{.Total}}</span>
+<span class="stat-value">{{.Stats.Total}}</span>
 </div>
 </div>
 </div>
@@ -247,60 +261,20 @@ type TreeNode struct {
 }
 
 type ReportData struct {
-	Score      float64
+	Stats      ReportStats
 	ScoreClass string
-	Killed     int
-	Survived   int
-	Errors     int
-	Untested   int
-	Total      int
 	Tree       *TreeNode
 	Files      map[string]*FileData
 }
 
-func writeHTMLReport(mutants []testing.Mutant, totalMutants int, threshold float64, resolver *subconfig.Resolver, outputFile string) error {
+func writeHTMLReport(mutants []testing.Mutant, stats ReportStats, threshold float64, resolver *subconfig.Resolver, outputFile string) error {
 	if outputFile == "" {
 		return fmt.Errorf("output file path is required for HTML format")
 	}
 
-	byFile := make(map[string]map[int][]testing.Mutant)
-	for _, m := range mutants {
-		if m.Site.File == nil {
-			continue
-		}
-		filePath := m.Site.File.Name()
-		if byFile[filePath] == nil {
-			byFile[filePath] = make(map[int][]testing.Mutant)
-		}
-		byFile[filePath][m.Site.Line] = append(byFile[filePath][m.Site.Line], m)
-	}
+	byFile := GroupMutantsByFile(mutants)
 
-	killed, survived, errors, untested := 0, 0, 0, 0
-	for _, m := range mutants {
-		switch m.Status {
-		case "killed":
-			killed++
-		case "survived":
-			survived++
-		case "error":
-			errors++
-		case "untested":
-			untested++
-		}
-	}
-
-	effectiveTotal := killed + survived + untested
-	score := 0.0
-	if effectiveTotal > 0 {
-		score = float64(killed) / float64(effectiveTotal) * 100
-	}
-
-	scoreClass := "good"
-	if score < threshold {
-		scoreClass = "bad"
-	} else if score < 80 {
-		scoreClass = "amber"
-	}
+	scoreClass := ScoreClass(stats.Score, threshold)
 
 	cwd, _ := os.Getwd()
 	filesData := make(map[string]*FileData)
@@ -326,6 +300,7 @@ func writeHTMLReport(mutants []testing.Mutant, totalMutants int, threshold float
 				hasSurvived := false
 				hasError := false
 				hasUntested := false
+				hasTimeout := false
 
 				for _, m := range mutantsOnLine {
 					lineStatuses[i].Mutants = append(lineStatuses[i].Mutants, MutantInfo{
@@ -335,59 +310,64 @@ func writeHTMLReport(mutants []testing.Mutant, totalMutants int, threshold float
 						KilledBy: m.KilledBy,
 					})
 
-					if m.Status == "survived" {
+					switch m.Status {
+					case testing.StatusSurvived:
 						hasSurvived = true
 						allKilled = false
-					} else if m.Status == "untested" {
+					case testing.StatusUntested:
 						hasUntested = true
 						allKilled = false
-					} else if m.Status == "error" {
+					case testing.StatusTimeout:
+						hasTimeout = true
+						allKilled = false
+					case testing.StatusError:
 						hasError = true
 						allKilled = false
-					} else if m.Status != "killed" {
+					case testing.StatusKilled:
+						// OK
+					default:
 						allKilled = false
 					}
 				}
 
-				// Priority: survived > untested > error > killed
+				// Priority: survived > timeout > untested > error > killed
 				if hasSurvived {
-					lineStatuses[i].Status = "survived"
+					lineStatuses[i].Status = testing.StatusSurvived
+				} else if hasTimeout {
+					lineStatuses[i].Status = testing.StatusTimeout
 				} else if hasUntested {
-					lineStatuses[i].Status = "untested"
+					lineStatuses[i].Status = testing.StatusUntested
 				} else if hasError {
-					lineStatuses[i].Status = "error"
+					lineStatuses[i].Status = testing.StatusError
 				} else if allKilled {
-					lineStatuses[i].Status = "killed"
+					lineStatuses[i].Status = testing.StatusKilled
 				}
 			}
 		}
 
-		fileKilled, fileSurvived, fileUntested := 0, 0, 0
+		fileKilled, fileSurvived, fileUntested, fileTimeout := 0, 0, 0, 0
 		for _, mutantsOnLine := range lineMutants {
 			for _, m := range mutantsOnLine {
 				switch m.Status {
-				case "killed":
+				case testing.StatusKilled:
 					fileKilled++
-				case "survived":
+				case testing.StatusSurvived:
 					fileSurvived++
-				case "untested":
+				case testing.StatusUntested:
 					fileUntested++
+				case testing.StatusTimeout:
+					fileTimeout++
 				}
 			}
 		}
 
-		fileEffective := fileKilled + fileSurvived + fileUntested
-		fileScore := 0.0
-		if fileEffective > 0 {
-			fileScore = float64(fileKilled) / float64(fileEffective) * 100
+		fileScore := CalculateScore(fileKilled, fileSurvived, fileUntested, fileTimeout)
+		fileThreshold := threshold
+		if resolver != nil {
+			fileThreshold = resolver.EffectiveThreshold(filePath, threshold)
 		}
 
-		fileScoreClass := "good"
-		if fileScore < threshold {
-			fileScoreClass = "bad"
-		} else if fileScore < 80 {
-			fileScoreClass = "amber"
-		}
+		fileScoreClass := ScoreClass(fileScore, fileThreshold)
 
 		relPath := filePath
 		if cwd != "" {
@@ -407,13 +387,8 @@ func writeHTMLReport(mutants []testing.Mutant, totalMutants int, threshold float
 	tree := buildTree(filesData)
 
 	data := ReportData{
-		Score:      score,
+		Stats:      stats,
 		ScoreClass: scoreClass,
-		Killed:     killed,
-		Survived:   survived,
-		Errors:     errors,
-		Untested:   untested,
-		Total:      totalMutants,
 		Tree:       tree,
 		Files:      filesData,
 	}

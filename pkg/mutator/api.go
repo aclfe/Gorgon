@@ -168,6 +168,20 @@ var categoryMap = map[string][]string{
 		"for_condition_true",
 		"for_condition_false",
 	},
+	"function": {
+		"function_call_removal",
+	},
+	"error_handling": {
+		"nil_check_removal",
+		"error_return_nil",
+		"error_check_removal",
+	},
+	"concurrency": {
+		"goroutine_removal",
+	},
+	"panic_recovery": {
+		"panic_removal",
+	},
 }
 
 func Register(op Operator) {
