@@ -1,5 +1,5 @@
 //go:build integration
-// +build integration
+
 
 package integration
 
@@ -52,8 +52,8 @@ import (
 	_ "github.com/aclfe/gorgon/pkg/mutator/operators/zero_value_return"
 )
 
-// runPipeline runs the full mutation testing pipeline on fixtureDir and returns
-// the computed ReportStats. It does not write any output files or to stdout.
+
+
 func runPipeline(t *testing.T, fixtureDir string) reporter.ReportStats {
 	t.Helper()
 
@@ -101,7 +101,7 @@ func runPipeline(t *testing.T, fixtureDir string) reporter.ReportStats {
 
 	totalMutants := coretesting.GetTotalMutants()
 
-	// format="" + outputFile="" means computeStats runs but nothing is written.
+	
 	stats, _ := reporter.Report(
 		mutants,
 		totalMutants,
@@ -118,8 +118,8 @@ func runPipeline(t *testing.T, fixtureDir string) reporter.ReportStats {
 	return stats
 }
 
-// runPipelineWithOutputs runs the full mutation testing pipeline and generates
-// all output format files for cross-format consistency validation.
+
+
 func runPipelineWithOutputs(t *testing.T, fixtureDir string, outputDir string) reporter.ReportStats {
 	t.Helper()
 
@@ -167,7 +167,7 @@ func runPipelineWithOutputs(t *testing.T, fixtureDir string, outputDir string) r
 
 	totalMutants := coretesting.GetTotalMutants()
 
-	// Generate all output formats
+	
 	outputBase := filepath.Join(outputDir, "report")
 	stats, _ := reporter.Report(
 		mutants,
@@ -192,11 +192,11 @@ func runPipelineWithOutputs(t *testing.T, fixtureDir string, outputDir string) r
 	return stats
 }
 
-// ============================================================================
-// OUTPUT FORMAT PARSERS
-// ============================================================================
 
-// extractStatsFromJSON parses ReportStats from JSON output file.
+
+
+
+
 func extractStatsFromJSON(path string) (reporter.ReportStats, error) {
 	var stats reporter.ReportStats
 	data, err := os.ReadFile(path)
@@ -213,7 +213,7 @@ func extractStatsFromJSON(path string) (reporter.ReportStats, error) {
 	return report.Summary, nil
 }
 
-// extractStatsFromJUnit parses ReportStats from JUnit XML output file.
+
 func extractStatsFromJUnit(path string) (reporter.ReportStats, error) {
 	var stats reporter.ReportStats
 	data, err := os.ReadFile(path)
@@ -230,7 +230,7 @@ func extractStatsFromJUnit(path string) (reporter.ReportStats, error) {
 	return suite.ReportStats, nil
 }
 
-// extractStatsFromSARIF parses ReportStats from SARIF output file.
+
 func extractStatsFromSARIF(path string) (reporter.ReportStats, error) {
 	var stats reporter.ReportStats
 	data, err := os.ReadFile(path)
@@ -253,7 +253,7 @@ func extractStatsFromSARIF(path string) (reporter.ReportStats, error) {
 	return report.Runs[0].Properties, nil
 }
 
-// extractStatsFromText parses ReportStats from text output file.
+
 func extractStatsFromText(path string) (reporter.ReportStats, error) {
 	var stats reporter.ReportStats
 	data, err := os.ReadFile(path)
@@ -264,17 +264,17 @@ func extractStatsFromText(path string) (reporter.ReportStats, error) {
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
-	// Find the stats line with space-separated values
-	// Format: "Mutation Score	Killed	Survived	Compile Errors	Runtime Errors	Timeout	Untested	Invalid	Total"
+	
+	
 	for i, line := range lines {
 		if strings.Contains(line, "Mutation Score") && strings.Contains(line, "Killed") {
-			// Next line has the values
+			
 			if i+1 < len(lines) {
 				valuesLine := lines[i+1]
-				// Use Fields to split on whitespace (handles both tabs and spaces)
+				
 				values := strings.Fields(valuesLine)
 				if len(values) >= 9 {
-					// Parse score (remove % suffix)
+					
 					scoreStr := strings.TrimSuffix(values[0], "%")
 					stats.Score, _ = strconv.ParseFloat(scoreStr, 64)
 					stats.Killed, _ = strconv.Atoi(values[1])
@@ -295,7 +295,7 @@ func extractStatsFromText(path string) (reporter.ReportStats, error) {
 	return stats, nil
 }
 
-// extractStatsFromHTML parses ReportStats from HTML output file.
+
 func extractStatsFromHTML(dir string) (reporter.ReportStats, error) {
 	var stats reporter.ReportStats
 	path := filepath.Join(dir, "index.html")
@@ -306,14 +306,14 @@ func extractStatsFromHTML(dir string) (reporter.ReportStats, error) {
 
 	content := string(data)
 
-	// Extract score from: <span class="stat-value score ...">75.0%</span>
+	
 	scoreRe := regexp.MustCompile(`<span class="stat-value score [^"]*">([\d.]+)%</span>`)
 	if matches := scoreRe.FindStringSubmatch(content); len(matches) > 1 {
 		stats.Score, _ = strconv.ParseFloat(matches[1], 64)
 	}
 
-	// Extract other stats using a general pattern
-	// Format: <span class="stat-label">Killed:</span><span class="stat-value">42</span>
+	
+	
 	extractStat := func(label string) int {
 		re := regexp.MustCompile(`<span class="stat-label">` + label + `:</span>\s*<span class="stat-value">(\d+)</span>`)
 		if matches := re.FindStringSubmatch(content); len(matches) > 1 {
@@ -336,8 +336,8 @@ func extractStatsFromHTML(dir string) (reporter.ReportStats, error) {
 	return stats, nil
 }
 
-// compareStats verifies that two ReportStats have consistent values.
-// Returns a list of discrepancies for human-readable error messages.
+
+
 func compareStats(a, b reporter.ReportStats, formatName string) []string {
 	var discrepancies []string
 
@@ -385,12 +385,315 @@ func compareStats(a, b reporter.ReportStats, formatName string) []string {
 	return discrepancies
 }
 
-// calculateExpectedScore computes the expected mutation score from category counts.
-// Score = Killed / (Killed + Survived + Untested + Timeout) * 100
+
+
 func calculateExpectedScore(stats reporter.ReportStats) float64 {
 	denom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout
 	if denom == 0 {
 		return 0
 	}
 	return float64(stats.Killed) / float64(denom) * 100
+}
+
+
+
+
+
+
+type MutantInfo struct {
+	ID       int    `json:"id"`
+	Status   string `json:"status"`
+	Operator string `json:"operator"`
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Column   int    `json:"column"`
+}
+
+
+func runPipelineWithMutantTracking(t *testing.T, fixtureDir string, outputDir string) ([]MutantInfo, reporter.ReportStats) {
+	t.Helper()
+
+	ops := mutator.ListAll()
+
+	eng := engine.NewEngine(false)
+	eng.SetOperators(ops)
+	eng.SetProjectRoot(fixtureDir)
+
+	if err := eng.Traverse(fixtureDir, nil); err != nil {
+		t.Fatalf("traverse %s: %v", fixtureDir, err)
+	}
+
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatalf("no mutation sites found in %s — check fixture", fixtureDir)
+	}
+
+	log := logger.New(false)
+	resolver, _ := subconfig.Discover(fixtureDir, "")
+
+	ctx := context.Background()
+	mutants, err := coretesting.GenerateAndRunSchemata(
+		ctx,
+		sites,
+		ops,
+		ops,
+		fixtureDir,
+		fixtureDir,
+		nil,
+		resolver,
+		runtime.NumCPU(),
+		nil,
+		nil,
+		nil,
+		log,
+		false,
+		true,
+		config.ExternalSuitesConfig{},
+		&config.Config{},
+	)
+	if err != nil {
+		t.Logf("pipeline error (may be expected for some mutants): %v", err)
+	}
+
+	totalMutants := coretesting.GetTotalMutants()
+
+	
+	outputBase := filepath.Join(outputDir, "report")
+	stats, _ := reporter.Report(
+		mutants,
+		totalMutants,
+		0,
+		nil,
+		false,
+		false,
+		false,
+		outputBase+".json",
+		"",
+		"json",
+		reporter.BaselineOptions{
+			MultiOutputs: []string{
+				"textfile:" + outputBase + ".txt",
+				"html:" + outputDir + "/report.html",
+				"junit:" + outputBase + ".xml",
+				"sarif:" + outputBase + ".sarif",
+			},
+		},
+	)
+
+	
+	mutantInfos := make([]MutantInfo, 0, len(mutants))
+	for _, m := range mutants {
+		info := MutantInfo{
+			ID:       m.ID,
+			Status:   m.Status,
+			Operator: m.Operator.Name(),
+		}
+		if m.Site.File != nil {
+			info.File = m.Site.File.Name()
+			info.Line = m.Site.Line
+			info.Column = m.Site.Column
+		}
+		mutantInfos = append(mutantInfos, info)
+	}
+
+	return mutantInfos, stats
+}
+
+func extractMutantsFromJSON(path string) ([]MutantInfo, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read json file: %w", err)
+	}
+
+	var report struct {
+		Mutants []MutantInfo `json:"mutants"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return nil, fmt.Errorf("unmarshal json: %w", err)
+	}
+
+	idCount := make(map[int]int)
+	for _, m := range report.Mutants {
+		idCount[m.ID]++
+	}
+	var duplicates []string
+	for id, count := range idCount {
+		if count > 1 {
+			duplicates = append(duplicates, fmt.Sprintf("ID %d appears %d times", id, count))
+		}
+	}
+	if len(duplicates) > 0 {
+		return nil, fmt.Errorf("duplicate mutants in JSON: %s", strings.Join(duplicates, ", "))
+	}
+
+	return report.Mutants, nil
+}
+
+func extractMutantsFromHTML(dir string) ([]MutantInfo, error) {
+	path := filepath.Join(dir, "index.html")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read html file: %w", err)
+	}
+
+	content := string(data)
+	var mutants []MutantInfo
+
+	idRe := regexp.MustCompile(`"ID":\s*(\d+)`)
+	matches := idRe.FindAllStringSubmatch(content, -1)
+
+	seen := make(map[int]bool)
+	for _, match := range matches {
+		if len(match) > 1 {
+			id, _ := strconv.Atoi(match[1])
+			if id > 0 && !seen[id] {
+				seen[id] = true
+				mutants = append(mutants, MutantInfo{ID: id})
+			}
+		}
+	}
+
+	return mutants, nil
+}
+
+func extractMutantsFromText(path string) ([]MutantInfo, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read text file: %w", err)
+	}
+
+	content := string(data)
+	var mutants []MutantInfo
+
+	idRe := regexp.MustCompile(`#(\d+)(?:\s+|$)`)
+	matches := idRe.FindAllStringSubmatch(content, -1)
+
+	seen := make(map[int]bool)
+	for _, match := range matches {
+		if len(match) > 1 {
+			id, _ := strconv.Atoi(match[1])
+			if id > 0 && !seen[id] {
+				seen[id] = true
+				mutants = append(mutants, MutantInfo{ID: id})
+			}
+		}
+	}
+
+	return mutants, nil
+}
+
+func validateMutantStatus(status string) error {
+	validStatuses := map[string]bool{
+		"killed":         true,
+		"survived":       true,
+		"error":          true,
+		"timeout":        true,
+		"untested":       true,
+		"invalid":        true,
+		"compile_error":  true,
+		"runtime_error":  true,
+	}
+
+	if status == "" {
+		return fmt.Errorf("status is empty")
+	}
+
+	normalized := strings.ToLower(strings.ReplaceAll(status, " ", "_"))
+	if !validStatuses[normalized] && !validStatuses[status] {
+		return fmt.Errorf("invalid status: %q", status)
+	}
+	return nil
+}
+
+func validateMutant(m MutantInfo) []string {
+	var errors []string
+
+	if m.ID <= 0 {
+		errors = append(errors, fmt.Sprintf("invalid ID: %d", m.ID))
+	}
+
+	if m.File == "" {
+		errors = append(errors, fmt.Sprintf("mutant %d: file is empty", m.ID))
+	}
+
+	if m.Line <= 0 {
+		errors = append(errors, fmt.Sprintf("mutant %d: invalid line: %d", m.ID, m.Line))
+	}
+
+	if m.Column <= 0 {
+		errors = append(errors, fmt.Sprintf("mutant %d: invalid column: %d", m.ID, m.Column))
+	}
+
+	if m.Operator == "" {
+		errors = append(errors, fmt.Sprintf("mutant %d: operator is empty", m.ID))
+	}
+
+	if err := validateMutantStatus(m.Status); err != nil {
+		errors = append(errors, fmt.Sprintf("mutant %d: %v", m.ID, err))
+	}
+
+	return errors
+}
+
+func checkIDCompleteness(mutants []MutantInfo) []string {
+	var errors []string
+
+	if len(mutants) == 0 {
+		return []string{"no mutants found"}
+	}
+
+	maxID := 0
+	for _, m := range mutants {
+		if m.ID > maxID {
+			maxID = m.ID
+		}
+	}
+
+	idCount := make(map[int]int)
+	for _, m := range mutants {
+		idCount[m.ID]++
+	}
+
+	for i := 1; i <= maxID; i++ {
+		count, ok := idCount[i]
+		if !ok {
+			errors = append(errors, fmt.Sprintf("missing mutant ID: %d", i))
+		} else if count > 1 {
+			errors = append(errors, fmt.Sprintf("duplicate mutant ID: %d (appears %d times)", i, count))
+		}
+	}
+
+	return errors
+}
+
+func compareMutantLists(expected, actual []MutantInfo, formatName string) []string {
+	var discrepancies []string
+
+	expectedMap := make(map[int]MutantInfo)
+	for _, m := range expected {
+		expectedMap[m.ID] = m
+	}
+
+	actualMap := make(map[int]MutantInfo)
+	for _, m := range actual {
+		actualMap[m.ID] = m
+	}
+
+	
+	for id, exp := range expectedMap {
+		if _, ok := actualMap[id]; !ok {
+			discrepancies = append(discrepancies,
+				fmt.Sprintf("missing mutant ID %d (file=%s, line=%d) in %s", id, exp.File, exp.Line, formatName))
+		}
+	}
+
+	
+	for id, act := range actualMap {
+		if _, ok := expectedMap[id]; !ok {
+			discrepancies = append(discrepancies,
+				fmt.Sprintf("extra mutant ID %d (file=%s, line=%d) in %s", id, act.File, act.Line, formatName))
+		}
+	}
+
+	return discrepancies
 }

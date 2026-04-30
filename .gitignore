@@ -58,5 +58,5 @@ settings.json
 internal_notes
 scripts/external-regression.sh
 profiles
-
-TEST_COVERAGE_SUMMARY.md
+**/output/
+INTERNAL_THINGS_I_NOTICED_IN_TESTNG_FOR_ME.txt

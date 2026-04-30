@@ -25,6 +25,7 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 	outputDir := filepath.Join(repoRoot, "tests/integration/testdata/TestWorkflow_OverallScoreValidation/output")
 	os.RemoveAll(outputDir)
 	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
 	stats := runPipelineWithOutputs(t, repoRoot, outputDir)
 	jsonPath := filepath.Join(outputDir, "report.json")
 	htmlDir := filepath.Join(outputDir, "report.html")
@@ -164,11 +165,114 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 	}
 }
 
-// TestWorkflow_NoMutantsLost verifies no mutants are lost during pipeline
-func TestWorkflow_NoMutantsLost(t *testing.T) {
-	t.Skip("TODO: Verify all mutants are accounted for in final results")
-}
+// TestWorkflow_NoMutantsLost.
+// Bug 1: Duplicate ID - Verified
+// Bug 2: Clear status for first mutant - Works verified. 
+// Bug 3: Empty file property - Go routine failed. 
 
+// --- FAIL: TestWorkflow_NoMutantsLost (76.60s)
+// panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+// [signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x821051]
+
+// goroutine 8 [running]:
+// testing.tRunner.func1.2({0x8c13e0, 0xd192c0})
+// 	/usr/local/go/src/testing/testing.go:1974 +0x232
+// testing.tRunner.func1()
+// 	/usr/local/go/src/testing/testing.go:1977 +0x349
+// panic({0x8c13e0?, 0xd192c0?})
+// 	/usr/local/go/src/runtime/panic.go:860 +0x13a
+// go/token.(*File).Name(...)
+// 	/usr/local/go/src/go/token/position.go:117
+
+// Bug 4: Skip mutant ID 3 in HTML report - Verified. 
+// Bug 5: Duplicate mutant ID 4 in JSON - Verified. 
+func TestWorkflow_NoMutantsLost(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+
+	outputDir := filepath.Join(repoRoot, "tests/integration/testdata/TestWorkflow_NoMutantsLost/output")
+
+	os.RemoveAll(outputDir)
+	os.MkdirAll(outputDir, 0755)
+
+	// Clean up output files after test completes to prevent repo bloat
+	defer os.RemoveAll(outputDir)
+
+	mutants, stats := runPipelineWithMutantTracking(t, repoRoot, outputDir)
+
+	if len(mutants) == 0 {
+		t.Fatal("no mutants produced — repo traversal may be broken")
+	}
+
+	// 1. Verify ID completeness: all IDs 1..N appear exactly once
+	idErrors := checkIDCompleteness(mutants)
+	if len(idErrors) > 0 {
+		t.Errorf("ID completeness check failed:\n  %s", strings.Join(idErrors, "\n  "))
+	}
+
+	// 2. Verify each mutant has valid properties
+	var validationErrors []string
+	for _, m := range mutants {
+		errors := validateMutant(m)
+		validationErrors = append(validationErrors, errors...)
+	}
+	if len(validationErrors) > 0 {
+		t.Errorf("Mutant validation failed:\n  %s", strings.Join(validationErrors, "\n  "))
+	}
+
+	// 3. Verify all mutants are categorized (match Total count)
+	if len(mutants) != stats.Total {
+		t.Errorf("Mutant count mismatch: tracked=%d, stats.Total=%d", len(mutants), stats.Total)
+	}
+
+	// 4. Cross-validate all output formats contain the same mutants
+	jsonPath := filepath.Join(outputDir, "report.json")
+	htmlDir := filepath.Join(outputDir, "report.html")
+	textPath := filepath.Join(outputDir, "report.txt")
+
+	jsonMutants, err := extractMutantsFromJSON(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to extract mutants from JSON: %v", err)
+	}
+
+	htmlMutants, err := extractMutantsFromHTML(htmlDir)
+	if err != nil {
+		t.Fatalf("Failed to extract mutants from HTML: %v", err)
+	}
+
+	textMutants, err := extractMutantsFromText(textPath)
+	if err != nil {
+		t.Fatalf("Failed to extract mutants from Text: %v", err)
+	}
+
+	var crossFormatErrors []string
+
+	t.Logf("DEBUG: Internal mutants: %d, JSON: %d, HTML: %d, Text: %d", len(mutants), len(jsonMutants), len(htmlMutants), len(textMutants))
+
+	if len(jsonMutants) > 0 {
+		if discrepancies := compareMutantLists(mutants, jsonMutants, "JSON"); len(discrepancies) > 0 {
+			crossFormatErrors = append(crossFormatErrors, discrepancies...)
+		}
+	}
+
+	if len(htmlMutants) > 0 {
+		if discrepancies := compareMutantLists(mutants, htmlMutants, "HTML"); len(discrepancies) > 0 {
+			crossFormatErrors = append(crossFormatErrors, discrepancies...)
+		}
+	}
+
+	if len(textMutants) > 0 {
+		if discrepancies := compareMutantLists(mutants, textMutants, "Text"); len(discrepancies) > 0 {
+			crossFormatErrors = append(crossFormatErrors, discrepancies...)
+		}
+	}
+
+	if len(crossFormatErrors) > 0 {
+		t.Errorf("Cross-format validation failed:\n  %s", strings.Join(crossFormatErrors, "\n  "))
+	}
+}
 
 // ============================================================================
 // WORKFLOW TEST SUITES
@@ -209,6 +313,9 @@ func TestBothTestSuites_NoneEnabled(t *testing.T) {
 	t.Skip("TODO: Verify if no tests run when both are disabled. This is currently difficult to assert without stronger output from gorgon.")
 }
 
+func TestBothTestSuites_ValidKilling(t * tseting.T) {
+	t.Skip("TODO: Verify that they're actually killing what they should be. Checks for FP, FN, TP, TN")
+}
 
 // ============================================================================
 // WORKFLOW OPERATORS

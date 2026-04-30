@@ -1,5 +1,0 @@
-output_format: all
-output_file: tests/integration/testdata/TestWorkflow_MutationScoreCalculation/output/report
-show_killed: true
-show_survived: true
-threshold: 0
