@@ -1,0 +1,14 @@
+Mutation Score  Killed  Survived  Compile Errors  Runtime Errors  Timeout  Untested  Invalid  Total
+2.74%           269     288       16              261             0        9246      0        10080
+
+Top Killing Tests:
+  TestConstantReplacement_Registration               114 kills
+  TestEmptyBody_Registration                         64 kills
+  TestLoopBreakFirst_Registration                    32 kills
+  TestEarlyReturnRemoval_Registration                25 kills
+  TestLoopBodyRemoval_Registration                   12 kills
+  TestDeferRemoval_Registration                      9 kills
+  TestDivide                                         4 kills
+  TestEarlyReturnRemoval_Name                        1 kills
+  TestConstantReplacement_Name                       1 kills
+  TestAddCompound                                    1 kills

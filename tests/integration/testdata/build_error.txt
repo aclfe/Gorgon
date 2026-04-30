@@ -1,2 +1,0 @@
-# testproject
-main.go:5:10: undefined: Add

@@ -45,8 +45,8 @@ func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKil
 	}
 
 	writer := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tErrors\tTimeout\tUntested\tInvalid\tTotal")
-	fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", stats.Score, stats.Killed, stats.Survived, stats.TotalErrors, stats.Timeout, stats.Untested, stats.Invalid, stats.Total)
+	fmt.Fprintln(writer, "Mutation Score\tKilled\tSurvived\tCompile Errors\tRuntime Errors\tTimeout\tUntested\tInvalid\tTotal")
+	fmt.Fprintf(writer, "%.2f%%\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", stats.Score, stats.Killed, stats.Survived, stats.CompileErrors, stats.RuntimeErrors, stats.Timeout, stats.Untested, stats.Invalid, stats.Total)
 	writer.Flush()
 
 	if stats.Killed > 0 {

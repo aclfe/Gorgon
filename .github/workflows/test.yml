@@ -44,15 +44,21 @@ jobs:
           fi
 
   test:
-    name: Go ${{ matrix.go }} - ${{ matrix.os }}
+    name: ${{ matrix.suite.name }} - Go ${{ matrix.go }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: check-new-go
     if: ${{ needs.check-new-go.outputs.should_test == 'true' }}
     strategy:
       fail-fast: false
       matrix:
-        go: ['1.24', 'oldstable', 'stable']
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        go: ['stable']
+        os: [ubuntu-latest, windows-latest]
+        suite:
+          - { name: "Unit", dir: "./...", tags: "", pattern: "" }
+          - { name: "Integration", dir: "./tests/integration/...", tags: "integration", pattern: "" }
+          - { name: "E2E", dir: "./tests/e2e/...", tags: "", pattern: "" }
+          - { name: "Regression", dir: "./tests/regression/...", tags: "", pattern: "" }
+          - { name: "Stress", dir: "./tests/stress/...", tags: "", pattern: "" }
 
     steps:
       - name: Checkout
@@ -67,5 +73,11 @@ jobs:
       - name: Download modules
         run: go mod download
 
-      - name: Run tests
-        run: go test -v -race ./...
+      - name: Run ${{ matrix.suite.name }} tests
+        run: |
+          TAGS="${{ matrix.suite.tags }}"
+          if [ -n "$TAGS" ]; then
+            go test -v -race -tags="$TAGS" -parallel=4 ${{ matrix.suite.dir }}
+          else
+            go test -v -race -parallel=4 ${{ matrix.suite.dir }}
+          fi

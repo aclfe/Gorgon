@@ -4,7 +4,10 @@
 package integration
 
 import (
+	"math"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -12,24 +15,133 @@ import (
 // WORKFLOW BASIC PIPELINE
 // ============================================================================
 
-// TestWorkflow_PipelineOutputStatsAddUp both errors are possible. Verified test. 
-func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
+// TestWorkflow_OverallScoreValidation test verified. Works. 
+func TestWorkflow_OverallScoreValidation(t *testing.T) {
 	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
 
-	stats := runPipeline(t, repoRoot)
+	outputDir := filepath.Join(repoRoot, "tests/integration/testdata/TestWorkflow_OverallScoreValidation/output")
+	os.RemoveAll(outputDir)
+	os.MkdirAll(outputDir, 0755)
+	stats := runPipelineWithOutputs(t, repoRoot, outputDir)
+	jsonPath := filepath.Join(outputDir, "report.json")
+	htmlDir := filepath.Join(outputDir, "report.html")
+	junitPath := filepath.Join(outputDir, "report.xml")
+	sarifPath := filepath.Join(outputDir, "report.sarif")
+	textPath := filepath.Join(outputDir, "report.txt")
 
-	sum := stats.Killed + stats.Survived + stats.CompileError + stats.Error +
+	jsonStats, err := extractStatsFromJSON(jsonPath)
+	if err != nil {
+		t.Fatalf("failed to extract stats from JSON: %v", err)
+	}
+
+	htmlStats, err := extractStatsFromHTML(htmlDir)
+	if err != nil {
+		t.Fatalf("failed to extract stats from HTML: %v", err)
+	}
+
+	junitStats, err := extractStatsFromJUnit(junitPath)
+	if err != nil {
+		t.Fatalf("failed to extract stats from JUnit: %v", err)
+	}
+
+	sarifStats, err := extractStatsFromSARIF(sarifPath)
+	if err != nil {
+		t.Fatalf("failed to extract stats from SARIF: %v", err)
+	}
+
+	textStats, err := extractStatsFromText(textPath)
+	if err != nil {
+		t.Fatalf("failed to extract stats from text: %v", err)
+	}
+
+	reference := jsonStats
+
+	var allDiscrepancies []string
+
+	if discrepancies := compareStats(reference, htmlStats, "HTML"); len(discrepancies) > 0 {
+		allDiscrepancies = append(allDiscrepancies, discrepancies...)
+	}
+	if discrepancies := compareStats(reference, junitStats, "JUnit"); len(discrepancies) > 0 {
+		allDiscrepancies = append(allDiscrepancies, discrepancies...)
+	}
+	if discrepancies := compareStats(reference, sarifStats, "SARIF"); len(discrepancies) > 0 {
+		allDiscrepancies = append(allDiscrepancies, discrepancies...)
+	}
+	if discrepancies := compareStats(reference, textStats, "Text"); len(discrepancies) > 0 {
+		allDiscrepancies = append(allDiscrepancies, discrepancies...)
+	}
+
+	if discrepancies := compareStats(reference, stats, "Internal"); len(discrepancies) > 0 {
+		allDiscrepancies = append(allDiscrepancies, discrepancies...)
+	}
+
+	if len(allDiscrepancies) > 0 {
+		t.Errorf("Mutation score/stats inconsistent across output formats:\n  %s",
+			strings.Join(allDiscrepancies, "\n  "))
+	}
+
+	expectedScore := calculateExpectedScore(reference)
+	if math.Abs(reference.Score-expectedScore) > 0.01 {
+		t.Errorf("Score formula incorrect in outputs: reported=%.2f, expected=%.2f (Killed=%d, Survived=%d, Untested=%d, Timeout=%d)",
+			reference.Score, expectedScore,
+			reference.Killed, reference.Survived, reference.Untested, reference.Timeout)
+	}
+
+	// Verify internal score calculation matches formula
+	// Formula: Score = Killed / (Killed + Survived + Untested + Timeout) * 100
+	// CompileErrors, RuntimeErrors, and Invalid are excluded from denominator
+	internalExpected := calculateExpectedScore(stats)
+	if math.Abs(stats.Score-internalExpected) > 0.01 {
+		t.Errorf("Score formula incorrect internally: reported=%.2f, expected=%.2f (Killed=%d, Survived=%d, Untested=%d, Timeout=%d)",
+			stats.Score, internalExpected,
+			stats.Killed, stats.Survived, stats.Untested, stats.Timeout)
+	}
+
+	// Verify CompileErrors are excluded from score calculation
+	// Using rounded comparison to handle floating point precision properly
+	if stats.CompileErrors > 0 {
+		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.CompileErrors
+		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		actualRounded := math.Round(stats.Score*100000) / 100000
+		incorrectRounded := math.Round(incorrectScore*100000) / 100000
+		if actualRounded == incorrectRounded {
+			t.Errorf("CompileErrors appear to be included in score denominator: score=%.5f, incorrect_formula_score=%.5f",
+				stats.Score, incorrectScore)
+		}
+	}
+
+	if stats.RuntimeErrors > 0 {
+		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.RuntimeErrors
+		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		actualRounded := math.Round(stats.Score*100000) / 100000
+		incorrectRounded := math.Round(incorrectScore*100000) / 100000
+		if actualRounded == incorrectRounded {
+			t.Errorf("RuntimeErrors appear to be included in score denominator: score=%.5f, incorrect_formula_score=%.5f",
+				stats.Score, incorrectScore)
+		}
+	}
+
+	if stats.Invalid > 0 {
+		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.Invalid
+		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		actualRounded := math.Round(stats.Score*100000) / 100000
+		incorrectRounded := math.Round(incorrectScore*100000) / 100000
+		if actualRounded == incorrectRounded {
+			t.Errorf("Invalid mutants appear to be included in score denominator: score=%.5f, incorrect_formula_score=%.5f",
+				stats.Score, incorrectScore)
+		}
+	}
+
+	sum := stats.Killed + stats.Survived + stats.CompileErrors + stats.RuntimeErrors +
 		stats.Timeout + stats.Untested + stats.Invalid
 	if sum != stats.Total {
-		t.Errorf(
-			"category sum %d != total %d\n  killed=%d survived=%d compile_error=%d error=%d timeout=%d untested=%d invalid=%d",
+		t.Errorf("Category sum %d != Total %d (Killed=%d, Survived=%d, CompileErrors=%d, RuntimeErrors=%d, Timeout=%d, Untested=%d, Invalid=%d)",
 			sum, stats.Total,
-			stats.Killed, stats.Survived, stats.CompileError, stats.Error,
-			stats.Timeout, stats.Untested, stats.Invalid,
-		)
+			stats.Killed, stats.Survived, stats.CompileErrors, stats.RuntimeErrors,
+			stats.Timeout, stats.Untested, stats.Invalid)
 	}
 
 	denom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout
@@ -41,22 +153,22 @@ func TestWorkflow_PipelineOutputStatsAddUp(t *testing.T) {
 		}
 	}
 
+	if stats.TotalErrors != stats.CompileErrors+stats.RuntimeErrors {
+		t.Errorf("TotalErrors mismatch: TotalErrors=%d, CompileErrors=%d, RuntimeErrors=%d (expected TotalErrors=%d)",
+			stats.TotalErrors, stats.CompileErrors, stats.RuntimeErrors,
+			stats.CompileErrors+stats.RuntimeErrors)
+	}
+
 	if stats.Total == 0 {
 		t.Fatal("no mutants produced — repo traversal may be broken")
 	}
-}
-
-// TestWorkflow_MutationScoreCalculation verifies the unified score formula:
-// Score = Killed / (Killed + Survived + Untested + Timeout) * 100
-// CompileError, Error, and Invalid are excluded from the denominator.
-func TestWorkflow_MutationScoreCalculation(t *testing.T) {
-	t.Skip("TODO: Verify the unified score formula is correct everywhere")
 }
 
 // TestWorkflow_NoMutantsLost verifies no mutants are lost during pipeline
 func TestWorkflow_NoMutantsLost(t *testing.T) {
 	t.Skip("TODO: Verify all mutants are accounted for in final results")
 }
+
 
 // ============================================================================
 // WORKFLOW TEST SUITES
@@ -107,11 +219,17 @@ func TestWorkflow_DifferentOperatorsProduceDifferentResults(t *testing.T) {
 	t.Skip("TODO: Verify different operators produce different mutation results")
 }
 
+func TestWorflow_AllOperatorsCanProduceMutations(t *testing.T) {
+	t.Skip("TODO: Verify that they're all enabled and working to make mutations")
+	// frankly a future might be to ensure that there's no error mutations being generated.
+	// this is a highly ambitious goal consider handlers.go would nee chanes in order to ensure mutations are done properly. 
+}
+
 // ============================================================================
 // WORKFLOW SCHEMATA TRANSFORMATION
 // ============================================================================
 
-// TestWorkflow_SchemataCompilationSuccess verifies schemata transformation produces compilable code
+// TestWorkflow_SchemataCompilationSuccess verifies schemata transformation produces compilable code everywhere in the repo
 func TestWorkflow_SchemataCompilationSuccess(t *testing.T) {
 	t.Skip("TODO: Verify schemata-transformed code compiles")
 }
@@ -124,6 +242,10 @@ func TestWorkflow_PreflightCatchesBaselineErrors(t *testing.T) {
 // TestWorkflow_MultiValueReturnNoCompilationError verifies multi-value returns don't cause compilation errors
 func TestWorkflow_MultiValueReturnNoCompilationError(t *testing.T) {
 	t.Skip("TODO: Verify multi-value return statements work with schemata")
+}
+
+func TestWorkflow_AllPreflightPhasesWork(t *testing.T) {
+	t.Skip("TODO: We'll verify that all phases are able to filter mutations properly and not just be dummy.")
 }
 
 // ============================================================================
@@ -140,6 +262,26 @@ func TestWorkflow_CacheWithDiff(t *testing.T) {
 	t.Skip("TODO: Verify cache works correctly with diff filtering")
 }
 
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline
+func TestWorkflow_CacheWithDiffAndBaseline(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + directory rules / subconfigs
+func TestWorkflow_CacheWithDiffAndBaseline_Subconfig(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + subconfig specifications")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + directory rules / subconfigs + org policy
+func TestWorkflow_CacheWithDiffAndBaseline_Subconfig_Orgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + subconfig specifications + org policy")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + org policy
+func TestWorkflow_CacheWithDiffAndBaseline_orgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + org policy")
+}
+
 // ============================================================================
 // WORKFLOW DIFF FILTERING
 // ============================================================================
@@ -154,11 +296,17 @@ func TestWorkflow_DiffPathFile(t *testing.T) {
 	t.Skip("TODO: Verify -diff accepts patch file path")
 }
 
+// TestWorkflow_DiffPathFile verifies many types of inputs / arguments work. 
+func TestWorkflow_DiffPathFileInputs(t *testing.T) {
+	t.Skip("TODO: Verify many inputs / combinations work.")
+}
+
 // ============================================================================
 // WORKFLOW CONCURRENCY
 // ============================================================================
 
 // TestWorkflow_ConcurrentExecutionSafe verifies concurrent execution produces consistent results
+// I know there is an issue right now, it's quite flaky frankly speaking. 
 func TestWorkflow_ConcurrentExecutionSafe(t *testing.T) {
 	t.Skip("TODO: Verify concurrent execution is deterministic")
 }
@@ -169,13 +317,46 @@ func TestWorkflow_ConcurrentLimit(t *testing.T) {
 }
 
 // ============================================================================
-// WORKFLOW TIMEOUT HANDLING
+// WORKFLOW MUTANT HANDLING
 // ============================================================================
+
+// TestWorkflow_SurvivedMutantsClassified verifies survived mutants are classified correctly
+func TestWorkflow_SurvivedMutantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify survived mutants are marked as 'survived' status")
+}
+
+// TestWorkflow_KilledMutantsClassified verifies killed mutants are classified correctly
+func TestWorkflow_KilledMutantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify killed mutants are marked as 'killed' status")
+}
+
+// TestWorkflow_CompileErrorMutantsClassified verifies compile error mutants are classified correctly
+func TestWorkflow_CompileErrorMutantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify compile error mutants are marked as 'compile error' status")
+}
+
+// TestWorkflow_RuntimeErrorMutantsClassified verifies runtime error mutants are classified correctly
+func TestWorkflow_RuntimeErrorMutantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify runtime error mutants are marked as 'runtime error' status")
+}
 
 // TestWorkflow_TimeoutMutantsClassified verifies timeout mutants are classified correctly
 func TestWorkflow_TimeoutMutantsClassified(t *testing.T) {
 	t.Skip("TODO: Verify timed-out mutants are marked as 'timeout' status")
 }
+
+// TestWorkflow_UntestedMutatantsClassified verifies untested mutants are classified correctly
+func TestWorkflow_UntestedMutatantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify untested mutants are marked as 'untested' status")
+}
+
+// TestWorkflow_InvalidMutantsClassified verifies invalid mutants are classified correctly
+func TestWorkflow_InvalidMutantsClassified(t *testing.T) {
+	t.Skip("TODO: Verify invalid mutants are marked as 'invalid' status")
+}
+
+// frankly I think I can merged all of this into 1 test, but we'll keep multiple just for a reminder. 
+// THe main issue is that they're not being attributed correctly I believe.
 
 // ============================================================================
 // WORKFLOW FILTERING
@@ -201,6 +382,11 @@ func TestWorkflow_TestsFlagFilters(t *testing.T) {
 	t.Skip("TODO: Verify -tests filters test files correctly")
 }
 
+// TestWorkflow_TestsFlagFilters verifies all skipping filters work together
+func TestWorkflow_TestsSkipFiltersAll(t *testing.T) {
+	t.Skip("TODO: Verify -all skipping filters work together")
+}
+
 // ============================================================================
 // WORKFLOW KILL ATTRIBUTION
 // ============================================================================
@@ -219,6 +405,8 @@ func TestWorkflow_WorkspaceMultiModulePreserved(t *testing.T) {
 	t.Skip("TODO: Verify go.work workspace layout is preserved")
 }
 
+// sensitive feature, needs way more placeholder tests in diverse settings and complex configurations. Subjected to increase.
+
 // ============================================================================
 // WORKFLOW DIR RULES
 // ============================================================================
@@ -228,6 +416,9 @@ func TestWorkflow_DirRulesWhitelistBlacklist(t *testing.T) {
 	t.Skip("TODO: Verify dir_rules whitelist/blacklist work correctly")
 }
 
+// sensitive feature, needs way more placeholder tests in diverse settings and complex configurations (especially sub config and org policy etc and many others)
+// Subjected to increase.
+
 // ============================================================================
 // WORKFLOW SUB-CONFIG INHERITANCE
 // ============================================================================
@@ -236,6 +427,10 @@ func TestWorkflow_DirRulesWhitelistBlacklist(t *testing.T) {
 func TestWorkflow_SubConfigInheritance(t *testing.T) {
 	t.Skip("TODO: Verify sub-configs inherit and override parent settings")
 }
+
+// sensitive feature, needs way more placeholder tests in diverse settings and complex configurations (especially sub config and org policy etc and many others)
+// Subjected to increase.
+
 
 // ============================================================================
 // WORKFLOW BASELINE
@@ -251,19 +446,9 @@ func TestWorkflow_BaselineTolerance(t *testing.T) {
 	t.Skip("TODO: Verify baseline tolerance allows score drift")
 }
 
-// ============================================================================
-// WORKFLOW REPORTING
-// ============================================================================
+// sensitive feature, needs way more placeholder tests in diverse settings and complex configurations (especially sub config and org policy etc and many others)
+// Subjected to increase.
 
-// TestWorkflow_BadgeGeneration verifies JSON and SVG badge generation
-func TestWorkflow_BadgeGeneration(t *testing.T) {
-	t.Skip("TODO: Verify badge files are generated correctly")
-}
-
-// TestWorkflow_MultipleOutputFormats verifies all output formats work
-func TestWorkflow_MultipleOutputFormats(t *testing.T) {
-	t.Skip("TODO: Verify text, JSON, JUnit, SARIF outputs work")
-}
 
 // ============================================================================
 // WORKFLOW DRY RUN
@@ -301,6 +486,12 @@ func TestWorkflow_ThresholdChecking(t *testing.T) {
 	t.Skip("TODO: Verify threshold checking fails when score is below threshold")
 }
 
+// TestWorkflow_ThresholdCheckingAllFiles verifies -threshold flags works on all output files
+func TestWorkflow_ThresholdCheckingAllFiles(t *testing.T) {
+	t.Skip("TODO: Verify threshold verifies -threshold flags works on all output files")
+}
+
+
 // ============================================================================
 // WORKFLOW SUPPRESSIONS
 // ============================================================================
@@ -308,6 +499,21 @@ func TestWorkflow_ThresholdChecking(t *testing.T) {
 // TestWorkflow_SuppressionsWork verifies inline suppressions work
 func TestWorkflow_SuppressionsWork(t *testing.T) {
 	t.Skip("TODO: Verify //gorgon:ignore and config suppressions work")
+}
+
+// TestWorkflow_SuppressionsWork verifies inline suppressions work
+func TestWorkflow_SuppressionsWorkUnderSubconfig(t *testing.T) {
+	t.Skip("TODO: Verify //gorgon:ignore and config suppressions work under subconfig")
+}
+
+// TestWorkflow_SuppressionsWork verifies inline suppressions work
+func TestWorkflow_SuppressionsWorkUnderOrgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify //gorgon:ignore and config suppressions work under org policy")
+}
+
+// TestWorkflow_SuppressionsWork verifies inline suppressions work
+func TestWorkflow_SuppressionsWorkUnderSubconfigAndOrgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify //gorgon:ignore and config suppressions work under sub config and org policy")
 }
 
 // ============================================================================
@@ -325,5 +531,16 @@ func TestWorkflow_ConfigureGoVersion(t *testing.T) {
 
 // TestWorkflow_ChunkLargeFiles verifies chunk_large_files prevents OOM
 func TestWorkflow_ChunkLargeFiles(t *testing.T) {
-	t.Skip("TODO: Verify chunk_large_files prevents OOM on large files")
+	t.Skip("TODO: Verify chunk_large_files prevents OOM on large files") // I might or might not keep this. I'm not sure if we really need chunking.
+	// The main issue before was the memory management in handlers was blowing up with recursive calls and badly written code causing an exponential blast in memory. 
+	// The memory issue isn't persisting, but that raises a concern, do we need chunking if the memry usage even ona 500 line file isn't anything significant. 
+}
+
+// ============================================================================
+// WORKFLOW MEMORY CHECKING
+// ============================================================================
+
+// TestWorkflow_MemoryUsage verifies memory usage isn't OOM-ing or close to OOM-ing. If it is, that's 100% an issue with code. Inherently, gorgon uses less memory. 
+func TestWorkflow_MemoryUsage(t *testing.T) {
+	t.Skip("TODO: Verify memory usage isn't OOM-ing or close to OOM-ing")
 }

@@ -5,6 +5,8 @@ package integration
 
 import "testing"
 
+
+
 // ============================================================================
 // REPORTER BASIC OUTPUT
 // ============================================================================
@@ -32,6 +34,11 @@ func TestReporter_StatusCounts(t *testing.T) {
 // TestReporter_StatusCounts_AddUp verifies counts add up to total
 func TestReporter_StatusCounts_AddUp(t *testing.T) {
 	t.Skip("TODO: Verify sum of status counts equals Total")
+}
+
+// TestReporter_DuplicationIssue to conifrm no output file is having extra / duplicated output. 
+func TestReporter_DuplicationIssue(t *testing.T) {
+	t.Skip("TODO: conifrm no output file is having extra / duplicated output")
 }
 
 // ============================================================================

@@ -81,7 +81,7 @@ body { font-family: monospace; font-size: 12px; }
 <div class="stats">
 <div class="stat">
 <span class="stat-label">Score:</span>
-<span class="stat-value score {{.ScoreClass}}">{{printf "%.1f" .Stats.Score}}%</span>
+<span class="stat-value score {{.ScoreClass}}">{{printf "%.2f" .Stats.Score}}%</span>
 </div>
 <div class="stat">
 <span class="stat-label">Killed:</span>
@@ -92,8 +92,12 @@ body { font-family: monospace; font-size: 12px; }
 <span class="stat-value">{{.Stats.Survived}}</span>
 </div>
 <div class="stat">
-<span class="stat-label">Errors:</span>
-<span class="stat-value">{{.Stats.TotalErrors}}</span>
+<span class="stat-label">Compile Errors:</span>
+<span class="stat-value">{{.Stats.CompileErrors}}</span>
+</div>
+<div class="stat">
+<span class="stat-label">Runtime Errors:</span>
+<span class="stat-value">{{.Stats.RuntimeErrors}}</span>
 </div>
 <div class="stat">
 <span class="stat-label">Timeout:</span>

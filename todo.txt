@@ -33,3 +33,6 @@ No migration path from go-mutesting (documentation) The main Go mutation tool be
 
 
 "log levels to choose from"
+llm friendly documentation
+checking for duplicated values/entries, in json and all file formats. 
+output files excluded from pushing
