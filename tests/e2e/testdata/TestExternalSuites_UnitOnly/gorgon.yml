@@ -1,0 +1,54 @@
+# === Core Mutation Settings ===
+operators:
+    - all
+threshold: 0
+
+# === Execution Settings ===
+concurrent: 4
+cache: false
+dry_run: false
+progbar: false
+
+# === Test Configuration ===
+unit_tests_enabled: true
+tests:
+    []
+
+# === External Test Suites ===
+external_suites:
+    enabled: false
+    run_mode: after_unit
+    suites:
+        []
+
+# === File Filtering ===
+exclude:
+    []
+include:
+    []
+skip:
+    []
+skip_func:
+    []
+
+# === Advanced Options ===
+diff: ""
+base: ""
+debug: false
+
+# === Baseline / Ratchet ===
+baseline:
+    no_regression: false
+    tolerance: 0.0
+
+# === Output Settings ===
+show_killed: false
+show_survived: false
+outputs:
+    - json:report.json
+cpu_profile: ""
+mem_profile: ""
+
+# === Suppressions (Auto-managed) ===
+suppress:
+    []

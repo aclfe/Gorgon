@@ -4,10 +4,10 @@ operators:
 threshold: 0
 
 # === Execution Settings ===
-concurrent: all
+concurrent: 4
 cache: false
 dry_run: false
-progbar: true
+progbar: false
 
 # === Test Configuration ===
 unit_tests_enabled: true
@@ -21,20 +21,12 @@ external_suites:
     suites:
         - name: integration-tests
           paths:
-            - ./tests/integration/...
-          tags:
-            - integration
-          short_circuit: true
-        - name: e2e-tests
-          paths:
-            - ./tests/e2e/...
-          tags:
-            - e2e
+            - ./tests/...
           short_circuit: true
 
 # === File Filtering ===
 exclude:
-    - '*_test.go'
+    []
 include:
     []
 skip:
@@ -53,20 +45,13 @@ baseline:
     tolerance: 0.0
 
 # === Output Settings ===
-show_killed: true
-show_survived: true
+show_killed: false
+show_survived: false
 outputs:
-    - textfile:report.txt
+    - json:report.json
 cpu_profile: ""
 mem_profile: ""
 
 # === Suppressions (Auto-managed) ===
 suppress:
-    - location: examples/mutations/panic_removal/panic_removal.go:6
-      operators:
-        - panic_removal:9
-    - location: examples/mutations/arithmetic_flip/arithmetic_flip.go:5
-    - location: examples/mutations/panic_removal/panic_removal.go:13
-      operators:
-        - panic_removal
-    - location: examples/mutations/negate_condition/negate_condition.go:6
+    []

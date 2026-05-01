@@ -1,0 +1,25 @@
+# Test: External tests only
+# Config: No unit tests, only external suites
+
+operators:
+  - all
+
+threshold: 0
+
+concurrent: 4
+cache: false
+progbar: false
+
+unit_tests_enabled: false
+
+external_suites:
+  enabled: true
+  run_mode: only
+  suites:
+    - name: integration-tests
+      paths:
+        - ./tests/...
+      short_circuit: true
+
+outputs:
+  - json:report.json

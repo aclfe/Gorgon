@@ -36,3 +36,4 @@ No migration path from go-mutesting (documentation) The main Go mutation tool be
 llm friendly documentation
 checking for duplicated values/entries, in json and all file formats. 
 output files excluded from pushing
+exclude variable replacement from function signature mutation

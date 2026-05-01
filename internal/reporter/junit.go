@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aclfe/gorgon/internal/core"
+	testing "github.com/aclfe/gorgon/internal/core"
 )
 
 type junitTestSuite struct {

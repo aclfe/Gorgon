@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/aclfe/gorgon/internal/core"
+	testing "github.com/aclfe/gorgon/internal/core"
 )
 
 type jsonReport struct {

@@ -60,3 +60,4 @@ scripts/external-regression.sh
 profiles
 **/output/
 INTERNAL_THINGS_I_NOTICED_IN_TESTNG_FOR_ME.txt
+**/report.json

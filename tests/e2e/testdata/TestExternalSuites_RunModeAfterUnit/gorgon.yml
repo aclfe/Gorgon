@@ -1,0 +1,25 @@
+# Test: run_mode: after_unit
+# Config: External runs only on mutants that survived unit tests
+
+operators:
+  - all
+
+threshold: 0
+
+concurrent: 4
+cache: false
+progbar: false
+
+unit_tests_enabled: true
+
+external_suites:
+  enabled: true
+  run_mode: after_unit
+  suites:
+    - name: integration-tests
+      paths:
+        - ./tests/...
+      short_circuit: true
+
+outputs:
+  - json:report.json

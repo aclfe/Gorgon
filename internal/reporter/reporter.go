@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/aclfe/gorgon/internal/baseline"
-	"github.com/aclfe/gorgon/internal/core"
+	testing "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/subconfig"
 )
 

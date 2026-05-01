@@ -274,46 +274,9 @@ func TestWorkflow_NoMutantsLost(t *testing.T) {
 	}
 }
 
-// ============================================================================
 // WORKFLOW TEST SUITES
-// ============================================================================
 
-// TestWorkflow_ExternalSuitesActuallyKillMutations verifies external suites kill mutations
-func TestWorkflow_ExternalSuitesActuallyKillMutations(t *testing.T) {
-	t.Skip("TODO: Verify external test suites run and kill mutations")
-}
-
-// TestWorkflow_ExternalSuiteRunModes verifies external suite run modes (after_unit, only, etc.)
-func TestWorkflow_ExternalSuiteRunModes(t *testing.T) {
-	t.Skip("TODO: Verify external suite run modes work correctly")
-}
-
-// TestWorkflow_ExternalSuiteTags verifies external suite build tags
-func TestWorkflow_ExternalSuiteTags(t *testing.T) {
-	t.Skip("TODO: Verify external suite build tags are applied")
-}
-
-// TestBothTestSuites_BothEnabled verifies that both unit and external tests run when both are enabled
-func TestBothTestSuites_BothEnabled(t *testing.T) {
-	t.Skip("TODO: Verify if both unit and external tests run when both are enabled. This is currently difficult to assert without stronger output from gorgon.")
-}
-
-// TestBothTestSuites_ExternalOnly verifies that only external tests run when unit tests are disabled
-func TestBothTestSuites_ExternalOnly(t *testing.T) {
-	t.Skip("TODO: Verify if only external tests run when unit tests are disabled. This is currently difficult to assert without stronger output from gorgon.")
-}
-
-// TestBothTestSuites_UnitOnly verifies that only unit tests run when external tests are disabled
-func TestBothTestSuites_UnitOnly(t *testing.T) {
-	t.Skip("TODO: Verify if only unit tests run when external tests are disabled. This is currently difficult to assert without stronger output from gorgon.")
-}
-
-// TestBothTestSuites_NoneEnabled verifies that no tests run when both are disabled
-func TestBothTestSuites_NoneEnabled(t *testing.T) {
-	t.Skip("TODO: Verify if no tests run when both are disabled. This is currently difficult to assert without stronger output from gorgon.")
-}
-
-func TestBothTestSuites_ValidKilling(t * tseting.T) {
+func TestBothTestSuites_ValidKilling(t *testing.T) {
 	t.Skip("TODO: Verify that they're actually killing what they should be. Checks for FP, FN, TP, TN")
 }
 

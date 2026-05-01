@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/aclfe/gorgon/internal/core"
+	testing "github.com/aclfe/gorgon/internal/core"
 )
 
 func writeTextReport(mutants []testing.Mutant, stats ReportStats, debug, showKilled, showSurvived bool, outputFile string) error {
