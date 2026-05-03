@@ -209,18 +209,14 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 
 	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-vet=off", "-o", e.testBinary, relPkg)
 	cmd.Dir = e.tempDir
-	// e.log.Debug("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
+	// debug: e.log.Info("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// e.log.Warn("[COMPILE] FAILED for package %s: %v", relPkg, err)
-		// e.log.Warn("[COMPILE] Error output:\n%s", string(out))
-		// FOR NOW I'M COMMENTING THESE. EXECUTOR SHOULD RETURN ERROR OUTPUT AND LET CALLER DECIDE WHAT TO DO WITH IT. IN THE FUTURE, WE MAY WANT TO LOG MORE VERBOSLY OR LESS VERBOSLY BASED ON LOG LEVEL.
+		e.log.Debug("[COMPILE] FAILED for package %s: %v\nOutput:\n%s", relPkg, err, string(out))
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
-	// if len(out) > 0 {
-	// 	e.log.Debug("[COMPILE] Output: %s", string(out))
-	// }
-	// e.log.Debug("[COMPILE] Success, checking if binary exists at %s", e.testBinary)
+	// debug: if len(out) > 0 { e.log.Info("[COMPILE] Output: %s", string(out)) }
+	// debug: e.log.Info("[COMPILE] Success, binary at %s", e.testBinary)
 
 	result := compileResultWithAttribution{
 		perMutant: make(map[int]error, len(mutantIDs)),
@@ -598,8 +594,10 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					//executor.log.Info("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
-					// CHANGED BASED ON LOG LEVEL. 
+					executor.log.Debug("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
+					// debug: executor.log.Info("Expected binary at: %s", executor.testBinary)
+					// debug: executor.log.Info("Pkg dir contents:")
+					// debug: if entries, dirErr := os.ReadDir(pkgDir); dirErr == nil { for _, e := range entries { executor.log.Info("  %s", e.Name()) } }
 				}
 				return nil
 			}

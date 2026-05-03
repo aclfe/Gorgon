@@ -24,12 +24,15 @@ type ExternalSuite struct {
 	Paths        []string `yaml:"paths"`
 	Tags         []string `yaml:"tags,omitempty"`
 	ShortCircuit bool     `yaml:"short_circuit"`
-	RunMode      string   `yaml:"run_mode,omitempty"`
 }
 
+// ExternalSuitesConfig controls how external test suites integrate with the mutation run.
+// RunMode: "" or any value other than "before_unit" runs external suites after unit tests
+// (only testing mutations that survived). Set RunMode to "before_unit" to run external
+// suites first; unit tests will then only run against mutations that survived external.
 type ExternalSuitesConfig struct {
 	Enabled bool             `yaml:"enabled"`
-	RunMode string           `yaml:"run_mode"`
+	RunMode string           `yaml:"run_mode"` // "" (default/after) or "before_unit"
 	Suites  []ExternalSuite  `yaml:"suites"`
 }
 
@@ -106,7 +109,7 @@ func Default() *Config {
 		UnitTestsEnabled: true,
 		ExternalSuites: ExternalSuitesConfig{
 			Enabled: false,
-			RunMode: "after_unit",
+			RunMode: "",
 			Suites:  []ExternalSuite{},
 		},
 		Baseline: BaselineConfig{},
@@ -230,7 +233,9 @@ func (c *Config) Save(path string) error {
 	lines = append(lines, "# === External Test Suites ===")
 	lines = append(lines, "external_suites:")
 	lines = append(lines, fmt.Sprintf("    enabled: %t", c.ExternalSuites.Enabled))
-	lines = append(lines, fmt.Sprintf("    run_mode: %s", c.ExternalSuites.RunMode))
+	if c.ExternalSuites.RunMode == "before_unit" {
+		lines = append(lines, fmt.Sprintf("    run_mode: %s", c.ExternalSuites.RunMode))
+	}
 	lines = append(lines, "    suites:")
 	if len(c.ExternalSuites.Suites) == 0 {
 		lines = append(lines, "        []")
