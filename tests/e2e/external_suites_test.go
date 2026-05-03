@@ -38,6 +38,9 @@ func debugKillStats(t *testing.T, report *ReportData, testName string) killStats
 	t.Logf("[%s] EXPECTS INTERNAL KILLED: >0, IS KILLED: %d (test names: %v)", testName, stats.InternalKilled, stats.InternalKilledBy[:min(len(stats.InternalKilledBy), 3)])
 	t.Logf("[%s] EXPECTS EXTERNAL KILLED: >0, IS KILLED: %d (suite names: %v)", testName, stats.ExternalKilled, stats.ExternalKilledBy[:min(len(stats.ExternalKilledBy), 3)])
 	t.Logf("[%s] Summary: Killed=%d, Survived=%d, Total=%d", testName, report.Summary.Killed, report.Summary.Survived, report.Summary.Total)
+	t.Logf("[%s] Status breakdown: CompileErrors=%d, RuntimeErrors=%d, Timeout=%d, Untested=%d, Invalid=%d, TotalErrors=%d",
+		testName, report.Summary.CompileErrors, report.Summary.RuntimeErrors, report.Summary.Timeout,
+		report.Summary.Untested, report.Summary.Invalid, report.Summary.TotalErrors)
 	
 	return stats
 }
@@ -85,7 +88,7 @@ func TestExternalSuites_KillMutations(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_KillMutations/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -121,7 +124,7 @@ func TestExternalSuites_RunModeOnly(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_RunModeOnly/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -157,7 +160,7 @@ func TestExternalSuites_RunModeAfterUnit(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_RunModeAfterUnit/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -184,7 +187,7 @@ func TestExternalSuites_RunModeAlongside(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_RunModeAlongside/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -211,8 +214,7 @@ func TestExternalSuites_TagsIntegration(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_TagsIntegration/gorgon.yml")
-	// Use integration tests directory which has integration-tagged tests
-	targetDir := filepath.Join(repoRoot, "tests/integration")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -222,9 +224,8 @@ func TestExternalSuites_TagsIntegration(t *testing.T) {
 	stats := debugKillStats(t, report, "TagsIntegration")
 	expectExternalKilled(t, stats, "TagsIntegration")
 
-	// Just verify it ran - the tag filtering is validated by gorgon building/running correctly
 	if report.Summary.Total == 0 {
-		t.Error("Expected mutants to be generated in integration tests")
+		t.Error("Expected mutants to be generated")
 	}
 }
 
@@ -236,7 +237,7 @@ func TestExternalSuites_BothEnabled(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_BothEnabled/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -261,7 +262,7 @@ func TestExternalSuites_UnitOnly(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_UnitOnly/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {
@@ -285,7 +286,7 @@ func TestExternalSuites_ExternalOnly(t *testing.T) {
 	}
 
 	configPath := filepath.Join(repoRoot, "tests/e2e/testdata/TestExternalSuites_ExternalOnly/gorgon.yml")
-	targetDir := filepath.Join(repoRoot, "internal/reporter")
+	targetDir := filepath.Join(repoRoot, "internal/core")
 
 	report, err := runGorgonWithConfig(t, configPath, targetDir)
 	if err != nil {

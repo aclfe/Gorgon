@@ -221,7 +221,16 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		return nil
 	}
 
-	if cfg.ExternalSuites.Enabled {
+	// Resolve external suite paths relative to config file location
+	if cfg.ExternalSuites.Enabled && configPath != "" {
+		configDir := filepath.Dir(configPath)
+		for i := range cfg.ExternalSuites.Suites {
+			for j, p := range cfg.ExternalSuites.Suites[i].Paths {
+				if !filepath.IsAbs(p) {
+					cfg.ExternalSuites.Suites[i].Paths[j] = filepath.Join(configDir, p)
+				}
+			}
+		}
 		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
 	}
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg)
