@@ -85,6 +85,12 @@ func TestIsCompilationError(t *testing.T) {
 		{name: "regular test output", input: "--- FAIL: TestFoo (0.01s)\n    assertion failed", want: false},
 		{name: "empty output", input: "", want: false},
 		{name: "pass output", input: "PASS\nok package", want: false},
+		// Runtime panics are killed mutants, not compile failures.
+		{name: "panic is not compile error", input: "panic: runtime error: index out of range", want: false},
+		{name: "nil pointer is not compile error", input: "goroutine 1 [running]:\nnilptr", want: false},
+		// Test output containing compile-like keywords is still test output.
+		{name: "test fail with undefined in message", input: "--- FAIL: TestFoo\n    got undefined: foo, want bar", want: false},
+		{name: "=== RUN is test output", input: "=== RUN TestFoo\n--- FAIL: TestFoo", want: false},
 	}
 
 	for _, tc := range cases {

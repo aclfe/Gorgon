@@ -384,6 +384,11 @@ func parseFailedTest(output string) string {
 }
 
 func isCompilationError(output string) bool {
+	// Test runner output is never a compilation error — test failures produce "--- FAIL:"
+	// and panics during tests are caught mutations, not build failures.
+	if strings.Contains(output, "--- FAIL:") || strings.Contains(output, "=== RUN") {
+		return false
+	}
 	outputLower := strings.ToLower(output)
 	compPatterns := []string{
 		"compilation failed",
@@ -403,11 +408,9 @@ func isCompilationError(output string) bool {
 		"redeclared",
 		"no function",
 		"non-type",
-		"panic:",
-		"runtime error:",
-		"index out of range",
-		"nil pointer",
-		"invalid memory address",
+		// NOTE: runtime panic patterns ("panic:", "runtime error:", "nil pointer", etc.)
+		// are intentionally absent — a mutation that causes a panic is a killed mutant,
+		// not a compile failure. Those are handled by the err!=nil branch in runMutant.
 	}
 	for _, pattern := range compPatterns {
 		if strings.Contains(outputLower, strings.ToLower(pattern)) {
@@ -501,7 +504,7 @@ func hasNoTestsToRun(output string, runErr error) bool {
 func (e *testExecutor) relPath() string {
 	rel, _ := filepath.Rel(e.tempDir, e.pkgDir)
 	if rel == "." {
-		return ""
+		return "."
 	}
 	return "./" + filepath.ToSlash(rel)
 }
@@ -579,25 +582,39 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			}
 
 			if _, statErr := os.Stat(executor.testBinary); os.IsNotExist(statErr) {
-				untestedCount := 0
+				// Distinguish between "package has no test files" (truly untested)
+				// and "go test -c failed" (compile error that wasn't attributed to a
+				// specific mutant, e.g. a mutation that only breaks the test build).
+				compileFailed := result.compileFailed || result.compilerOutput != ""
+				count := 0
 				for _, mutantID := range mutantIDsForPkg {
 					if result.perMutant[mutantID] == nil {
-						resultsChan <- mutantResult{id: mutantID, status: "untested"}
+						if compileFailed {
+							resultsChan <- mutantResult{
+								id:         mutantID,
+								status:     "error",
+								killedBy:   "(compiler)",
+								killOutput: result.compilerOutput,
+							}
+						} else {
+							resultsChan <- mutantResult{id: mutantID, status: "untested"}
+						}
 						if prog != nil {
 							prog.Record()
 						}
-						untestedCount++
+						count++
 					}
 				}
-				if untestedCount > 0 {
+				if count > 0 {
 					pkg := executor.relPath()
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					executor.log.Debug("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, untestedCount)
-					// debug: executor.log.Info("Expected binary at: %s", executor.testBinary)
-					// debug: executor.log.Info("Pkg dir contents:")
-					// debug: if entries, dirErr := os.ReadDir(pkgDir); dirErr == nil { for _, e := range entries { executor.log.Info("  %s", e.Name()) } }
+					if compileFailed {
+						executor.log.Debug("Test build failed for %s — %d mutant(s) marked as compile errors", pkg, count)
+					} else {
+						executor.log.Debug("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, count)
+					}
 				}
 				return nil
 			}

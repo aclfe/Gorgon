@@ -540,7 +540,6 @@ func LogPreflightResults(log *logger.Logger, totalMutants int, results []Preflig
 func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
-		// Can't read file — pass all mutants through; the build will catch real errors.
 		log.Debug("[PREFLIGHT L3] Cannot read %s — skipping type-check", filePath)
 		return mutants, nil
 	}
@@ -551,7 +550,6 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 	helper := fmt.Sprintf(schemataHelperSrc, pkgName)
 	imp := &lenientImporter{base: importer.Default()}
 
-	// Baseline errors from the unmodified file — absorbed before attribution.
 	baseline := computeBaselineErrors(filePath, src, siblings, helper, pkgDir, imp)
 
 	for msg := range baseline {
@@ -563,25 +561,21 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 		}
 	}
 
-	// Convert to pointers for ApplySchemataInMemory.
 	mutPtrs := make([]*Mutant, len(mutants))
 	for i := range mutants {
 		mutPtrs[i] = &mutants[i]
 	}
 
-	// One type-check for all mutants combined.
+	// Check all mutants together first (like schemata does)
 	errs, panicked := runTypeCheck(filePath, src, mutPtrs, siblings, helper, pkgDir, imp, baseline)
 	if panicked {
-		// Don't pass through — bisect to find the individual bad mutants.
-		log.Debug("[PREFLIGHT L3] %s: go/types panicked on group of %d mutants, bisecting to find bad ones",
+		log.Debug("[PREFLIGHT L3] %s: go/types panicked on group of %d mutants, bisecting",
 			filepath.Base(filePath), len(mutants))
 		return bisectMutants(filePath, src, mutants, siblings, helper, pkgDir, imp, baseline, log)
 	}
 
 	if len(errs) > 0 {
-		// Errors found — bisect to find which mutants are responsible.
-		// This only happens for files that actually produce invalid mutations.
-		log.Debug("[PREFLIGHT L3] %s: %d type errors found, bisecting %d mutants",
+		log.Debug("[PREFLIGHT L3] %s: %d type errors found in combined check, bisecting %d mutants",
 			filepath.Base(filePath), len(errs), len(mutants))
 		return bisectMutants(filePath, src, mutants, siblings, helper, pkgDir, imp, baseline, log)
 	}
@@ -695,7 +689,8 @@ func bisectMutants(filePath string, src []byte, mutants []Mutant, siblings []sib
 	var valid []Mutant
 	var invalid []PreflightResult
 
-	if !leftPanicked && len(leftErrs) > 0 {
+	// If left half panicked or had errors, bisect further to find bad mutants
+	if leftPanicked || len(leftErrs) > 0 {
 		v, inv := bisectMutants(filePath, src, left, siblings, helper, pkgDir, imp, baseline, log)
 		valid = append(valid, v...)
 		invalid = append(invalid, inv...)
@@ -703,7 +698,8 @@ func bisectMutants(filePath string, src []byte, mutants []Mutant, siblings []sib
 		valid = append(valid, left...)
 	}
 
-	if !rightPanicked && len(rightErrs) > 0 {
+	// If right half panicked or had errors, bisect further to find bad mutants
+	if rightPanicked || len(rightErrs) > 0 {
 		v, inv := bisectMutants(filePath, src, right, siblings, helper, pkgDir, imp, baseline, log)
 		valid = append(valid, v...)
 		invalid = append(invalid, inv...)

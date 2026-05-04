@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
@@ -81,6 +82,82 @@ type ReportData struct {
 	Mutants []MutantInfo `json:"mutants"`
 }
 
+// killStats holds the counts of internal and external kills
+type killStats struct {
+	InternalKilled   int
+	ExternalKilled   int
+	InternalKilledBy []string
+	ExternalKilledBy []string
+}
+
+// debugKillStats logs detailed kill statistics for a report and returns the counts
+// logInternal and logExternal control whether to log those categories (set false when disabled)
+func debugKillStats(t *testing.T, report *ReportData, testName string, logInternal, logExternal bool) killStats {
+	t.Helper()
+
+	var stats killStats
+
+	for _, m := range report.Mutants {
+		if m.Status == "killed" {
+			if strings.Contains(m.KilledBy, "[") || isExternalSuiteName(m.KilledBy) {
+				stats.ExternalKilled++
+				stats.ExternalKilledBy = append(stats.ExternalKilledBy, m.KilledBy)
+			} else if m.KilledBy != "" && m.KilledBy != "(compiler)" && m.KilledBy != "(timeout)" && m.KilledBy != "runtime error" {
+				stats.InternalKilled++
+				stats.InternalKilledBy = append(stats.InternalKilledBy, m.KilledBy)
+			}
+		}
+	}
+
+	if logInternal {
+		t.Logf("[%s] INTERNAL KILLED: %d (test names: %v)", testName, stats.InternalKilled, stats.InternalKilledBy[:min(len(stats.InternalKilledBy), 3)])
+	}
+	if logExternal {
+		t.Logf("[%s] EXTERNAL KILLED: %d (suite names: %v)", testName, stats.ExternalKilled, stats.ExternalKilledBy[:min(len(stats.ExternalKilledBy), 3)])
+	}
+	t.Logf("[%s] Summary: Killed=%d, Survived=%d, Total=%d", testName, report.Summary.Killed, report.Summary.Survived, report.Summary.Total)
+	t.Logf("[%s] Status breakdown: CompileErrors=%d, RuntimeErrors=%d, Timeout=%d, Untested=%d, Invalid=%d, TotalErrors=%d",
+		testName, report.Summary.CompileErrors, report.Summary.RuntimeErrors, report.Summary.Timeout,
+		report.Summary.Untested, report.Summary.Invalid, report.Summary.TotalErrors)
+
+	return stats
+}
+
+// expectInternalKilled fails the test if no internal kills were detected
+func expectInternalKilled(t *testing.T, stats killStats, testName string) {
+	t.Helper()
+	if stats.InternalKilled == 0 {
+		t.Errorf("[%s] EXPECTED INTERNAL KILLED > 0, but got %d", testName, stats.InternalKilled)
+	}
+}
+
+// expectExternalKilled fails the test if no external kills were detected
+func expectExternalKilled(t *testing.T, stats killStats, testName string) {
+	t.Helper()
+	if stats.ExternalKilled == 0 {
+		t.Errorf("[%s] EXPECTED EXTERNAL KILLED > 0, but got %d", testName, stats.ExternalKilled)
+	}
+}
+
+// isExternalSuiteName checks if killedBy looks like an external suite name
+func isExternalSuiteName(killedBy string) bool {
+	// Common external suite names that don't have brackets
+	suites := []string{"integration", "e2e", "external"}
+	for _, s := range suites {
+		if strings.EqualFold(killedBy, s) || strings.Contains(killedBy, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // runGorgonWithConfig runs gorgon binary with a specific config file
 func runGorgonWithConfig(t *testing.T, configPath, targetDir string) (*ReportData, error) {
 	t.Helper()
@@ -88,17 +165,15 @@ func runGorgonWithConfig(t *testing.T, configPath, targetDir string) (*ReportDat
 	// Find gorgon binary
 	gorgonBinary := os.Getenv("GORGON_BINARY")
 	if gorgonBinary == "" {
-		// Try to find it in parent directories
 		repoRoot, err := findRepoRoot()
 		if err != nil {
 			return nil, fmt.Errorf("failed to find repo root: %w", err)
 		}
 		gorgonBinary = filepath.Join(repoRoot, "gorgon")
-	}
-
-	// Verify binary exists
-	if _, err := os.Stat(gorgonBinary); err != nil {
-		return nil, fmt.Errorf("gorgon binary not found at %s: %w", gorgonBinary, err)
+		// Build binary if missing or stale
+		if err := ensureGorgonBinary(t, repoRoot, gorgonBinary); err != nil {
+			return nil, fmt.Errorf("failed to build gorgon binary: %w", err)
+		}
 	}
 
 	// Build command - output is configured in YAML, not CLI
@@ -131,6 +206,64 @@ func runGorgonWithConfig(t *testing.T, configPath, targetDir string) (*ReportDat
 	}
 
 	return &report, nil
+}
+
+// ensureGorgonBinary builds the gorgon binary if it is missing or stale.
+// Staleness is determined by comparing the binary's mtime against all .go
+// files under cmd/ and internal/ in the repo root.
+func ensureGorgonBinary(t *testing.T, repoRoot, binaryPath string) error {
+	t.Helper()
+
+	binInfo, err := os.Stat(binaryPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	needsBuild := err != nil // binary missing
+	if !needsBuild {
+		binMtime := binInfo.ModTime()
+		for _, srcDir := range []string{"cmd", "internal", "pkg"} {
+			if stale, _ := dirNewerThan(filepath.Join(repoRoot, srcDir), binMtime); stale {
+				needsBuild = true
+				break
+			}
+		}
+	}
+
+	if !needsBuild {
+		return nil
+	}
+
+	t.Log("gorgon binary is missing or stale — rebuilding...")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/gorgon")
+	cmd.Dir = repoRoot
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("build failed: %w\n%s", err, out)
+	}
+	t.Log("gorgon binary rebuilt successfully")
+	return nil
+}
+
+// dirNewerThan reports whether any .go file under dir has a mtime after ref.
+func dirNewerThan(dir string, ref time.Time) (bool, error) {
+	found := false
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || found {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".go") {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			if info.ModTime().After(ref) {
+				found = true
+			}
+		}
+		return nil
+	})
+	return found, err
 }
 
 // findRepoRoot finds the repository root by looking for go.mod

@@ -33,7 +33,7 @@ skip_func:
 # === Advanced Options ===
 diff: ""
 base: ""
-debug: false
+debug: true
 
 # === Baseline / Ratchet ===
 baseline:

@@ -71,7 +71,7 @@ func (w *ModuleWorkspace) relPath(filePath string) (string, error) {
 
 func (w *ModuleWorkspace) Cleanup() {
 	// debug: set GORGON_KEEP_TMPDIR=1 to skip removal and inspect the temp workspace
-	// if os.Getenv("GORGON_KEEP_TMPDIR") != "" { return }
+	if os.Getenv("GORGON_KEEP_TMPDIR") != "" { fmt.Fprintf(os.Stderr, "[DEBUG] Keeping temp dir: %s\n", w.TempDir); return }
 	_ = os.RemoveAll(w.TempDir)
 }
 

@@ -10,7 +10,7 @@ dry_run: false
 progbar: false
 
 # === Test Configuration ===
-unit_tests_enabled: false
+unit_tests_enabled: true
 tests:
     []
 
