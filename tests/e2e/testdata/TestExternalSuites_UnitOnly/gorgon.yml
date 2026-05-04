@@ -17,7 +17,6 @@ tests:
 # === External Test Suites ===
 external_suites:
     enabled: false
-    run_mode: after_unit
     suites:
         []
 

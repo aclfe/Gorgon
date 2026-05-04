@@ -1,25 +1,58 @@
-# Test: External suites kill mutations
-# Config: External only mode to verify external tests can kill mutants
-
+# === Core Mutation Settings ===
 operators:
-  - all
-
+    - all
 threshold: 0
 
+# === Execution Settings ===
 concurrent: 4
 cache: false
+dry_run: false
 progbar: false
 
+# === Test Configuration ===
 unit_tests_enabled: false
+tests:
+    []
 
+# === External Test Suites ===
 external_suites:
-  enabled: true
-  run_mode: only
-  suites:
-    - name: integration-tests
-      paths:
-        - ./tests/...
-      short_circuit: true
+    enabled: true
+    suites:
+        - name: integration-tests
+          paths:
+            - ../../../integration/...
+          tags:
+            - integration
+          short_circuit: true
 
+# === File Filtering ===
+exclude:
+    []
+include:
+    []
+skip:
+    []
+skip_func:
+    []
+
+# === Advanced Options ===
+diff: ""
+base: ""
+debug: false
+
+# === Baseline / Ratchet ===
+baseline:
+    no_regression: false
+    tolerance: 0.0
+
+# === Output Settings ===
+show_killed: false
+show_survived: false
 outputs:
-  - json:report.json
+    - json:report.json
+cpu_profile: ""
+mem_profile: ""
+
+# === Suppressions (Auto-managed) ===
+suppress:
+    []

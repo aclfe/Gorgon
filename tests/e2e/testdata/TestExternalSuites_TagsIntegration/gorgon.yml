@@ -17,11 +17,10 @@ tests:
 # === External Test Suites ===
 external_suites:
     enabled: true
-    run_mode: only
     suites:
         - name: integration-tests
           paths:
-            - ./tests/integration/...
+            - ../../../integration/...
           tags:
             - integration
           short_circuit: true

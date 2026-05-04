@@ -17,11 +17,12 @@ tests:
 # === External Test Suites ===
 external_suites:
     enabled: true
-    run_mode: after_unit
     suites:
         - name: integration-tests
           paths:
-            - ./tests/...
+            - ../../../integration/...
+          tags:
+            - integration
           short_circuit: true
 
 # === File Filtering ===
@@ -37,7 +38,7 @@ skip_func:
 # === Advanced Options ===
 diff: ""
 base: ""
-debug: false
+debug: true
 
 # === Baseline / Ratchet ===
 baseline:
