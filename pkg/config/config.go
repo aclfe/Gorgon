@@ -90,6 +90,7 @@ type Config struct {
 	ViolationMode     ViolationMode        `yaml:"violation_mode,omitempty"`
 	Badge             string               `yaml:"badge,omitempty"` // "json" or "svg" - generates badge file
 	ChunkLargeFiles   bool                 `yaml:"chunk_large_files,omitempty"` // Split files with many mutants to reduce memory (default: true)
+	BuildTags         []string             `yaml:"build_tags,omitempty"`        // Build tags passed to `go test -c` (e.g. ["unit"])
 }
 
 func Default() *Config {

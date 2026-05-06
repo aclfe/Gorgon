@@ -28,7 +28,16 @@ var lastTotalMutants int
 
 func GetTotalMutants() int { return lastTotalMutants }
 
-func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) (result []Mutant, retErr error) {
+// finalizeMutants ensures all mutants have a status before returning
+func finalizeMutants(mutants []Mutant) {
+	for i := range mutants {
+		if mutants[i].Status == "" {
+			mutants[i].Status = StatusUntested
+		}
+	}
+}
+
+func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, testsByPkg map[string][]string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) (result []Mutant, retErr error) {
 
 	log.Debug("GenerateAndRunSchemata called with externalCfg.Enabled=%v, suites=%d", externalCfg.Enabled, len(externalCfg.Suites))
 
@@ -46,7 +55,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	} else if unitTestsEnabled {
 		// Skip when unit tests are disabled — the "untested" label would be
 		// misleading since external suites will cover all mutants.
-		filterMutantsWithoutTests(mutants, baseDir)
+		filterMutantsWithoutTests(mutants, projectRoot)
 	}
 
 	// Run preflight validation: Level 1 (static) + Level 2 (type-check each mutant)
@@ -60,6 +69,9 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 				mutants[i].Status = r.Status
 				mutants[i].Error = r.Error
 				mutants[i].KillOutput = r.ErrorReason
+				if r.Status == StatusCompileError {
+					mutants[i].KilledBy = "(compiler)"
+				}
 				invalidMutants = append(invalidMutants, mutants[i])
 				break
 			}
@@ -84,6 +96,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	// If all cached and no external suites, return early
 	if uncachedIndices == nil && !externalCfg.Enabled {
 		log.Debug("All mutants cached and no external suites, returning early")
+		finalizeMutants(mutants)
 		return append(mutants, invalidMutants...), nil
 	}
 
@@ -95,22 +108,26 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		goModDir := FindGoModDir(baseDirAbs)
 		if goModDir == "" {
 			log.Warn("[EXTERNAL] External suites require go.mod, skipping")
+			finalizeMutants(mutants)
 			return append(mutants, invalidMutants...), nil
 		}
 
 		ws, err := NewModuleWorkspace()
 		if err != nil {
+			finalizeMutants(mutants)
 			return append(mutants, invalidMutants...), fmt.Errorf("workspace creation failed: %w", err)
 		}
 		defer ws.Cleanup()
 
 		if err := ws.Setup(baseDir, mutants); err != nil {
+			finalizeMutants(mutants)
 			return append(mutants, invalidMutants...), fmt.Errorf("workspace setup failed: %w", err)
 		}
 
 		_ = MakeSelfContained(ws.TempDir)
 
 		if _, _, err := ws.applySchemata(mutants, log); err != nil {
+			finalizeMutants(mutants)
 			return append(mutants, invalidMutants...), fmt.Errorf("schemata application failed: %w", err)
 		}
 
@@ -129,6 +146,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 			}
 		}
 
+		finalizeMutants(mutants)
 		return append(mutants, invalidMutants...), nil
 	}
 
@@ -143,19 +161,25 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 
 	if !hasGoWork && !hasGoMod {
 		log.Debug("Neither go.work nor go.mod found, using standalone mode")
-		return runStandalone(ctx, mutants, uncachedIndices, concurrent, cache, baseDir, tests, progbar, fileHashes, log)
+		var bt []string
+		if cfg != nil {
+			bt = cfg.BuildTags
+		}
+		return runStandalone(ctx, mutants, uncachedIndices, concurrent, cache, baseDir, testsByPkg, progbar, bt, fileHashes, log)
 	}
 	log.Debug("Module layout detected, using workspace mode")
 
 	ws, err := NewModuleWorkspace()
 	if err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace creation failed: %w", err))
+		finalizeMutants(mutants)
 		return append(mutants, invalidMutants...), err
 	}
 	defer ws.Cleanup()
 
 	if err := ws.Setup(projectRoot, mutants); err != nil {
 		setMutantErrors(mutants, fmt.Errorf("workspace setup failed: %w", err))
+		finalizeMutants(mutants)
 		return append(mutants, invalidMutants...), err
 	}
 
@@ -165,6 +189,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	if err != nil {
 		log.Warn("CRITICAL: Schemata application failed: %v", err)
 		setMutantErrors(mutants, fmt.Errorf("schemata application failed: %w", err))
+		finalizeMutants(mutants)
 		return append(mutants, invalidMutants...), fmt.Errorf("FATAL: schemata transformation produced invalid code: %w", err)
 	}
 	log.Debug("Schemata application completed successfully")
@@ -209,7 +234,8 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	pkgToMutantIDs, mutantIDToIndex, err := ws.buildPkgMap(mutants)
 	if err != nil {
 		setMutantErrors(mutants, fmt.Errorf("build package map failed: %w", err))
-		return mutants, err
+		finalizeMutants(mutants)
+		return append(mutants, invalidMutants...), err
 	}
 
 	// DEBUG: expose key mismatch between the two package maps
@@ -219,15 +245,15 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	}
 	log.Debug("[DEBUG-PKGMAP] mutantIDToIndex: %v", mutantIDToIndex)
 
-	// DEBUG: verify every mutant ID appears in mutantIDToIndex
-	log.Debug("[DEBUG-INDEX] Checking mutantIDToIndex coverage:")
-	for _, m := range mutants {
-		if idx, ok := mutantIDToIndex[m.ID]; ok {
-			log.Debug("[DEBUG-INDEX] mutant %d → index %d ✓", m.ID, idx)
-		} else {
-			log.Debug("[DEBUG-INDEX] mutant %d → NOT IN INDEX ✗ (will never be classified)", m.ID)
-		}
-	}
+	// // DEBUG: verify every mutant ID appears in mutantIDToIndex
+	// log.Debug("[DEBUG-INDEX] Checking mutantIDToIndex coverage:")
+	// for _, m := range mutants {
+	// 	if idx, ok := mutantIDToIndex[m.ID]; ok {
+	// 		log.Debug("[DEBUG-INDEX] mutant %d → index %d ✓", m.ID, idx)
+	// 	} else {
+	// 		log.Debug("[DEBUG-INDEX] mutant %d → NOT IN INDEX ✗ (will never be classified)", m.ID)
+	// 	}
+	// }
 
 	mutantSites := make(map[int]MutantSite, len(mutants))
 	for i := range mutants {
@@ -294,24 +320,29 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	var results []mutantResult
 	if runUnitTests {
 		var err error
-		results, err = compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, tests, prog, log)
+		var bt []string
+		if cfg != nil {
+			bt = cfg.BuildTags
+		}
+		results, err = compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, testsByPkg, bt, prog, log)
 
 		if len(results) > 0 {
 			collectResults(mutants, results, mutantIDToIndex, ws.TempDir)
 		}
 
 		// DEBUG: show what collectResults actually matched
-		log.Debug("[DEBUG-COLLECT] After collectResults, raw result IDs and statuses:")
-		for _, r := range results {
-			log.Debug("[DEBUG-COLLECT] result id=%d status=%q", r.id, r.status)
-		}
-		log.Debug("[DEBUG-COLLECT] Mutant statuses after collection:")
-		for _, m := range mutants {
-			log.Debug("[DEBUG-COLLECT] mutant id=%d status=%q", m.ID, m.Status)
-		}
+		//log.Debug("[DEBUG-COLLECT] After collectResults, raw result IDs and statuses:")
+		// for _, r := range results {
+		// 	log.Debug("[DEBUG-COLLECT] result id=%d status=%q", r.id, r.status)
+		// }
+		// log.Debug("[DEBUG-COLLECT] Mutant statuses after collection:")
+		// for _, m := range mutants {
+		// 	log.Debug("[DEBUG-COLLECT] mutant id=%d status=%q", m.ID, m.Status)
+		// }
 
 		if err != nil {
 			SaveCache(mutants, baseDir, cache, fileHashes)
+			finalizeMutants(mutants)
 			return append(mutants, invalidMutants...), err
 		}
 	}
@@ -331,18 +362,14 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 	// Any mutant that passed preflight and schemata verification but never
 	// received an execution result (e.g. its package path couldn't be resolved)
 	// is marked untested so Total always equals the sum of all categories.
-	for i := range mutants {
-		if mutants[i].Status == "" {
-			mutants[i].Status = StatusUntested
-		}
-	}
+	finalizeMutants(mutants)
 
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return append(mutants, invalidMutants...), nil
 }
 
-func runStandalone(ctx context.Context, mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, tests []string, progbar bool, fileHashes map[string]string, log *logger.Logger) ([]Mutant, error) {
+func runStandalone(ctx context.Context, mutants []Mutant, uncachedIndices []int, concurrent int, cache *cache.Cache, baseDir string, testsByPkg map[string][]string, progbar bool, buildTags []string, fileHashes map[string]string, log *logger.Logger) ([]Mutant, error) {
 
 	pkgToMutants := make(map[string][]*Mutant, len(uncachedIndices))
 	for _, idx := range uncachedIndices {
@@ -387,7 +414,14 @@ func runStandalone(ctx context.Context, mutants []Mutant, uncachedIndices []int,
 				return ctx.Err()
 			default:
 			}
-			return runStandalonePackage(ctx, pkgDir, pkgMutants, concurrent, tests, workerTempDir, progbar, prog, log)
+			// Determine tests for this package
+			var pkgTests []string
+			if len(testsByPkg) > 0 && len(pkgMutants) > 0 {
+				if tests, ok := testsByPkg[pkgDir]; ok {
+					pkgTests = tests
+				}
+			}
+			return runStandalonePackage(ctx, pkgDir, pkgMutants, concurrent, pkgTests, workerTempDir, progbar, buildTags, prog, log)
 		})
 	}
 
@@ -395,13 +429,15 @@ func runStandalone(ctx context.Context, mutants []Mutant, uncachedIndices []int,
 		if prog != nil {
 			prog.Finish()
 		}
-		return nil, err
+		finalizeMutants(mutants)
+		return mutants, err
 	}
 
 	if prog != nil {
 		prog.Finish()
 	}
 
+	finalizeMutants(mutants)
 	SaveCache(mutants, baseDir, cache, fileHashes)
 
 	return mutants, nil
@@ -440,6 +476,23 @@ func isStdlib(path string) bool {
 	return dot < 0 || (slash >= 0 && slash < dot)
 }
 
+var statusRank = map[string]int{
+	"":          0,
+	"untested":  1,
+	"survived":  2,
+	"error":     3,
+	"timeout":   4,
+	"killed":    5,
+	"invalid":   6, // terminal — never overwrite
+}
+
+func shouldUpdate(current, incoming string) bool {
+	if current == "invalid" || current == "killed" {
+		return false // terminal states
+	}
+	return statusRank[incoming] >= statusRank[current]
+}
+
 func setMutantErrors(mutants []Mutant, err error) {
 	for i := range mutants {
 		mutants[i].Status = "error"
@@ -453,7 +506,7 @@ func collectResults(mutants []Mutant, results []mutantResult, mutantIDToIndex ma
 		if !ok {
 			continue
 		}
-		if mutants[idx].Status == "survived" {
+		if !shouldUpdate(mutants[idx].Status, result.status) {
 			continue
 		}
 		mutants[idx].Status = result.status
@@ -494,9 +547,9 @@ func filterMutantsByTestPackages(mutants []Mutant, testPaths []string) {
 	}
 }
 
-func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
-	absBase, _ := filepath.Abs(baseDir)
-	testPackages := collectPackagesWithTests(absBase)
+func filterMutantsWithoutTests(mutants []Mutant, projectRoot string) {
+	absRoot, _ := filepath.Abs(projectRoot)
+	testPackages := collectPackagesWithTestsAbs(absRoot)
 
 	if len(testPackages) == 0 {
 		return
@@ -515,18 +568,42 @@ func filterMutantsWithoutTests(mutants []Mutant, baseDir string) {
 		}
 
 		mutantDir := filepath.Dir(absMutantPath)
-		relDir, err := filepath.Rel(absBase, mutantDir)
-		if err != nil {
-			continue
-		}
-
-		if !testPackages[relDir] {
+		if !testPackages[mutantDir] {
 			m.Status = "untested"
 		}
 	}
 }
 
-// collectPackagesWithTests collects all packages that have test files
+// collectPackagesWithTestsAbs collects all packages that have test files, using absolute paths as keys
+func collectPackagesWithTestsAbs(absModule string) map[string]bool {
+	pkgs := make(map[string]bool)
+
+	filepath.Walk(absModule, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || strings.HasPrefix(name, "_") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if strings.HasSuffix(path, "_test.go") {
+			dir := filepath.Dir(path)
+			absDir, err := filepath.Abs(dir)
+			if err == nil {
+				pkgs[absDir] = true
+			}
+		}
+		return nil
+	})
+
+	return pkgs
+}
+
+// collectPackagesWithTests collects all packages that have test files (relative paths for backward compatibility)
 func collectPackagesWithTests(absModule string) map[string]bool {
 	pkgs := make(map[string]bool)
 
@@ -669,17 +746,10 @@ func runExternalPhaseWithBinaries(ctx context.Context, ws *ModuleWorkspace, muta
 				if !ok {
 					continue
 				}
-				switch r.status {
-				case StatusKilled:
-					mutants[idx].Status = StatusKilled
+				if shouldUpdate(mutants[idx].Status, r.status) {
+					mutants[idx].Status = r.status
 					mutants[idx].KilledBy = r.killedBy
 					mutants[idx].KillOutput = r.killOutput
-				case StatusSurvived:
-					// Mark as survived if not already conclusively classified so
-					// mutants don't fall through to "untested" in the final sweep.
-					if s := mutants[idx].Status; s == "" || s == StatusUntested {
-						mutants[idx].Status = StatusSurvived
-					}
 				}
 			}
 		}
@@ -784,6 +854,153 @@ func TestVerifyBuildSequential(ctx context.Context, tempDir string, log *logger.
 	return verifyBuildSequential(ctx, tempDir, log)
 }
 
+// applySingleFile resets srcFile in the workspace to its original source, then
+// applies schemata for only `mutants` (which must all belong to srcFile).
+// Other files are left untouched.
+func applySingleFile(ws *ModuleWorkspace, srcFile string, mutants []*Mutant) error {
+	rel, err := ws.relPath(srcFile)
+	if err != nil {
+		return err
+	}
+	tempPath := filepath.Join(ws.TempDir, rel)
+
+	src, err := os.ReadFile(srcFile)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", srcFile, err)
+	}
+	if err := os.WriteFile(tempPath, src, filePermissions); err != nil {
+		return fmt.Errorf("restore %s: %w", tempPath, err)
+	}
+	if len(mutants) == 0 {
+		return nil
+	}
+
+	fset := token.NewFileSet()
+	freshAST, err := parser.ParseFile(fset, srcFile, src, parser.ParseComments)
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", srcFile, err)
+	}
+	for _, m := range mutants {
+		m.Site.Fset = fset
+	}
+
+	posMap, err := ApplySchemataToAST(freshAST, fset, tempPath, src, mutants)
+	if err != nil {
+		return fmt.Errorf("apply schemata to %s: %w", srcFile, err)
+	}
+	for _, m := range mutants {
+		if pm, ok := posMap[m.ID]; ok {
+			m.TempLine, m.TempCol = pm.TempLine, pm.TempCol
+		}
+	}
+	return nil
+}
+
+// fileHasCompileErrors returns true if any compiler error in buildOut points
+// at the temp-workspace location of srcFile. This is the local oracle: it
+// ignores errors in OTHER files (which are out of scope for this bisection).
+func fileHasCompileErrors(buildOut string, ws *ModuleWorkspace, srcFile string) bool {
+	rel, err := ws.relPath(srcFile)
+	if err != nil {
+		return false
+	}
+	want := filepath.Clean(filepath.Join(ws.TempDir, rel))
+	for _, ce := range ParseCompilerErrors(buildOut) {
+		ef := ce.File
+		if !filepath.IsAbs(ef) {
+			ef = filepath.Join(ws.TempDir, ef)
+		}
+		if filepath.Clean(ef) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// bisectFileMutants binary-searches the mutants of one source file to identify
+// which ones cause compile errors IN THAT FILE. Other files in the workspace
+// are left in whatever state the caller set up; their errors are ignored.
+func bisectFileMutants(ctx context.Context, ws *ModuleWorkspace, srcFile string, candidates []*Mutant, log *logger.Logger) (good, bad []*Mutant) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	if err := applySingleFile(ws, srcFile, candidates); err != nil {
+		for _, m := range candidates {
+			m.Status = StatusError
+			m.KilledBy = "(compiler)"
+			m.KillOutput = fmt.Sprintf("bisect: re-apply failed: %v", err)
+			bad = append(bad, m)
+		}
+		return nil, bad
+	}
+
+	buildOut, _ := verifyBuildSequential(ctx, ws.TempDir, log)
+	if !fileHasCompileErrors(buildOut, ws, srcFile) {
+		// File compiles cleanly with this subset — every candidate here is good.
+		return candidates, nil
+	}
+
+	if len(candidates) == 1 {
+		candidates[0].Status = StatusError
+		candidates[0].KilledBy = "(compiler)"
+		candidates[0].KillOutput = "bisect: identified as compile-failing mutant"
+		return nil, []*Mutant{candidates[0]}
+	}
+
+	mid := len(candidates) / 2
+	lg, lb := bisectFileMutants(ctx, ws, srcFile, candidates[:mid], log)
+	rg, rb := bisectFileMutants(ctx, ws, srcFile, candidates[mid:], log)
+	return append(lg, rg...), append(lb, rb...)
+}
+
+// bisectBadMutants uses binary search to identify which mutants cause compilation failures.
+// Returns good mutants and bad mutants (with error status set).
+// DEPRECATED: Replaced by per-file bisection (bisectFileMutants). This function had
+// structural bugs (empty removed set, wrong oracle) and is kept only for reference.
+func bisectBadMutants(ctx context.Context, ws *ModuleWorkspace, candidates []Mutant, log *logger.Logger) (good []Mutant, bad []Mutant) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	// Reapply schemata for THIS subset only, then test-build
+	badSet := make(map[int]bool)
+	for _, m := range candidates {
+		badSet[m.ID] = true
+	}
+	
+	// Create a temporary copy of all mutants to reapply
+	allMutants := make([]Mutant, len(candidates))
+	copy(allMutants, candidates)
+	
+	if err := reapplyAffectedFiles(ws, make(map[int]bool), allMutants, candidates, log); err != nil {
+		// Reapply itself failed — this subset is unrecoverable
+		for i := range candidates {
+			candidates[i].Status = StatusError
+			candidates[i].KilledBy = "(compiler)"
+			candidates[i].KillOutput = fmt.Sprintf("bisect: re-apply failed: %v", err)
+		}
+		return nil, candidates
+	}
+	
+	if _, err := verifyBuildSequential(ctx, ws.TempDir, log); err == nil {
+		return candidates, nil // all good
+	}
+	
+	if len(candidates) == 1 {
+		// Single bad mutant
+		candidates[0].Status = StatusError
+		candidates[0].KilledBy = "(compiler)"
+		candidates[0].KillOutput = "bisect: single mutant causes compilation failure"
+		return nil, candidates
+	}
+
+	mid := len(candidates) / 2
+	leftGood, leftBad := bisectBadMutants(ctx, ws, candidates[:mid], log)
+	rightGood, rightBad := bisectBadMutants(ctx, ws, candidates[mid:], log)
+	return append(leftGood, rightGood...), append(leftBad, rightBad...)
+}
+
 // verifyAndCleanSchemata runs build verification with retry loop that removes bad mutants.
 // Returns kept mutants, removed mutants (with compile-error status set), and any error.
 // Removed mutants are always returned so callers can include them in final counts.
@@ -806,24 +1023,115 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 
 		badIDs := extractMutantIDsFromBuildErrors(ws.TempDir, buildOut)
 		if len(badIDs) == 0 {
-			failingPkgs := identifyFailingPackages(ws, buildOut)
-			if len(failingPkgs) == 0 {
-				log.Warn("[VERIFY] Round %d: build failed but no error locations found — keeping all mutants as untested", round+1)
-				for i := range mutants {
-					if mutants[i].Status == "" {
-						mutants[i].Status = StatusUntested
+			log.Debug("[VERIFY] Round %d: tight scan missed — falling back to per-file bisection", round+1)
+
+			// Group current mutants by source file & build a temp→source path map.
+			byFile := make(map[string][]*Mutant, 16)
+			tempToSrc := make(map[string]string, 16)
+			for i := range mutants {
+				if mutants[i].Site.File == nil {
+					continue
+				}
+				src := mutants[i].Site.File.Name()
+				byFile[src] = append(byFile[src], &mutants[i])
+				if _, ok := tempToSrc[src]; !ok {
+					if rel, err := ws.relPath(src); err == nil {
+						tempToSrc[filepath.Clean(filepath.Join(ws.TempDir, rel))] = src
 					}
 				}
+			}
+
+			// Map compiler errors → source files we know about.
+			failingFiles := make(map[string]bool)
+			for _, ce := range ParseCompilerErrors(buildOut) {
+				ef := ce.File
+				if !filepath.IsAbs(ef) {
+					ef = filepath.Join(ws.TempDir, ef)
+				}
+				if src, ok := tempToSrc[filepath.Clean(ef)]; ok {
+					failingFiles[src] = true
+				}
+			}
+
+			if len(failingFiles) == 0 {
+				// Errors don't map to any source file we mutated (e.g. they live
+				// in helper files or test files we didn't touch). Don't poison
+				// the run — leave mutants unstatused and let the per-package
+				// compile in compileAndRunPackages classify them individually.
+				log.Warn("[VERIFY] Round %d: errors map to no tracked source file — deferring %d mutant(s) to per-package compile",
+					round+1, len(mutants))
 				return mutants, removed, nil
 			}
 
-			kept, failed := partitionMutantsByPackages(ws, mutants, failingPkgs, round+1)
-			removed = append(removed, failed...)
-			if len(kept) == 0 {
-				return nil, removed, fmt.Errorf("build verification: all packages failed in round %d", round+1)
+			// Bisect each failing file independently.
+			badSet := make(map[int]bool)
+			for srcFile := range failingFiles {
+				fileMutants := byFile[srcFile]
+				if len(fileMutants) == 0 {
+					continue
+				}
+				log.Debug("[VERIFY] Round %d: bisecting %d mutant(s) in %s",
+					round+1, len(fileMutants), filepath.Base(srcFile))
+				_, bad := bisectFileMutants(ctx, ws, srcFile, fileMutants, log)
+				for _, m := range bad {
+					badSet[m.ID] = true
+				}
 			}
-			log.Warn("[VERIFY] Round %d: no mutant IDs identifiable — marked %d mutant(s) in failing packages as errors, keeping %d", round+1, len(failed), len(kept))
-			mutants = kept
+
+			if len(badSet) == 0 {
+				// Per-file bisection couldn't pinpoint a culprit (typical when
+				// the build error originates in a sibling file we don't track,
+				// or from a cross-file interaction). Fall back to package-level
+				// quarantine: mark every mutant in the failing packages as a
+				// compile error, reset those source files to baseline so the
+				// rest of the workspace can build, then continue.
+				failingPkgs := identifyFailingPackages(ws, buildOut)
+				if len(failingPkgs) == 0 {
+					log.Warn("[VERIFY] Round %d: bisection found no bad mutants and no failing packages — deferring %d mutant(s) to per-package compile",
+						round+1, len(mutants))
+					return mutants, removed, nil
+				}
+				kept, failed := partitionMutantsByPackages(ws, mutants, failingPkgs, round+1)
+				removed = append(removed, failed...)
+				if err := resetMutatedFilesInPkgs(ws, mutants, failingPkgs); err != nil {
+					log.Warn("[VERIFY] Round %d: failed to reset failing packages to source: %v", round+1, err)
+				}
+				log.Warn("[VERIFY] Round %d: bisection inconclusive — quarantined %d mutant(s) in %d failing package(s), keeping %d",
+					round+1, len(failed), len(failingPkgs), len(kept))
+				mutants = kept
+				if len(mutants) == 0 {
+					return nil, removed, nil
+				}
+				continue
+			}
+
+			var keptThisRound []Mutant
+			var failedThisRound []Mutant
+			for i := range mutants {
+				if badSet[mutants[i].ID] {
+					// bisectFileMutants already set Status/KilledBy/KillOutput on the pointer.
+					failedThisRound = append(failedThisRound, mutants[i])
+				} else {
+					keptThisRound = append(keptThisRound, mutants[i])
+				}
+			}
+			removed = append(removed, failedThisRound...)
+			log.Debug("[VERIFY] Round %d: per-file bisection identified %d bad mutant(s), keeping %d",
+				round+1, len(failedThisRound), len(keptThisRound))
+
+			// Re-sync the workspace: bisection left each failing file in whatever
+			// state its last recursive call wrote. reapplyAffectedFiles resets each
+			// file containing a removed mutant and re-applies schemata for the
+			// kept set only — that's the canonical post-round state.
+			if err := reapplyAffectedFiles(ws, badSet, mutants, keptThisRound, log); err != nil {
+				for i := range keptThisRound {
+					if keptThisRound[i].Status == "" {
+						keptThisRound[i].Status = StatusUntested
+					}
+				}
+				return keptThisRound, removed, fmt.Errorf("re-apply after per-file bisection in round %d: %w", round+1, err)
+			}
+			mutants = keptThisRound
 			continue
 		}
 
@@ -840,38 +1148,44 @@ func verifyAndCleanSchemata(ctx context.Context, ws *ModuleWorkspace, mutants []
 		if len(keptThisRound) == len(mutants) {
 			for i := range keptThisRound {
 				if keptThisRound[i].Status == "" {
-					keptThisRound[i].Status = StatusError
+					keptThisRound[i].Status = StatusUntested
 					keptThisRound[i].KilledBy = "(compiler)"
 					keptThisRound[i].KillOutput = fmt.Sprintf("build verification (round %d): bad IDs identified but none matched", round+1)
 				}
 			}
 			removed = append(removed, keptThisRound...)
-			return nil, removed, fmt.Errorf("build verification: bad mutants identified but none removed, aborting")
+			return keptThisRound, removed, fmt.Errorf("build verification: bad mutants identified but none removed, aborting")
 		}
 
 		if err := reapplyAffectedFiles(ws, badSet, mutants, keptThisRound, log); err != nil {
 			for i := range keptThisRound {
 				if keptThisRound[i].Status == "" {
-					keptThisRound[i].Status = StatusError
+					keptThisRound[i].Status = StatusUntested
 					keptThisRound[i].KilledBy = "(compiler)"
 					keptThisRound[i].KillOutput = fmt.Sprintf("build verification (round %d): re-apply failed", round+1)
 				}
 			}
 			removed = append(removed, keptThisRound...)
-			return nil, removed, fmt.Errorf("re-apply after round %d: %w", round+1, err)
+			return keptThisRound, removed, fmt.Errorf("re-apply after round %d: %w", round+1, err)
 		}
 		mutants = keptThisRound
 	}
 
-	// After max rounds, mark remaining mutants as untested instead of errors
-	if _, finalErr := verifyBuildSequential(verifyCtx, ws.TempDir, log); finalErr != nil {
-		log.Warn("[VERIFY] Still failing after %d rounds — marking remaining %d mutants as untested (not errors)", maxRounds, len(mutants))
-		for i := range mutants {
-			if mutants[i].Status == "" {
-				mutants[i].Status = StatusUntested
-			}
+	// After max rounds, quarantine mutants in any still-failing packages so
+	// the rest of the workspace can compile and its tests can run.
+	if finalOut, finalErr := verifyBuildSequential(verifyCtx, ws.TempDir, log); finalErr != nil {
+		failingPkgs := identifyFailingPackages(ws, finalOut)
+		if len(failingPkgs) == 0 {
+			log.Warn("[VERIFY] Still failing after %d rounds with no attributable packages — deferring %d mutant(s) to per-package compile", maxRounds, len(mutants))
+			return mutants, removed, nil
 		}
-		return mutants, removed, nil
+		kept, failed := partitionMutantsByPackages(ws, mutants, failingPkgs, maxRounds)
+		log.Warn("[VERIFY] Still failing after %d rounds — quarantining %d mutant(s) across %d package(s); %d remain", maxRounds, len(failed), len(failingPkgs), len(kept))
+		if err := resetMutatedFilesInPkgs(ws, mutants, failingPkgs); err != nil {
+			return mutants, removed, fmt.Errorf("reset failing packages after max rounds: %w", err)
+		}
+		removed = append(removed, failed...)
+		return kept, removed, nil
 	}
 	return mutants, removed, nil
 }
@@ -887,6 +1201,45 @@ func identifyFailingPackages(ws *ModuleWorkspace, buildOutput string) map[string
 		failingPkgs[filepath.Dir(fp)] = true
 	}
 	return failingPkgs
+}
+
+// resetMutatedFilesInPkgs restores every original source file whose mutated
+// copy lives inside one of failingPkgs back to its unmutated content, so the
+// rest of the workspace can compile after we give up bisecting that package's
+// mutants. The previously-injected gorgon_schemata.go helper stays in place,
+// so the activeMutantID symbol remains defined for any file that references it.
+func resetMutatedFilesInPkgs(ws *ModuleWorkspace, allMutants []Mutant, failingPkgs map[string]bool) error {
+	if len(failingPkgs) == 0 {
+		return nil
+	}
+	resetPaths := make(map[string]bool)
+	for i := range allMutants {
+		m := &allMutants[i]
+		if m.Site.File == nil {
+			continue
+		}
+		rel, err := ws.relPath(m.Site.File.Name())
+		if err != nil {
+			continue
+		}
+		pkgDir := filepath.Join(ws.TempDir, filepath.Dir(rel))
+		if !failingPkgs[pkgDir] {
+			continue
+		}
+		tempPath := filepath.Join(ws.TempDir, rel)
+		if resetPaths[tempPath] {
+			continue
+		}
+		src, err := os.ReadFile(m.Site.File.Name())
+		if err != nil {
+			return fmt.Errorf("re-read %s: %w", m.Site.File.Name(), err)
+		}
+		if err := os.WriteFile(tempPath, src, filePermissions); err != nil {
+			return fmt.Errorf("restore %s: %w", tempPath, err)
+		}
+		resetPaths[tempPath] = true
+	}
+	return nil
 }
 
 // partitionMutantsByPackages splits mutants into those in failing packages vs clean packages
@@ -926,8 +1279,7 @@ func partitionMutantsByIDs(mutants []Mutant, badSet map[int]bool, round int) (ke
 }
 
 // extractMutantIDsFromBuildErrors scans temp files near error lines for activeMutantID patterns.
-// If errors are in helper files (no activeMutantID patterns), it scans all .go files in the
-// same package directory as a fallback.
+// Uses a tight ±5 line window. If no IDs found, returns empty (bisection will take over).
 func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 	errors := ParseCompilerErrors(buildOutput)
 	seen := make(map[int]bool)
@@ -935,7 +1287,7 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 
 	prefix := []byte("activeMutantID == ")
 
-	// First pass: scan files near error lines
+	// Scan files near error lines with tight ±5 line window
 	for _, ce := range errors {
 		filePath := ce.File
 		if !filepath.IsAbs(filePath) {
@@ -947,12 +1299,12 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 		}
 		lines := strings.Split(string(content), "\n")
 
-		// Scan ±200 lines around error location to find activeMutantID checks.
-		lo := ce.Line - 200
+		// Scan ±5 lines around error location to find activeMutantID checks.
+		lo := ce.Line - 5
 		if lo < 0 {
 			lo = 0
 		}
-		hi := ce.Line + 200
+		hi := ce.Line + 5
 		if hi > len(lines) {
 			hi = len(lines)
 		}
@@ -979,55 +1331,7 @@ func extractMutantIDsFromBuildErrors(tempDir, buildOutput string) []int {
 		}
 	}
 
-	// Fallback: if no IDs found, scan all .go files in each error's package directory
-	if len(ids) == 0 {
-		errorDirs := make(map[string]bool)
-		for _, ce := range errors {
-			filePath := ce.File
-			if !filepath.IsAbs(filePath) {
-				filePath = filepath.Join(tempDir, filePath)
-			}
-			errorDirs[filepath.Dir(filePath)] = true
-		}
-
-		for pkgDir := range errorDirs {
-			entries, err := os.ReadDir(pkgDir)
-			if err != nil {
-				continue
-			}
-
-			for _, entry := range entries {
-				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
-					continue
-				}
-				content, err := os.ReadFile(filepath.Join(pkgDir, entry.Name()))
-				if err != nil {
-					continue
-				}
-				for _, line := range strings.Split(string(content), "\n") {
-					idx := strings.Index(line, string(prefix))
-					if idx < 0 {
-						continue
-					}
-					rest := line[idx+len(prefix):]
-					end := 0
-					for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
-						end++
-					}
-					if end == 0 {
-						continue
-					}
-					var id int
-					if _, err := fmt.Sscanf(rest[:end], "%d", &id); err != nil || seen[id] {
-						continue
-					}
-					seen[id] = true
-					ids = append(ids, id)
-				}
-			}
-		}
-	}
-
+	// No fallback: if we can't pinpoint within ±5 lines, return empty and let bisection take over
 	return ids
 }
 
@@ -1135,7 +1439,11 @@ func filterKilledFromPkgMap(pkgToMutantIDs map[string][]int, mutants []Mutant, i
 
 // Test helper for integration tests - calls GenerateAndRunSchemata with proper types
 func TestGenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, baseDir string, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, concurrent int, cache *cache.Cache, tests []string, testPaths []string, log *logger.Logger, progbar bool, unitTestsEnabled bool, externalCfg config.ExternalSuitesConfig, cfg *config.Config) ([]Mutant, error) {
-	return GenerateAndRunSchemata(ctx, sites, operators, allOps, baseDir, projectRoot, dirRules, resolver, concurrent, cache, tests, testPaths, log, progbar, unitTestsEnabled, externalCfg, cfg)
+	testsByPkg := make(map[string][]string)
+	if len(tests) > 0 {
+		testsByPkg[""] = tests
+	}
+	return GenerateAndRunSchemata(ctx, sites, operators, allOps, baseDir, projectRoot, dirRules, resolver, concurrent, cache, testsByPkg, testPaths, log, progbar, unitTestsEnabled, externalCfg, cfg)
 }
 
 // Test helper for extractMutantIDsFromBuildErrors

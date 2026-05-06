@@ -96,7 +96,8 @@ func ApplySchemataInMemory(src []byte, filePath string, fset *token.FileSet, fil
 		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
 	})
 
-	fixUnusedImports(file)
+	// fixUnusedImports removed: schemata preserves original code in else branch,
+	// so any import used originally is still used. Blanking aliases breaks code.
 	fixUnusedLoopVarsAfterMutationFast(file)
 
 	return file, nil
@@ -210,7 +211,8 @@ func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, sr
 		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
 	})
 
-	fixUnusedImports(file)
+	// fixUnusedImports removed: schemata preserves original code in else branch,
+	// so any import used originally is still used. Blanking aliases breaks code.
 	fixUnusedLoopVarsAfterMutationFast(file)
 
 	buf := formatBufPool.Get().(*bytes.Buffer)

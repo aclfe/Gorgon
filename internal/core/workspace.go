@@ -405,7 +405,8 @@ func (w *ModuleWorkspace) copyPackageFromModule(modRoot, pkgRelDir string, mutat
 		if !strings.HasSuffix(entry.Name(), ".go") {
 			continue
 		}
-		if mutatedPaths[src] {
+		// Copy test files unconditionally; skip only mutated source files
+		if !strings.HasSuffix(entry.Name(), "_test.go") && mutatedPaths[src] {
 			continue
 		}
 		if err := copyFileWithBuffer(src, dst); err != nil {

@@ -3,4 +3,4 @@
 
 package reporter
 
-import "testing"
+import _ "testing"

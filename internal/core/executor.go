@@ -184,6 +184,7 @@ type testExecutor struct {
 	mutantEnv   []string
 	log         *logger.Logger
 	projectRoot string
+	buildTags   []string
 }
 
 func newTestExecutor(tempDir, pkgDir, projectRoot string, tests []string, log *logger.Logger) *testExecutor {
@@ -207,16 +208,18 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 	e.testBinary = filepath.Join(e.pkgDir, "package.test")
 	relPkg := e.relPath()
 
-	cmd := exec.CommandContext(ctx, "go", "test", "-c", "-vet=off", "-o", e.testBinary, relPkg)
+	args := []string{"test", "-c", "-vet=off"}
+	if len(e.buildTags) > 0 {
+		args = append(args, "-tags", strings.Join(e.buildTags, ","))
+	}
+	args = append(args, "-o", e.testBinary, relPkg)
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = e.tempDir
-	// debug: e.log.Info("[COMPILE] Running: go test -c -vet=off -o %s %s (in %s)", e.testBinary, relPkg, e.tempDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		e.log.Debug("[COMPILE] FAILED for package %s: %v\nOutput:\n%s", relPkg, err, string(out))
 		return attributeCompileErrors(e.tempDir, e.projectRoot, mutantIDs, sites, string(out))
 	}
-	// debug: if len(out) > 0 { e.log.Info("[COMPILE] Output: %s", string(out)) }
-	// debug: e.log.Info("[COMPILE] Success, binary at %s", e.testBinary)
 
 	result := compileResultWithAttribution{
 		perMutant: make(map[int]error, len(mutantIDs)),
@@ -330,7 +333,12 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 		killedBy = "runtime error"
 		killOutput = err.Error()
 	} else if hasNoTestsToRun(outStr, err) {
-		status = "survived"
+		status = "untested"
+		killedBy = ""
+		killOutput = ""
+	} else if err == nil && duration < 50*time.Millisecond && strings.Contains(strings.ToLower(outStr), "no tests") {
+		// Silent case: binary exits 0 but no tests actually ran
+		status = "untested"
 		killedBy = ""
 		killOutput = ""
 	} else if err != nil {
@@ -480,24 +488,23 @@ func extractFirstError(output string) string {
 }
 
 func hasNoTestsToRun(output string, runErr error) bool {
-	if runErr == nil {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "no tests to run") ||
+		strings.Contains(lower, "no test files") ||
+		strings.Contains(lower, "warning: no tests to run")
+}
+
+// packageHasTestFiles checks if a package directory contains any *_test.go files
+func packageHasTestFiles(pkgDir string) bool {
+	entries, err := os.ReadDir(pkgDir)
+	if err != nil {
 		return false
 	}
-
-	noTestPatterns := []string{
-		"no test files",
-		"no tests to run",
-	}
-
-	if exitErr, ok := runErr.(*exec.ExitError); ok {
-		stderrLower := strings.ToLower(string(exitErr.Stderr))
-		for _, pattern := range noTestPatterns {
-			if strings.Contains(stderrLower, strings.ToLower(pattern)) {
-				return true
-			}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
+			return true
 		}
 	}
-
 	return false
 }
 
@@ -509,7 +516,7 @@ func (e *testExecutor) relPath() string {
 	return "./" + filepath.ToSlash(rel)
 }
 
-func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, tests []string, prog *ProgressTracker, log *logger.Logger) ([]mutantResult, error) {
+func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs map[string][]int, pkgToMutants map[string][]*Mutant, mutantSites map[int]MutantSite, concurrent int, testsByPkg map[string][]string, buildTags []string, prog *ProgressTracker, log *logger.Logger) ([]mutantResult, error) {
 	resultsChan := make(chan mutantResult)
 	var allResults []mutantResult
 	var resultsMu sync.Mutex
@@ -548,7 +555,31 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 		compileGroup.Go(func() error {
 			pkgDir := pkgDir
 			mutantIDsForPkg := mutantIDsForPkg
-			executor := newTestExecutor(tempDir, pkgDir, tempDir, tests, log)
+			
+			// Determine tests for this package by matching original source directory
+			var pkgTests []string
+			if len(testsByPkg) > 0 {
+				// Find the original source directory for this temp package
+				// pkgToMutants contains mutants with Site.File pointing to original source
+				if pkgMuts := pkgToMutants[pkgDir]; len(pkgMuts) > 0 {
+					for _, m := range pkgMuts {
+						if m.Site.File != nil {
+							origDir := filepath.Dir(m.Site.File.Name())
+							// testsByPkg is keyed by absolute paths from extractTests
+							absOrigDir, err := filepath.Abs(origDir)
+							if err == nil {
+								if tests, ok := testsByPkg[absOrigDir]; ok {
+									pkgTests = tests
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			executor := newTestExecutor(tempDir, pkgDir, tempDir, pkgTests, log)
+			executor.buildTags = buildTags
 			pkgMuts := pkgToMutants[pkgDir]
 
 			currentSites := make(map[int]MutantSite, len(mutantIDsForPkg))
@@ -585,11 +616,20 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				// Distinguish between "package has no test files" (truly untested)
 				// and "go test -c failed" (compile error that wasn't attributed to a
 				// specific mutant, e.g. a mutation that only breaks the test build).
+				
+				// Check if the original source package has test files
+				var origPkgDir string
+				if len(pkgMuts) > 0 && pkgMuts[0].Site.File != nil {
+					origPkgDir = filepath.Dir(pkgMuts[0].Site.File.Name())
+				}
+				hasTests := origPkgDir != "" && packageHasTestFiles(origPkgDir)
+				
 				compileFailed := result.compileFailed || result.compilerOutput != ""
 				count := 0
 				for _, mutantID := range mutantIDsForPkg {
 					if result.perMutant[mutantID] == nil {
-						if compileFailed {
+						if compileFailed || (hasTests && !result.compileFailed) {
+							// Either explicit compile failure OR package has tests but binary wasn't created
 							resultsChan <- mutantResult{
 								id:         mutantID,
 								status:     "error",
@@ -597,6 +637,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 								killOutput: result.compilerOutput,
 							}
 						} else {
+							// Package genuinely has no test files
 							resultsChan <- mutantResult{id: mutantID, status: "untested"}
 						}
 						if prog != nil {
@@ -610,7 +651,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					if compileFailed {
+					if compileFailed || hasTests {
 						executor.log.Debug("Test build failed for %s — %d mutant(s) marked as compile errors", pkg, count)
 					} else {
 						executor.log.Debug("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, count)
@@ -741,7 +782,7 @@ func copyAllPackages(srcRoot, dstRoot string, skipFiles map[string]bool) error {
 	})
 }
 
-func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, prog *ProgressTracker, log *logger.Logger) error {
+func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Mutant, concurrent int, tests []string, workerTempDir string, progbar bool, buildTags []string, prog *ProgressTracker, log *logger.Logger) error {
 
 	entries, _ := os.ReadDir(workerTempDir)
 	for _, e := range entries {
@@ -912,6 +953,7 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 	pkgTempDir := filepath.Join(tempDir, pkgRelPath)
 
 	executor := newTestExecutor(tempDir, pkgTempDir, projectRoot, tests, log)
+	executor.buildTags = buildTags
 
 	mutantIDs := make([]int, len(pkgMutants))
 	for i, m := range pkgMutants {
@@ -962,11 +1004,22 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 		if pkgRelPath == "" || pkgRelPath == "." {
 			pkgRelPath = filepath.Base(pkgDir)
 		}
-		// fmt.Fprintf(os.Stderr, "[INFO] No test binary for ./%s — package has no test files, %d mutant(s) marked untested\n", pkgRelPath, len(testableIDs))
-		//CHANGING BASED ON LOG LEVEL
+		
+		// Check if the package has test files to distinguish between
+		// "no test files" (untested) and "silent compile failure" (error)
+		hasTests := packageHasTestFiles(pkgDir)
+		
 		for _, m := range pkgMutants {
 			if m.Status == "" {
-				m.Status = "untested"
+				if hasTests {
+					// Package has tests but binary wasn't created — compile failure
+					m.Status = "error"
+					m.KilledBy = "(compiler)"
+					m.KillOutput = "test binary not created despite test files present"
+				} else {
+					// Package genuinely has no test files
+					m.Status = "untested"
+				}
 			}
 		}
 		if prog != nil {
@@ -1081,7 +1134,15 @@ func resolveSuitePaths(ctx context.Context, workspaceDir string, suite config.Ex
 		if len(suite.Tags) > 0 {
 			args = append(args, "-tags", strings.Join(suite.Tags, ","))
 		}
-		args = append(args, p)
+		// `go list` treats bare paths like "tests/integration/..." as import
+		// paths, not directory patterns. Prefix with "./" so it's resolved
+		// relative to workspaceDir.
+		listArg := p
+		if !strings.HasPrefix(listArg, "./") && !strings.HasPrefix(listArg, "/") &&
+			!strings.HasPrefix(listArg, "../") && listArg != "." {
+			listArg = "./" + listArg
+		}
+		args = append(args, listArg)
 
 		cmd := exec.CommandContext(ctx, "go", args...)
 		cmd.Dir = workspaceDir

@@ -178,8 +178,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 	}
 
-	tests, testPaths, err := extractTests(cfg.Tests)
-
+	testsByPkg, testPaths, err := extractTests(cfg.Tests)
 	if err != nil {
 		return err
 	}
@@ -233,7 +232,30 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
 	}
-	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, tests, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg)
+	var excludeTagPaths []string
+	if cfg.ExternalSuites.Enabled {
+		for _, s := range cfg.ExternalSuites.Suites {
+			excludeTagPaths = append(excludeTagPaths, s.Paths...)
+		}
+	}
+	autoTags := detectTestBuildTags(projectRoot, excludeTagPaths)
+	for _, t := range autoTags {
+		found := false
+		for _, existing := range cfg.BuildTags {
+			if existing == t {
+				found = true
+				break
+			}
+		}
+		if !found {
+			cfg.BuildTags = append(cfg.BuildTags, t)
+		}
+	}
+	if len(autoTags) > 0 {
+		log.Debug("Auto-detected build tags from test files: %v", autoTags)
+	}
+
+	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, testsByPkg, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg)
 	totalMutants := testing.GetTotalMutants()
 
 	if len(mutants) > 0 {
@@ -443,55 +465,47 @@ func matchesAny(path string, patterns []string) bool {
 	return false
 }
 
-func extractTests(testPaths []string) ([]string, []string, error) {
-	var tests []string
+func extractTests(testPaths []string) (map[string][]string, []string, error) {
+	byPkg := make(map[string][]string)
 	var paths []string
 	for _, p := range testPaths {
 		p = strings.TrimSpace(p)
 		if p == "" {
 			continue
 		}
-		names, err := extractTestNames(p)
+		abs, err := filepath.Abs(p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse tests from %s: %w", p, err)
+			return nil, nil, fmt.Errorf("failed to resolve path %s: %w", p, err)
 		}
-		tests = append(tests, names...)
+		info, err := os.Stat(abs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to stat %s: %w", p, err)
+		}
+
+		var pkgDir string
+		var files []string
+		if info.IsDir() {
+			pkgDir = abs
+			entries, err := os.ReadDir(abs)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read dir %s: %w", abs, err)
+			}
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
+					files = append(files, filepath.Join(abs, e.Name()))
+				}
+			}
+		} else {
+			pkgDir = filepath.Dir(abs)
+			files = []string{abs}
+		}
+
+		for _, f := range files {
+			byPkg[pkgDir] = append(byPkg[pkgDir], parseTestNamesFromFile(f)...)
+		}
 		paths = append(paths, p)
 	}
-	return tests, paths, nil
-}
-
-func extractTestNames(path string) ([]string, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		return nil, err
-	}
-
-	var testFiles []string
-	if info.IsDir() {
-		entries, err := os.ReadDir(abs)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
-				testFiles = append(testFiles, filepath.Join(abs, e.Name()))
-			}
-		}
-	} else {
-		testFiles = append(testFiles, abs)
-	}
-
-	var names []string
-	for _, f := range testFiles {
-		names = append(names, parseTestNamesFromFile(f)...)
-	}
-	return names, nil
+	return byPkg, paths, nil
 }
 
 func parseTestNamesFromFile(filePath string) []string {
@@ -634,3 +648,116 @@ func generateBadge(format, baseDir string) error {
 	return nil
 }
 
+
+// detectTestBuildTags walks projectRoot, parses //go:build constraints from
+// *_test.go files, and returns the union of single-tag identifiers used.
+// Multi-term expressions ("foo && bar", "!foo") are ignored — those require
+// the user to set build_tags explicitly.
+func detectTestBuildTags(projectRoot string, excludePaths []string) []string {
+	// Normalize excluded path prefixes (strip trailing /... and make absolute).
+	var excludes []string
+	for _, p := range excludePaths {
+		p = strings.TrimSuffix(p, "/...")
+		p = strings.TrimSuffix(p, "/")
+		if p == "" {
+			continue
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(projectRoot, p)
+		}
+		excludes = append(excludes, p)
+	}
+	// First pass: find dirs that contain non-test .go source files. We only
+	// auto-detect tags from packages we'd actually mutate — pure-test dirs
+	// (e.g. tests/integration/...) shouldn't poison the unit-test tag set.
+	srcDirs := map[string]bool{}
+	_ = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || strings.HasPrefix(name, ".") && len(name) > 1 {
+				return filepath.SkipDir
+			}
+			for _, ex := range excludes {
+				if path == ex || strings.HasPrefix(path, ex+string(filepath.Separator)) {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			srcDirs[filepath.Dir(path)] = true
+		}
+		return nil
+	})
+
+	seen := map[string]bool{}
+	_ = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || strings.HasPrefix(name, ".") && len(name) > 1 {
+				return filepath.SkipDir
+			}
+			for _, ex := range excludes {
+				if path == ex || strings.HasPrefix(path, ex+string(filepath.Separator)) {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		if !srcDirs[filepath.Dir(path)] {
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+		buf := make([]byte, 2048)
+		n, _ := f.Read(buf)
+		header := string(buf[:n])
+		for _, line := range strings.Split(header, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "package ") {
+				break
+			}
+			if strings.HasPrefix(line, "//go:build ") {
+				expr := strings.TrimSpace(strings.TrimPrefix(line, "//go:build"))
+				if isSimpleIdent(expr) {
+					seen[expr] = true
+				}
+			} else if strings.HasPrefix(line, "// +build ") {
+				expr := strings.TrimSpace(strings.TrimPrefix(line, "// +build"))
+				if isSimpleIdent(expr) {
+					seen[expr] = true
+				}
+			}
+		}
+		return nil
+	})
+	tags := make([]string, 0, len(seen))
+	for t := range seen {
+		tags = append(tags, t)
+	}
+	return tags
+}
+
+func isSimpleIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
+}

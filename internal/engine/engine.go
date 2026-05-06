@@ -141,6 +141,28 @@ func findEnclosingFuncFast(node ast.Node, parents map[ast.Node]ast.Node) *ast.Fu
 	return nil
 }
 
+// findInnermostFuncResults returns the Results field list of the closest
+// enclosing function — either a *ast.FuncLit or *ast.FuncDecl. This matters
+// for nodes inside callbacks (e.g. ast.Inspect's visitor): the literal's
+// return type, not the outer FuncDecl's, governs the type of `return ...`.
+func findInnermostFuncResults(node ast.Node, parents map[ast.Node]ast.Node) *ast.FieldList {
+	for p := parents[node]; p != nil; p = parents[p] {
+		switch fn := p.(type) {
+		case *ast.FuncLit:
+			if fn.Type != nil {
+				return fn.Type.Results
+			}
+			return nil
+		case *ast.FuncDecl:
+			if fn.Type != nil {
+				return fn.Type.Results
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
 func getPackageName(file *ast.File) string {
 	if file.Name != nil {
 		return file.Name.Name
@@ -386,10 +408,17 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 		if fn := findEnclosingFuncFast(node, parents); fn != nil {
 			ctx.EnclosingFunc = fn
 			ctx.FunctionName = fn.Name.Name
-			if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 {
+		}
+		// Use the innermost enclosing func's results — a FuncLit nested
+		// inside a FuncDecl has its own return type that governs `return`
+		// statements within it. Without this, IIFE wrappers built around
+		// expressions inside callbacks (e.g. ast.Inspect) get the outer
+		// FuncDecl's return type and produce uncompilable code.
+		if results := findInnermostFuncResults(node, parents); results != nil && len(results.List) > 0 {
+			{
 				// Extract all return types for multi-value returns
 				var types []string
-				for _, field := range fn.Type.Results.List {
+				for _, field := range results.List {
 					typeStr := typeToString(field.Type, file, fset, &cache.typeCache)
 					// Handle multiple names with same type: (a, b int) -> int, int
 					if len(field.Names) > 1 {

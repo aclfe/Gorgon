@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -205,7 +206,85 @@ func checkFileWithSchemata(filePath string, mutants []Mutant) ([]Mutant, []Prefl
 		valid = append(valid, mutant)
 	}
 
+	if len(valid) > 1 {
+		if combinedInvalid, reason := checkCombinedFileWithSchemata(filePath, src, valid); len(combinedInvalid) > 0 {
+			for _, badID := range combinedInvalid {
+				for i := range valid {
+					if valid[i].ID == badID {
+						invalid = append(invalid, PreflightResult{
+							MutantID:    badID,
+							Status:      StatusCompileError,
+							ErrorReason: "combined schemata conflict: " + reason,
+						})
+						valid[i].Status = StatusCompileError
+						break
+					}
+				}
+			}
+			var filtered []Mutant
+			for _, v := range valid {
+				if v.Status != StatusCompileError {
+					filtered = append(filtered, v)
+				}
+			}
+			return filtered, invalid
+		}
+	}
+
 	return valid, invalid
+}
+
+func checkCombinedFileWithSchemata(filePath string, src []byte, mutants []Mutant) ([]int, string) {
+	if len(mutants) < 2 {
+		return nil, ""
+	}
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+	if err != nil {
+		return nil, ""
+	}
+
+	mutPtrs := make([]*Mutant, len(mutants))
+	for i := range mutants {
+		mutPtrs[i] = &mutants[i]
+	}
+
+	tmpf, err := os.CreateTemp("", "gorgon-preflight-combined-*.go")
+	if err != nil {
+		return nil, ""
+	}
+	tmpPath := tmpf.Name()
+	tmpf.Close()
+	defer os.Remove(tmpPath)
+
+	_, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutPtrs)
+	if schemataErr != nil {
+		rejected := make([]int, len(mutants))
+		for i, m := range mutants {
+			rejected[i] = m.ID
+		}
+		return rejected, "combined schemata apply failed"
+	}
+
+	dir, err := os.MkdirTemp("", "gorgon-combined-check-*")
+	if err != nil {
+		return nil, ""
+	}
+	defer os.RemoveAll(dir)
+
+	cmd := exec.Command("go", "build", "-o", filepath.Join(dir, "combined.bin"), ".")
+	cmd.Dir = filepath.Dir(filePath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		rejected := make([]int, len(mutants))
+		for i, m := range mutants {
+			rejected[i] = m.ID
+		}
+		return rejected, string(out)
+	}
+
+	return nil, ""
 }
 
 // ── Level 3 ──────────────────────────────────────────────────────────────────
@@ -515,6 +594,118 @@ func makeAllInvalid(mutants []Mutant, reason string) ([]Mutant, []PreflightResul
 }
 
 func isObviouslyUnsafeMutation(m *Mutant) bool {
+	if m.Site.Node == nil || m.Site.File == nil {
+		return true
+	}
+
+	if m.Site.ReturnType == "" {
+		return false
+	}
+
+	if isNilReturnAsNonNilable(m) {
+		return true
+	}
+
+	if isMutatorKnownToPoison(m) {
+		return true
+	}
+
+	if isUnwrapableExpr(m) {
+		return true
+	}
+
+	return false
+}
+
+func isNilReturnAsNonNilable(m *Mutant) bool {
+	if m.Operator == nil {
+		return false
+	}
+	opName := m.Operator.Name()
+	if opName == "" {
+		return false
+	}
+	nilOps := []string{
+		"nil_literal",
+		"nil_replacement",
+		"remove_nil_check",
+	}
+	for _, nilOp := range nilOps {
+		if strings.Contains(opName, nilOp) {
+			retType := m.Site.ReturnType
+			if retType == "" {
+				return false
+			}
+			nonNilable := []string{
+				"bool",
+				"int",
+				"int8",
+				"int16",
+				"int32",
+				"int64",
+				"uint",
+				"uint8",
+				"uint16",
+				"uint32",
+				"uint64",
+				"uintptr",
+				"float32",
+				"float64",
+				"complex64",
+				"complex128",
+				"string",
+				"byte",
+				"rune",
+			}
+			for _, t := range nonNilable {
+				if retType == t {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isMutatorKnownToPoison(m *Mutant) bool {
+	if m.Operator == nil {
+		return false
+	}
+	opName := m.Operator.Name()
+	poisonousOps := []string{
+		"remove_defer",
+		"remove_recover",
+		"remove_panic",
+		"remove_goto",
+		"remove_label",
+		"swap_if_else",
+		"swap_case",
+	}
+	for _, poisonOp := range poisonousOps {
+		if strings.Contains(opName, poisonOp) {
+			return true
+		}
+	}
+	return false
+}
+
+func isUnwrapableExpr(m *Mutant) bool {
+	if m.Operator == nil {
+		return false
+	}
+	opName := m.Operator.Name()
+	unwrapOps := []string{
+		"unwrap",
+		"remove_assert",
+		"remove_check",
+	}
+	for _, unwrapOp := range unwrapOps {
+		if strings.Contains(opName, unwrapOp) {
+			if m.Site.ReturnType != "" && m.Site.ReturnType != "interface{}" && m.Site.ReturnType != "error" {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -552,6 +743,9 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 
 	baseline := computeBaselineErrors(filePath, src, siblings, helper, pkgDir, imp)
 
+	// Only "real" (non-stub) baseline errors indicate the file genuinely fails
+	// type-checking on its own. Stub-driven errors from the lenient importer are
+	// expected noise and are absorbed by the per-mutant budget.
 	for msg := range baseline {
 		if !isImportStubError(msg) {
 			log.Debug("[PREFLIGHT L3] %s: real baseline type error detected (%q) — rejecting all %d mutant(s)",
