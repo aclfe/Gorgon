@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -160,58 +161,77 @@ func min(a, b int) int {
 
 // runGorgonWithConfig runs gorgon binary with a specific config file
 func runGorgonWithConfig(t *testing.T, configPath, targetDir string) (*ReportData, error) {
+	_, report, err := runGorgonWithConfigCapture(t, configPath, targetDir)
+	return report, err
+}
+
+// runGorgonWithConfigCapture is like runGorgonWithConfig but also returns the
+// combined stdout+stderr of the gorgon process so callers can inspect log
+// markers (e.g. "[UNIT] Running ..." / "[EXTERNAL] Running ...") to verify
+// which phases actually executed.
+func runGorgonWithConfigCapture(t *testing.T, configPath, targetDir string) (string, *ReportData, error) {
 	t.Helper()
 
-	// Find gorgon binary
 	gorgonBinary := os.Getenv("GORGON_BINARY")
 	if gorgonBinary == "" {
 		repoRoot, err := findRepoRoot()
 		if err != nil {
-			return nil, fmt.Errorf("failed to find repo root: %w", err)
+			return "", nil, fmt.Errorf("failed to find repo root: %w", err)
 		}
 		gorgonBinary = filepath.Join(repoRoot, "gorgon")
-		// Build binary if missing or stale
 		if err := ensureGorgonBinary(t, repoRoot, gorgonBinary); err != nil {
-			return nil, fmt.Errorf("failed to build gorgon binary: %w", err)
+			return "", nil, fmt.Errorf("failed to build gorgon binary: %w", err)
 		}
 	}
 
-	// Build command - output is configured in YAML, not CLI
 	args := []string{
 		"-config=" + configPath,
-		"-progbar=false", // Disable progress bar for cleaner output
+		"-progbar=false",
 		targetDir,
 	}
 
-	cmd := exec.Command(gorgonBinary, args...)
+	cmd := exec.CommandContext(t.Context(), gorgonBinary, args...)
 	cmd.Dir = filepath.Dir(configPath)
 
-	// Run command
 	output, err := cmd.CombinedOutput()
+	stdout := string(output)
 	if err != nil {
-		return nil, fmt.Errorf("gorgon failed: %w\nOutput: %s", err, string(output))
+		return stdout, nil, fmt.Errorf("gorgon failed: %w\nOutput: %s", err, stdout)
 	}
 
-	// Read JSON output from expected location (specified in config)
-	// Config specifies: outputs: ["json:report.json"]
 	jsonOutput := filepath.Join(filepath.Dir(configPath), "report.json")
 	data, err := os.ReadFile(jsonOutput)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read JSON output from %s: %w", jsonOutput, err)
+		return stdout, nil, fmt.Errorf("failed to read JSON output from %s: %w", jsonOutput, err)
 	}
 
 	var report ReportData
 	if err := json.Unmarshal(data, &report); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+		return stdout, nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	return &report, nil
+	return stdout, &report, nil
 }
+
+// gorgonBuildOnce serializes ensureGorgonBinary so concurrent t.Parallel()
+// tests don't double-build the gorgon binary or race on the output file.
+var (
+	gorgonBuildOnce sync.Once
+	gorgonBuildErr  error
+)
 
 // ensureGorgonBinary builds the gorgon binary if it is missing or stale.
 // Staleness is determined by comparing the binary's mtime against all .go
 // files under cmd/ and internal/ in the repo root.
 func ensureGorgonBinary(t *testing.T, repoRoot, binaryPath string) error {
+	t.Helper()
+	gorgonBuildOnce.Do(func() {
+		gorgonBuildErr = doEnsureGorgonBinary(t, repoRoot, binaryPath)
+	})
+	return gorgonBuildErr
+}
+
+func doEnsureGorgonBinary(t *testing.T, repoRoot, binaryPath string) error {
 	t.Helper()
 
 	binInfo, err := os.Stat(binaryPath)

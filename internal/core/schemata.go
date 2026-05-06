@@ -324,6 +324,7 @@ func GenerateAndRunSchemata(ctx context.Context, sites []engine.Site, operators 
 		if cfg != nil {
 			bt = cfg.BuildTags
 		}
+		log.Info("[UNIT] Running unit tests against %d mutant(s) across %d package(s)", len(mutants), len(pkgToMutantIDs))
 		results, err = compileAndRunPackages(ctx, ws.TempDir, pkgToMutantIDs, pkgToMutants, mutantSites, concurrent, testsByPkg, bt, prog, log)
 
 		if len(results) > 0 {
