@@ -274,11 +274,6 @@ func TestWorkflow_NoMutantsLost(t *testing.T) {
 	}
 }
 
-// WORKFLOW TEST SUITES
-
-func TestBothTestSuites_ValidKilling(t *testing.T) {
-	t.Skip("TODO: Verify that they're actually killing what they should be. Checks for FP, FN, TP, TN")
-}
 
 // ============================================================================
 // WORKFLOW OPERATORS

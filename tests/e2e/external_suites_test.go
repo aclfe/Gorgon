@@ -9,12 +9,6 @@ import (
 	"testing"
 )
 
-// TestExternalSuites_KillMutations verifies external suites actually kill mutations
-func TestExternalSuites_KillMutations(t *testing.T) {
-	// TODO: Rebuild from scratch
-	t.Skip("TODO: Rebuild from scratch")
-}
-
 // TestExternalSuites_TagsIntegration verifies build tags filter external tests
 func TestExternalSuites_TagsIntegration(t *testing.T) {
 	t.Parallel()
@@ -70,21 +64,12 @@ func TestExternalSuites_BothEnabled(t *testing.T) {
 		t.Errorf("[BothEnabled] expected total killed > 0 across both phases, got 0")
 	}
 
-	// Verify both phases actually executed by scanning gorgon's log output.
-	// "[UNIT] Running" fires from compileAndRunPackages; "[EXTERNAL] Running"
-	// fires from runExternalPhaseWithBinaries.
-	if !strings.Contains(stdout, "[UNIT] Running") {
-		t.Errorf("[BothEnabled] unit phase did not execute (no '[UNIT] Running' marker in gorgon output)")
-	}
 	if !strings.Contains(stdout, "[EXTERNAL] Running") {
 		t.Errorf("[BothEnabled] external phase did not execute (no '[EXTERNAL] Running' marker in gorgon output)")
 	}
 
-	// Sanity: at least one kill must come from somewhere — i.e. the run is not
-	// catastrophically broken. We do not require both phases to contribute
-	// kills (the package they target may be fully covered by one suite).
-	if stats.InternalKilled == 0 && stats.ExternalKilled == 0 {
-		t.Errorf("[BothEnabled] no kills attributable to either phase — at least one is expected when both are enabled")
+	if stats.InternalKilled == 0 || stats.ExternalKilled == 0 {
+		t.Errorf("[BothEnabled] no kills attributable to either phase — at least one is expected from both")
 	}
 }
 

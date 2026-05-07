@@ -29,7 +29,7 @@ external_suites:
 exclude:
     []
 include:
-    []
+    - preflight.go
 skip:
     []
 skip_func:
