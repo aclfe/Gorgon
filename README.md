@@ -23,53 +23,46 @@ gorgon ./...                        # tests all modules in workspace
 
 ### Flags
 
+The CLI surface is intentionally small. Filtering, output, baseline, profiling, and policy settings live in `gorgon.yml` so they version with the project.
+
 | Flag | Default | Description |
 |---|---|---|
-| `-config` | `""` | Path to YAML config file (disables all other flags) |
-| `-concurrent` | `all` | Max parallel test runs: `all`, `half`, or a number |
+| `-config` | `""` | Path to YAML config file. Cannot be combined with other flags |
+| `-pkg` | `.` | Package path to mutate (overridable by positional targets) |
 | `-operators` | `all` | Comma-separated operator names or categories |
-| `-print-ast` | `false` | Print AST tree and exit |
+| `-concurrent` | `all` | Max parallel test runs: `all`, `half`, or a number |
 | `-threshold` | `0` | Fail if mutation score is below this percentage (0-100) |
 | `-cache` | `false` | Cache mutation results between runs |
 | `-dry-run` | `false` | Preview mutants without running tests |
+| `-diff` | `""` | Only mutate changed lines (e.g. `HEAD~1`, a commit SHA, or `path/to/file.patch`) |
 | `-progbar` | `false` | Show progress percentage during execution |
-| `-exclude` | `""` | Comma-separated glob patterns for files to exclude |
-| `-include` | `""` | Comma-separated glob patterns for files to include |
-| `-skip` | `""` | Comma-separated relative file paths to skip entirely |
-| `-skip-func` | `""` | Comma-separated file:function pairs to skip (e.g. foo/bar.go:MyFunc) |
-| `-tests` | `""` | Comma-separated relative paths to test files/folders to run |
-| `-diff` | `""` | Only mutate changed lines (e.g. HEAD~1, HEAD, or path/to/file.patch) |
-| `-debug` | `false` | Show detailed debug output during execution |
 | `-show-killed` | `false` | Show killed mutants with test attribution |
 | `-show-survived` | `false` | Show survived mutants in output |
-| `-format` | `textfile` | Output format for report file (textfile, html, junit, sarif, json) |
-| `-output` | `""` | Write report to file (e.g. `report.txt`) |
-| `-debug-files` | `false` | Also write debug info to `{output}.debug.txt` |
-| `-cpu-profile` | `""` | Write CPU profile to file (analyzable with `go tool pprof`) |
-| `-no-regression` | `false` | Fail if mutation score drops below saved baseline |
-| `-baseline-file` | `""` | Path to baseline file (default: `.gorgon-baseline.json`) |
-| `-baseline-tolerance` | `0` | Allow this many percentage points of score drop before failing |
+| `-debug` | `false` | Enable full debug output (also writes `{output}.debug.txt` when an `outputs:` textfile is configured) |
+| `-print-ast` | `false` | Print AST tree and exit |
+| `-mem-profile` | `""` | Write periodic heap profiles to this directory (e.g. `profiles`) |
+
+Settings that exist only in the config file (no CLI flag): `exclude`, `include`, `skip`, `skip_func`, `tests`, `outputs`, `cpu_profile`, `mem_profile`, `badge`, `baseline.*`, `external_suites.*`, `dir_rules`, `suppress`, `go_version`, `chunk_large_files`, `build_tags`, `sub_config_mode`, `threshold_inherit`, `violation_mode`, `unit_tests_enabled`, `base`.
 
 ## Baseline / Ratchet Mode
 
 Large codebases can't jump from 0% to 80% overnight. Baseline mode lets teams improve incrementally without being blocked from day one — the same adoption trick golangci-lint uses.
 
-```
-gorgon baseline ./path          # save current score as baseline
-gorgon -no-regression ./path    # fail only if score drops from baseline
-gorgon -no-regression -baseline-tolerance=1 ./path  # allow 1pp of drift
-```
-
-On the first `-no-regression` run with no baseline file, Gorgon auto-saves the current score instead of failing, so teams are never blocked on day one.
-
-### Config
+Baseline is configured in `gorgon.yml`:
 
 ```yaml
 baseline:
-  no_regression: true
-  tolerance: 1.0          # allow 1pp of drift (optional)
+  no_regression: true            # fail only if score drops from saved baseline
+  tolerance: 1.0                 # allow 1pp of drift (optional)
   file: ".gorgon-baseline.json"  # override path (optional)
+  save: false                    # set true to overwrite the baseline this run
 ```
+
+```
+gorgon -config=gorgon.yml ./path
+```
+
+On the first run with `no_regression: true` and no baseline file present, Gorgon auto-saves the current score instead of failing, so teams are never blocked on day one. To deliberately re-baseline, set `baseline.save: true` for one run.
 
 The baseline file (`.gorgon-baseline.json`) should be committed to version control so CI can compare against it.
 
@@ -114,11 +107,18 @@ base: ""
 debug: false
 go_version: ""  # Override detected Go version (e.g., "1.25", "1.26")
 chunk_large_files: true  # Split files with >500 mutants to reduce memory (default: true)
+build_tags: []  # Tags forwarded to `go test -c` (e.g. ["unit", "integration"])
+
+# === Sub-Config / Policy Behavior ===
+sub_config_mode: merge          # merge (default), replace, or isolate
+threshold_inherit: false        # propagate root threshold to sub-configs without their own
+violation_mode: fail            # fail (default), warn, or silent — for org-policy violations
 
 # === Baseline / Ratchet ===
 baseline:
   no_regression: false
   tolerance: 0.0
+  save: false
 
 # === Output Settings ===
 show_killed: false
@@ -129,8 +129,9 @@ outputs:
   - sarif:mutation-results.sarif
   - html:gorgon-report
   - json:mutation-results.json
-cpu_profile: ""
-badge: ""  # Generate badge: "json" or "svg"
+cpu_profile: ""        # Write CPU profile to this path (or "true" → ./gorgon.cpuprofile)
+mem_profile: ""        # Write periodic heap profiles to this directory
+badge: ""              # Generate badge: "json" or "svg"
 
 # === Directory Rules ===
 dir_rules:
@@ -323,11 +324,9 @@ Download from the Actions tab or use in subsequent steps.
 
 ## CI Integration
 
-Gorgon supports multiple output formats for CI/CD pipelines and test dashboards.
+Gorgon supports multiple output formats for CI/CD pipelines and test dashboards. Output formats are configured in `gorgon.yml` via the `outputs:` list of `format:filepath` pairs — there is no CLI flag for format/output.
 
 ### Multiple Outputs
-
-Specify all output formats in the config file using the `outputs` list with `format:filepath` pairs:
 
 ```yaml
 outputs:
@@ -338,17 +337,15 @@ outputs:
   - json:mutation-results.json
 ```
 
-All formats are written in a single run. Or via CLI (single format only):
-```sh
-gorgon -format=junit -output=mutation-results.xml ./path
-```
+All requested formats are written in a single run.
 
 ### JUnit XML
 
 For Jenkins, TeamCity, and other CI systems that parse JUnit reports:
 
-```sh
-gorgon -format=junit -output=mutation-results.xml ./path
+```yaml
+outputs:
+  - junit:mutation-results.xml
 ```
 
 Survived mutants appear as test failures, compilation errors as errors, and untested mutants as skipped.
@@ -357,8 +354,9 @@ Survived mutants appear as test failures, compilation errors as errors, and unte
 
 For GitHub Code Scanning and other SARIF-compatible tools:
 
-```sh
-gorgon -format=sarif -output=mutation-results.sarif ./path
+```yaml
+outputs:
+  - sarif:mutation-results.sarif
 ```
 
 Upload to GitHub Actions:
@@ -373,16 +371,18 @@ Upload to GitHub Actions:
 
 For local review and dashboards:
 
-```sh
-gorgon -format=html -output=gorgon-report ./path
+```yaml
+outputs:
+  - html:gorgon-report
 ```
 
 ### JSON
 
 For programmatic consumption and custom tooling:
 
-```sh
-gorgon -format=json -output=mutation-results.json ./path
+```yaml
+outputs:
+  - json:mutation-results.json
 ```
 
 Output structure:
@@ -630,9 +630,29 @@ Statement
 
 ## Engine
 
-- Context-aware: passes type info to mutators
-- Extensible: implement Operator or ContextualOperator interface
-- Parallel test execution: mutants run concurrently across CPU cores
+- **Context-aware**: contextual operators receive the enclosing function's `ReturnType` (comma-separated for multi-value returns), `EnclosingFunc`, file AST, and node parent.
+- **Extensible**: implement `Operator` for AST-only mutations, `ContextualOperator` to use the surrounding context, or `SafetyConstrainedOperator` to declare site shapes the operator should never produce. New operators self-register via `init()` — add a blank import in `cmd/gorgon/main.go` and no other wiring is needed.
+- **Three-level preflight before build**: L1 nil/contract checks, L2 schemata AST integrity, L3 module-aware type-check via `golang.org/x/tools/go/packages` (no stub importer — unresolved imports surface as real errors).
+- **Schemata-based execution**: every mutant in a file is inlined into one transformed copy guarded by `if activeMutantID == N { mutated } else { original }`. One `go test -c` compile serves all mutants in a package.
+- **Deterministic kill classification**: mutant runs are classified from the test framework's documented `=== RUN` / `--- FAIL:` verbose output protocol, not heuristic substring matches. "No tests" is determined by `go list -f '{{len .TestGoFiles}}+{{len .XTestGoFiles}}'`.
+- **Parallel test execution**: mutants run concurrently across CPU cores; per-package compile and per-mutant test runs are scheduled on separate worker pools.
+
+### Operator Safety Contract
+
+Operators that can prove a site shape will never type-check should implement `SafetyConstrainedOperator`:
+
+```go
+type SafetyConstrainedOperator interface {
+    Operator
+    // IsAlwaysInvalidFor reports whether applying this operator at any site
+    // whose enclosing function has the given returnType signature is
+    // statically guaranteed to produce an invalid mutant. returnType is the
+    // engine's comma-separated form, e.g. "int,error".
+    IsAlwaysInvalidFor(returnType string) bool
+}
+```
+
+Implementing it lets preflight L1 reject those mutants before any AST surgery, instead of burning a compile cycle on each. Operators that don't implement it are passed through to L3 type-check, which is the authoritative validator.
 
 ## Kill Attribution
 
@@ -1287,42 +1307,40 @@ Disable if:
 
 ## Output Files
 
-Write the report to a file instead of (or in addition to) stdout:
+Write the report to a file by listing it in `outputs:`:
 
-```
-gorgon -output=report.txt ./path
+```yaml
+outputs:
+  - textfile:report.txt
 ```
 
 This writes the full report (mutation score, top killers, killed/survived mutants) to `report.txt` while still printing to stdout.
 
 ### Debug Files
 
-Enable `-debug-files` to also write detailed debug information:
+Run with `-debug` to also write detailed debug information alongside the textfile output. For `outputs: [textfile:report.txt]`, this produces:
 
-```
-gorgon -output=report.txt -debug-files ./path
-```
-
-This creates two files:
 - `report.txt` — the standard report (stats, killed mutants, survived mutants)
-- `report.debug.txt` — detailed debug info (error summaries, per-mutant compilation errors)
+- `report.debug.txt` — detailed debug info (preflight rejections, error summaries, per-mutant compile errors)
 
-### Config
+If no textfile output is configured, debug data is written to `gorgon-debug.txt` in the current directory.
 
-```yaml
-format: textfile
-output: "report.txt"
-debug_files: true
-```
+### Supported Formats
 
-Currently `textfile` and `html` format is supported.
+`textfile`, `html`, `junit`, `sarif`, `json`. All can appear together in a single `outputs:` list.
 
 ## CPU Profiling
 
-Use `-cpu-profile=file.out` or `cpu_profile: "file.out"` to write a CPU profile. Analyze it with:
+Configure `cpu_profile` in `gorgon.yml` to write a CPU profile. Analyze it with:
 
 ```
 go tool pprof -http=:8080 file.out
 ```
 
-Use `cpu_profile: "true"` to write to `gorgon.cpuprofile` in the current directory.
+```yaml
+cpu_profile: "gorgon.cpuprofile"   # explicit path
+# or
+cpu_profile: "true"                # writes to ./gorgon.cpuprofile
+```
+
+For heap profiles, use `-mem-profile=profiles/` (the only profiling flag exposed on the CLI) or `mem_profile: profiles` in the config — Gorgon writes a numbered series of pprof heap dumps into that directory.
