@@ -1,0 +1,8 @@
+operators:
+  - all
+threshold: 0
+concurrent: 1
+cache: false
+unit_tests_enabled: true
+skip_func:
+  - reporter.go:Report

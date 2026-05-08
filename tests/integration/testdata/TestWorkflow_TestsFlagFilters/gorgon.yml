@@ -1,0 +1,11 @@
+operators:
+  - all
+threshold: 0
+concurrent: 1
+cache: false
+unit_tests_enabled: true
+# Point tests= at a package OTHER than the target. The runtime should mark
+# every mutant in the target as "untested" because no test in the listed
+# packages covers it. Path is relative to the config file directory.
+tests:
+  - "../../../../pkg/mutator/operators/empty_body"

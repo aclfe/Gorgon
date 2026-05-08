@@ -1,0 +1,17 @@
+operators:
+  - all
+threshold: 0
+concurrent: 1
+cache: false
+unit_tests_enabled: true
+skip:
+  - reporter.go
+exclude:
+  - json.go
+include:
+  - junit.go
+  - sarif.go
+  - html.go
+  - textfile.go
+skip_func:
+  - junit.go:writeJUnitReport
