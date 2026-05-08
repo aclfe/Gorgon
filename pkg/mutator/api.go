@@ -33,6 +33,33 @@ type TypeAwareOperator interface {
 	RequiresTypeCheck() bool
 }
 
+// SafetyConstrainedOperator is the explicit contract operators use to declare
+// site shapes for which they are known a priori to produce an invalid mutant
+// — i.e. one that would never compile, never type-check, or never run safely.
+//
+// Implementing this interface is optional. An operator that does not implement
+// it makes no static safety claim: preflight relies entirely on the type-check
+// phase to filter its mutants. Implementing it lets preflight skip mutants
+// before even attempting transformation, but the operator author is asserting
+// the constraint will hold in every case.
+//
+// Constraint inputs are kept narrow on purpose: only the enclosing function's
+// return-type signature is exposed. Adding new input dimensions (node shape,
+// package context, etc.) should be done by extending this interface — never
+// by reintroducing name-substring matching at the call site.
+type SafetyConstrainedOperator interface {
+	Operator
+	// IsAlwaysInvalidFor reports whether applying this operator at any site
+	// whose enclosing function has the given returnType signature is
+	// statically guaranteed to produce an invalid mutant.
+	//
+	// returnType is a comma-separated list of the function's return types as
+	// produced by the engine (e.g. "int,error" for a `(int, error)` return).
+	// An empty string means the operator's site is not inside a function
+	// with a return type (or the type is unknown).
+	IsAlwaysInvalidFor(returnType string) bool
+}
+
 func ApplyOperator(op Operator, node ast.Node, returnType string, file *ast.File, enclosingFunc *ast.FuncDecl) ast.Node {
 	ctx := Context{
 		ReturnType:    returnType,

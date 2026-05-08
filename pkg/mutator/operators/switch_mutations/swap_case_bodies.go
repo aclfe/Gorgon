@@ -32,6 +32,10 @@ func (SwapCaseBodies) Mutate(n ast.Node) ast.Node {
 	return nil
 }
 
+func (SwapCaseBodies) IsAlwaysInvalidFor(returnType string) bool {
+	return true
+}
+
 func (SwapCaseBodies) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	cc, ok := n.(*ast.CaseClause)
 	if !ok || cc.List == nil || len(cc.Body) == 0 {

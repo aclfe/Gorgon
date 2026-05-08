@@ -13,7 +13,10 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/tools/go/packages"
+
 	"github.com/aclfe/gorgon/internal/logger"
+	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
 type PreflightResult struct {
@@ -292,10 +295,15 @@ func checkCombinedFileWithSchemata(filePath string, src []byte, mutants []Mutant
 // level3TypeCheckPreflight groups mutants by source file and type-checks each
 // mutant's schemata-transformed AST using go/types.
 //
-// It computes a baseline of type errors present in the unmodified file first
-// (using a lenient importer that stubs unresolvable packages). Only errors that
-// are NEW relative to the baseline are attributed to the mutation. This prevents
-// third-party import resolution failures from generating false positives.
+// Imports are resolved via golang.org/x/tools/go/packages, which performs
+// module-aware loading of the full transitive dependency graph. There is no
+// lenient stubbing of missing packages and therefore no need to heuristically
+// classify "stub-driven" errors versus real ones.
+//
+// A baseline of type errors present in the unmodified file is still computed
+// and subtracted so that pre-existing bugs in user code (which Gorgon can't
+// fix and shouldn't blame on the mutation) don't false-positive every mutant
+// in the file.
 func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	// Group by source file.
 	groups := make(map[string][]Mutant)
@@ -305,6 +313,8 @@ func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, [
 			groups[key] = append(groups[key], mutants[i])
 		}
 	}
+
+	cache := newPkgImportCache()
 
 	// Process files with bounded concurrency.
 	// go/types.Check is CPU-heavy and allocates significantly per call.
@@ -325,7 +335,7 @@ func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, [
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			v, inv := typeCheckFileGroup(filePath, fileMutants, log)
+			v, inv := typeCheckFileGroup(filePath, fileMutants, cache, log)
 			resultCh <- result{v, inv}
 		}()
 	}
@@ -365,130 +375,6 @@ func init() {
 type siblingFile struct {
 	path string
 	src  []byte
-}
-
-func typeCheckFileMutants(filePath string, mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
-	pkgDir := filepath.Dir(filePath)
-
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Debug("[PREFLIGHT L3] Cannot read %s — skipping type-check for %d mutant(s)", filePath, len(mutants))
-		return mutants, nil
-	}
-
-	// Load sibling file bytes once for the whole group.
-	// We can't share parsed *ast.File nodes across type-check calls because each
-	// call needs its own token.FileSet, so we store raw bytes and re-parse cheaply.
-	siblings := loadSiblingFiles(pkgDir, filePath)
-	pkgName := parsePackageName(src, filePath)
-	helper := fmt.Sprintf(schemataHelperSrc, pkgName)
-
-	// One lenient importer shared across all mutants in this file.
-	// It caches resolved packages, so each package is fetched at most once.
-	imp := &lenientImporter{base: importer.Default()}
-
-	// Baseline: how many times does each error message appear in the ORIGINAL
-	// (untransformed) file? These are errors from lenient import stubs, not from
-	// mutations — we subtract them so they don't generate false positives.
-	baseline := computeBaselineErrors(filePath, src, siblings, helper, pkgDir, imp)
-	log.Debug("[PREFLIGHT L3] %s: %d baseline error message(s)", filepath.Base(filePath), len(baseline))
-
-	var valid []Mutant
-	var invalid []PreflightResult
-
-	for _, mutant := range mutants {
-		mc := mutant
-
-		// Apply schemata in-memory (no disk I/O).
-		fset := token.NewFileSet()
-		mutatedAST, err := ApplySchemataInMemory(src, filePath, fset, []*Mutant{&mc})
-		if err != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mc.ID,
-				Status:      StatusCompileError,
-				ErrorReason: "in-memory schemata: " + err.Error(),
-			})
-			continue
-		}
-
-		// Build the file set for this type-check call:
-		// mutated file + all siblings (with their original source) + helper.
-		allFiles := []*ast.File{mutatedAST}
-		for _, sib := range siblings {
-			if f, pErr := parser.ParseFile(fset, sib.path, sib.src, 0); pErr == nil {
-				allFiles = append(allFiles, f)
-			}
-		}
-		if hf, pErr := parser.ParseFile(fset, "gorgon_schemata.go", helper, 0); pErr == nil {
-			allFiles = append(allFiles, hf)
-		}
-
-		// Per-mutant copy of the baseline budget so concurrent callers don't race.
-		// (This function is not currently called concurrently, but it's cheap insurance.)
-		budget := make(map[string]int, len(baseline))
-		for k, v := range baseline {
-			budget[k] = v
-		}
-
-		var newErrors []string
-		conf := &types.Config{
-			Importer: imp,
-			Error: func(e error) {
-				msg := typeErrorMessage(e.Error())
-				if budget[msg] > 0 {
-					budget[msg]-- // absorbed by baseline
-				} else {
-					newErrors = append(newErrors, e.Error())
-				}
-			},
-		}
-		conf.Check(pkgDir, fset, allFiles, nil)
-
-		if len(newErrors) > 0 {
-			log.Debug("[PREFLIGHT L3] Mutant #%d filtered — %s", mc.ID, newErrors[0])
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mc.ID,
-				Status:      StatusCompileError,
-				ErrorReason: "type check: " + newErrors[0],
-			})
-		} else {
-			valid = append(valid, mc)
-		}
-	}
-
-	return valid, invalid
-}
-
-// computeBaselineErrors returns a multiset (message → count) of type errors
-// present in the ORIGINAL, untransformed file. Used to subtract pre-existing
-// errors (typically from lenient import stubs) from mutation-introduced errors.
-func computeBaselineErrors(filePath string, src []byte, siblings []siblingFile, helper, pkgDir string, imp types.Importer) map[string]int {
-	fset := token.NewFileSet()
-
-	f, err := parser.ParseFile(fset, filePath, src, 0)
-	if err != nil {
-		return nil
-	}
-
-	allFiles := []*ast.File{f}
-	for _, sib := range siblings {
-		if sf, err := parser.ParseFile(fset, sib.path, sib.src, 0); err == nil {
-			allFiles = append(allFiles, sf)
-		}
-	}
-	if hf, err := parser.ParseFile(fset, "gorgon_schemata.go", helper, 0); err == nil {
-		allFiles = append(allFiles, hf)
-	}
-
-	counts := make(map[string]int)
-	conf := &types.Config{
-		Importer: imp,
-		Error: func(e error) {
-			counts[typeErrorMessage(e.Error())]++
-		},
-	}
-	conf.Check(pkgDir, fset, allFiles, nil)
-	return counts
 }
 
 // typeErrorMessage strips the "file:line:col: " prefix from a go/types error
@@ -539,43 +425,100 @@ func parsePackageName(src []byte, filePath string) string {
 	return f.Name.Name
 }
 
-// ── Lenient importer ─────────────────────────────────────────────────────────
+// ── Real importer backed by golang.org/x/tools/go/packages ─────────────────
 
-// lenientImporter wraps the default importer and returns an empty stub package
-// for any path that cannot be resolved, so type-checking continues instead of
-// aborting on the first missing dependency.
+// pkgImportCache loads each package directory exactly once via packages.Load
+// (with NeedDeps + NeedTypes) and exposes the resulting transitive type info
+// as a types.Importer. Subsequent type-check calls in the same directory
+// reuse the cached load.
 //
-// Errors caused by stubs (e.g. "undefined: yaml.Unmarshal") appear in both the
-// baseline and the mutated files and are therefore cancelled out by the budget.
-type lenientImporter struct {
-	base  types.Importer
-	mu    sync.Mutex
-	cache map[string]*types.Package
+// Loading is the expensive step (full module-aware import graph). Sharing it
+// across every mutant in a file — and across files in the same directory —
+// keeps preflight latency proportional to package count, not mutant count.
+type pkgImportCache struct {
+	mu      sync.Mutex
+	loaded  map[string]*resolvedImporter // pkgDir → importer
 }
 
-func (l *lenientImporter) Import(path string) (*types.Package, error) {
-	l.mu.Lock()
-	if l.cache == nil {
-		l.cache = make(map[string]*types.Package)
-	}
-	if cached, ok := l.cache[path]; ok {
-		l.mu.Unlock()
-		return cached, nil
-	}
-	l.mu.Unlock()
+func newPkgImportCache() *pkgImportCache {
+	return &pkgImportCache{loaded: make(map[string]*resolvedImporter)}
+}
 
-	pkg, err := l.base.Import(path)
-	if err != nil {
-		// Stub: an empty package with no exported names.
-		// References to its symbols produce "undefined" errors, which the
-		// baseline multiset will absorb if they pre-exist in the original.
-		pkg = types.NewPackage(path, filepath.Base(path))
+// importerFor returns a types.Importer that resolves imports for the package
+// rooted at pkgDir. The first call for a given directory triggers a load;
+// subsequent calls return the cached importer. If loading fails for any
+// reason (no go.mod, network-disabled module mode, etc.), a fallback to
+// importer.Default() is returned — not a stub, so missing imports surface
+// as real errors rather than being silently absorbed.
+func (c *pkgImportCache) importerFor(pkgDir string) types.Importer {
+	c.mu.Lock()
+	if imp, ok := c.loaded[pkgDir]; ok {
+		c.mu.Unlock()
+		return imp
 	}
+	c.mu.Unlock()
 
-	l.mu.Lock()
-	l.cache[path] = pkg
-	l.mu.Unlock()
-	return pkg, nil // always nil error — never abort type-checking
+	deps := loadPackageDeps(pkgDir)
+	imp := &resolvedImporter{deps: deps, fallback: importer.Default()}
+
+	c.mu.Lock()
+	c.loaded[pkgDir] = imp
+	c.mu.Unlock()
+	return imp
+}
+
+// loadPackageDeps invokes packages.Load for the package at pkgDir with full
+// type information and returns a flat import-path → *types.Package map of
+// every package reachable in its transitive dependency graph.
+func loadPackageDeps(pkgDir string) map[string]*types.Package {
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
+			packages.NeedTypes | packages.NeedDeps | packages.NeedImports |
+			packages.NeedTypesInfo,
+		Dir:   pkgDir,
+		Tests: false,
+	}
+	pkgs, err := packages.Load(cfg, ".")
+	if err != nil || len(pkgs) == 0 {
+		return nil
+	}
+	deps := make(map[string]*types.Package)
+	var collect func(p *packages.Package)
+	collect = func(p *packages.Package) {
+		if p == nil || p.Types == nil {
+			return
+		}
+		if _, seen := deps[p.PkgPath]; seen {
+			return
+		}
+		deps[p.PkgPath] = p.Types
+		for _, dep := range p.Imports {
+			collect(dep)
+		}
+	}
+	for _, p := range pkgs {
+		collect(p)
+	}
+	return deps
+}
+
+// resolvedImporter resolves package paths against the dependency graph
+// brought in by packages.Load. Stdlib paths missing from the graph are
+// resolved via importer.Default() as a last resort. There is no stubbing —
+// an unresolved path returns an error and the type-checker reports it.
+type resolvedImporter struct {
+	deps     map[string]*types.Package
+	fallback types.Importer
+}
+
+func (r *resolvedImporter) Import(path string) (*types.Package, error) {
+	if p, ok := r.deps[path]; ok {
+		return p, nil
+	}
+	if r.fallback != nil {
+		return r.fallback.Import(path)
+	}
+	return nil, fmt.Errorf("unresolved import: %s", path)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -593,118 +536,21 @@ func makeAllInvalid(mutants []Mutant, reason string) ([]Mutant, []PreflightResul
 	return nil, invalid
 }
 
+// isObviouslyUnsafeMutation rejects a mutant before any AST surgery if its
+// operator has explicitly declared the site shape unsafe via the
+// SafetyConstrainedOperator contract. There is no name-substring matching
+// here: an operator that wants to opt out of preflight implements the
+// interface in its own package; one that doesn't is passed through to the
+// type-check phase, which is the authoritative validator.
 func isObviouslyUnsafeMutation(m *Mutant) bool {
 	if m.Site.Node == nil || m.Site.File == nil {
 		return true
 	}
-
-	if m.Site.ReturnType == "" {
-		return false
-	}
-
-	if isNilReturnAsNonNilable(m) {
-		return true
-	}
-
-	if isMutatorKnownToPoison(m) {
-		return true
-	}
-
-	if isUnwrapableExpr(m) {
-		return true
-	}
-
-	return false
-}
-
-func isNilReturnAsNonNilable(m *Mutant) bool {
 	if m.Operator == nil {
 		return false
 	}
-	opName := m.Operator.Name()
-	if opName == "" {
-		return false
-	}
-	nilOps := []string{
-		"nil_literal",
-		"nil_replacement",
-		"remove_nil_check",
-	}
-	for _, nilOp := range nilOps {
-		if strings.Contains(opName, nilOp) {
-			retType := m.Site.ReturnType
-			if retType == "" {
-				return false
-			}
-			nonNilable := []string{
-				"bool",
-				"int",
-				"int8",
-				"int16",
-				"int32",
-				"int64",
-				"uint",
-				"uint8",
-				"uint16",
-				"uint32",
-				"uint64",
-				"uintptr",
-				"float32",
-				"float64",
-				"complex64",
-				"complex128",
-				"string",
-				"byte",
-				"rune",
-			}
-			for _, t := range nonNilable {
-				if retType == t {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func isMutatorKnownToPoison(m *Mutant) bool {
-	if m.Operator == nil {
-		return false
-	}
-	opName := m.Operator.Name()
-	poisonousOps := []string{
-		"remove_defer",
-		"remove_recover",
-		"remove_panic",
-		"remove_goto",
-		"remove_label",
-		"swap_if_else",
-		"swap_case",
-	}
-	for _, poisonOp := range poisonousOps {
-		if strings.Contains(opName, poisonOp) {
-			return true
-		}
-	}
-	return false
-}
-
-func isUnwrapableExpr(m *Mutant) bool {
-	if m.Operator == nil {
-		return false
-	}
-	opName := m.Operator.Name()
-	unwrapOps := []string{
-		"unwrap",
-		"remove_assert",
-		"remove_check",
-	}
-	for _, unwrapOp := range unwrapOps {
-		if strings.Contains(opName, unwrapOp) {
-			if m.Site.ReturnType != "" && m.Site.ReturnType != "interface{}" && m.Site.ReturnType != "error" {
-				return true
-			}
-		}
+	if sc, ok := m.Operator.(mutator.SafetyConstrainedOperator); ok {
+		return sc.IsAlwaysInvalidFor(m.Site.ReturnType)
 	}
 	return false
 }
@@ -728,7 +574,7 @@ func LogPreflightResults(log *logger.Logger, totalMutants int, results []Preflig
 		level1, level2, validCount, totalMutants)
 }
 
-func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
+func typeCheckFileGroup(filePath string, mutants []Mutant, cache *pkgImportCache, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Debug("[PREFLIGHT L3] Cannot read %s — skipping type-check", filePath)
@@ -739,20 +585,16 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 	siblings := loadSiblingFiles(pkgDir, filePath)
 	pkgName := parsePackageName(src, filePath)
 	helper := fmt.Sprintf(schemataHelperSrc, pkgName)
-	imp := &lenientImporter{base: importer.Default()}
+	imp := cache.importerFor(pkgDir)
 
+	// Baseline: type errors present in the file with no mutation applied.
+	// With real (non-stub) imports these are normally empty; when present,
+	// they indicate pre-existing user-code errors that we must subtract so
+	// they don't false-positive every mutant in the file.
 	baseline := computeBaselineErrors(filePath, src, siblings, helper, pkgDir, imp)
-
-	// Only "real" (non-stub) baseline errors indicate the file genuinely fails
-	// type-checking on its own. Stub-driven errors from the lenient importer are
-	// expected noise and are absorbed by the per-mutant budget.
-	for msg := range baseline {
-		if !isImportStubError(msg) {
-			log.Debug("[PREFLIGHT L3] %s: real baseline type error detected (%q) — rejecting all %d mutant(s)",
-				filepath.Base(filePath), msg, len(mutants))
-			_, invalid := makeAllInvalid(mutants, "baseline type error: "+msg)
-			return nil, invalid
-		}
+	if log != nil && len(baseline) > 0 {
+		log.Debug("[PREFLIGHT L3] %s: %d pre-existing baseline error message(s) — subtracting from mutant checks",
+			filepath.Base(filePath), len(baseline))
 	}
 
 	mutPtrs := make([]*Mutant, len(mutants))
@@ -760,27 +602,52 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, log *logger.Logger) (
 		mutPtrs[i] = &mutants[i]
 	}
 
-	// Check all mutants together first (like schemata does)
 	errs, panicked := runTypeCheck(filePath, src, mutPtrs, siblings, helper, pkgDir, imp, baseline)
 	if panicked {
 		log.Debug("[PREFLIGHT L3] %s: go/types panicked on group of %d mutants, bisecting",
 			filepath.Base(filePath), len(mutants))
 		return bisectMutants(filePath, src, mutants, siblings, helper, pkgDir, imp, baseline, log)
 	}
-
 	if len(errs) > 0 {
 		log.Debug("[PREFLIGHT L3] %s: %d type errors found in combined check, bisecting %d mutants",
 			filepath.Base(filePath), len(errs), len(mutants))
 		return bisectMutants(filePath, src, mutants, siblings, helper, pkgDir, imp, baseline, log)
 	}
-
 	return mutants, nil
 }
 
-func isImportStubError(msg string) bool {
-	return strings.HasPrefix(msg, "undefined:") ||
-		strings.Contains(msg, "has no field or method") ||
-		strings.Contains(msg, "cannot refer to unexported")
+// computeBaselineErrors returns a multiset (message → count) of type errors
+// produced by go/types when checking the unmodified package. With a real
+// (non-stub) importer this is normally empty; we subtract these from
+// mutant-introduced errors so that pre-existing user-code typos don't
+// false-positive every mutant in the file.
+func computeBaselineErrors(filePath string, src []byte, siblings []siblingFile, helper, pkgDir string, imp types.Importer) map[string]int {
+	fset := token.NewFileSet()
+
+	f, err := parser.ParseFile(fset, filePath, src, 0)
+	if err != nil {
+		return nil
+	}
+
+	allFiles := []*ast.File{f}
+	for _, sib := range siblings {
+		if sf, err := parser.ParseFile(fset, sib.path, sib.src, 0); err == nil {
+			allFiles = append(allFiles, sf)
+		}
+	}
+	if hf, err := parser.ParseFile(fset, "gorgon_schemata.go", helper, 0); err == nil {
+		allFiles = append(allFiles, hf)
+	}
+
+	counts := make(map[string]int)
+	conf := &types.Config{
+		Importer: imp,
+		Error: func(e error) {
+			counts[typeErrorMessage(e.Error())]++
+		},
+	}
+	conf.Check(pkgDir, fset, allFiles, nil)
+	return counts
 }
 
 func runTypeCheck(filePath string, src []byte, mutPtrs []*Mutant, siblings []siblingFile, helper, pkgDir string, imp types.Importer, baseline map[string]int) (newErrors []string, panicked bool) {

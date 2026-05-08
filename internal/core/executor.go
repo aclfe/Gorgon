@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
-	"math"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,18 +94,92 @@ func rebuildMutantSites(mutants []*Mutant) map[int]MutantSite {
 type compileResultWithAttribution struct {
 	compilerOutput string
 	perMutant      map[int]error
-	compileFailed  bool
+	// attributed[id] is true iff perMutant[id] is a compile error pinned to the
+	// mutant's own schemata block in the transformed source. False entries are
+	// generic package-level failures that any of the mutants might be guilty
+	// of (or none — could be infrastructure-level).
+	attributed    map[int]bool
+	compileFailed bool
+}
+
+// mutationCompileError is the typed error placed in perMutant for mutants
+// whose schemata block was definitively the source of a compile error. Callers
+// check for this type instead of substring-matching the message.
+type mutationCompileError struct {
+	lines []string
+}
+
+func (e *mutationCompileError) Error() string {
+	return "compilation failed (mutation detected):\n" + strings.Join(e.lines, "\n")
+}
+
+// schemataSpan describes one schemata-block IfStmt in a transformed temp file:
+// the line range its Body covers (closing brace inclusive). Compile errors at
+// any line in [start, end] are attributable to mutantID.
+type schemataSpan struct {
+	start    int
+	end      int
+	mutantID int
+}
+
+// findSchemataSpans parses the schemata-transformed temp file and returns the
+// exact line span for every `if activeMutantID == N { … }` IfStmt found,
+// keyed by N. The parser handles strings, comments, and braces inside struct
+// literals correctly — no manual brace counting.
+func findSchemataSpans(tempFile string) map[int]schemataSpan {
+	src, err := os.ReadFile(tempFile)
+	if err != nil {
+		return nil
+	}
+	fset := token.NewFileSet()
+	// Mode 0 with errors ignored: the parser still produces a partial AST that
+	// covers the schemata blocks, even if a downstream mutation introduced a
+	// type error (which doesn't affect parsing).
+	file, _ := parser.ParseFile(fset, tempFile, src, 0)
+	if file == nil {
+		return nil
+	}
+	spans := make(map[int]schemataSpan)
+	ast.Inspect(file, func(n ast.Node) bool {
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok || ifStmt.Body == nil {
+			return true
+		}
+		bin, ok := ifStmt.Cond.(*ast.BinaryExpr)
+		if !ok || bin.Op != token.EQL {
+			return true
+		}
+		ident, ok := bin.X.(*ast.Ident)
+		if !ok || ident.Name != "activeMutantID" {
+			return true
+		}
+		lit, ok := bin.Y.(*ast.BasicLit)
+		if !ok || lit.Kind != token.INT {
+			return true
+		}
+		id, err := strconv.Atoi(lit.Value)
+		if err != nil {
+			return true
+		}
+		spans[id] = schemataSpan{
+			start:    fset.Position(ifStmt.Pos()).Line,
+			end:      fset.Position(ifStmt.Body.End()).Line,
+			mutantID: id,
+		}
+		return true
+	})
+	return spans
 }
 
 func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int, sites map[int]MutantSite, output string) compileResultWithAttribution {
 	result := compileResultWithAttribution{
 		compilerOutput: output,
 		perMutant:      make(map[int]error, len(mutantIDs)),
+		attributed:     make(map[int]bool, len(mutantIDs)),
 	}
 
-	errors := ParseCompilerErrors(output)
-	if len(errors) == 0 {
-
+	parsed := ParseCompilerErrors(output)
+	if len(parsed) == 0 {
 		result.compileFailed = true
 		compileErr := fmt.Errorf("compilation failed: %s", output)
 		for _, id := range mutantIDs {
@@ -113,65 +188,76 @@ func attributeCompileErrors(tempDir string, projectRoot string, mutantIDs []int,
 		return result
 	}
 
-	type pos struct {
-		file string
-		line int
-		id   int
-	}
-	positions := make([]pos, 0, len(mutantIDs))
+	// Build the set of schemata-transformed temp files referenced by the
+	// mutants in this batch, then parse each once to extract precise IfStmt
+	// spans for every mutant ID it contains.
+	tempFiles := make(map[string]bool)
+	mutantTempFile := make(map[int]string, len(mutantIDs))
 	for _, id := range mutantIDs {
 		site, ok := sites[id]
 		if !ok {
 			continue
 		}
-
 		relPath, _ := filepath.Rel(projectRoot, site.File)
-		tempFile := filepath.Join(tempDir, relPath)
-		positions = append(positions, pos{file: tempFile, line: site.Line, id: id})
+		tempFile := filepath.Clean(filepath.Join(tempDir, relPath))
+		mutantTempFile[id] = tempFile
+		tempFiles[tempFile] = true
 	}
 
-	mutantErrors := make(map[int][]string, len(mutantIDs))
+	fileSpans := make(map[string][]schemataSpan, len(tempFiles))
+	for f := range tempFiles {
+		for _, span := range findSchemataSpans(f) {
+			fileSpans[f] = append(fileSpans[f], span)
+		}
+	}
 
-	for _, ce := range errors {
+	mutantErrLines := make(map[int][]string, len(mutantIDs))
+	var unattributed []string
+	for _, ce := range parsed {
 		errFile := filepath.Clean(ce.File)
 		if !filepath.IsAbs(errFile) {
-			errFile = filepath.Join(tempDir, errFile)
+			errFile = filepath.Clean(filepath.Join(tempDir, errFile))
 		}
-
+		spans, ok := fileSpans[errFile]
+		formatted := fmt.Sprintf("%s:%d:%d: %s", ce.File, ce.Line, ce.Col, ce.Message)
+		if !ok {
+			unattributed = append(unattributed, formatted)
+			continue
+		}
+		// Innermost match: the schemata block whose [start,end] contains the
+		// error line and whose start is greatest. Handles nested if-else-if
+		// chains where multiple mutants share a site.
 		bestID := -1
-		bestDist := math.MaxInt32
-		for _, p := range positions {
-			if filepath.Clean(p.file) == errFile {
-				dist := absInt(p.line - ce.Line)
-				if dist < bestDist {
-					bestDist = dist
-					bestID = p.id
-				}
+		bestStart := -1
+		for _, sp := range spans {
+			if sp.start <= ce.Line && ce.Line <= sp.end && sp.start > bestStart {
+				bestStart = sp.start
+				bestID = sp.mutantID
 			}
 		}
-
-		if bestID >= 0 && bestDist <= 5 {
-			line := fmt.Sprintf("%s:%d:%d: %s", ce.File, ce.Line, ce.Col, ce.Message)
-			mutantErrors[bestID] = append(mutantErrors[bestID], line)
+		if bestID >= 0 {
+			mutantErrLines[bestID] = append(mutantErrLines[bestID], formatted)
+		} else {
+			unattributed = append(unattributed, formatted)
 		}
-
 	}
 
-	for _, id := range mutantIDs {
-		if errs, ok := mutantErrors[id]; ok && len(errs) > 0 {
-			result.perMutant[id] = fmt.Errorf("compilation failed (mutation detected):\n%s", strings.Join(errs, "\n"))
-		}
+	for id, lines := range mutantErrLines {
+		result.perMutant[id] = &mutationCompileError{lines: lines}
+		result.attributed[id] = true
+	}
 
+	if len(unattributed) > 0 {
+		result.compileFailed = true
+		genericErr := fmt.Errorf("compilation failed (unattributed):\n%s", strings.Join(unattributed, "\n"))
+		for _, id := range mutantIDs {
+			if result.perMutant[id] == nil {
+				result.perMutant[id] = genericErr
+			}
+		}
 	}
 
 	return result
-}
-
-func absInt(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
 
 type testExecutor struct {
@@ -231,31 +317,28 @@ func (e *testExecutor) compileWithAttribution(ctx context.Context, mutantIDs []i
 }
 
 func (e *testExecutor) measureBaseline(ctx context.Context) (time.Duration, bool) {
-	var durations []time.Duration
-
-	for i := 0; i < 2 && len(durations) < 2; i++ {
+	durations := make([]time.Duration, 0, 2)
+	for i := 0; i < 2; i++ {
 		start := time.Now()
 		cmd := exec.CommandContext(ctx, e.testBinary, testArgs("10s", e.tests)...)
 		cmd.Dir = e.tempDir
-		_ = cmd.Run() // ignore pass/fail — we only need the elapsed time
-
+		runErr := cmd.Run() // pass/fail is irrelevant; we want elapsed time only.
 		elapsed := time.Since(start)
-		// A run that completes in <50ms is an immediate exit (binary missing,
-		// crashed, or no tests at all) — not useful for timeout estimation.
-		if elapsed >= 50*time.Millisecond {
-			durations = append(durations, elapsed)
+		// Discard runs that the OS rejected outright (binary missing or
+		// non-executable). A test that genuinely ran and exited — pass, fail,
+		// or skip — is a valid baseline sample.
+		if _, missing := runErr.(*exec.Error); missing {
+			continue
 		}
+		durations = append(durations, elapsed)
 	}
 
 	if len(durations) == 0 {
-		// Binary exited too fast (no tests to run, or binary doesn't exist).
-		// Return false so callers fall back to defaultMutantTimeout.
 		return defaultMutantTimeout, false
 	}
 
 	slices.Sort(durations)
 	median := durations[len(durations)/2]
-
 	if median < minBaselineDuration*time.Millisecond {
 		median = minBaselineDuration * time.Millisecond
 	}
@@ -287,225 +370,36 @@ func (e *testExecutor) runMutant(ctx context.Context, mutantID int) mutantResult
 	hardCtx, cancel := e.hardTimeout(ctx)
 	defer cancel()
 
-	if _, err := os.Stat(e.testBinary); os.IsNotExist(err) {
-		// Binary not produced after a successful compile — package has no test files.
-		return mutantResult{
-			id:     mutantID,
-			status: "untested",
-		}
-	}
-
-	args := testArgs(fmt.Sprintf("%.0fs", e.timeout.Seconds()), e.tests)
-	cmd := exec.CommandContext(hardCtx, e.testBinary, args...)
-	cmd.Dir = e.pkgDir
-
 	cmdEnv := make([]string, len(e.mutantEnv))
 	copy(cmdEnv, e.mutantEnv)
 	cmdEnv[len(e.mutantEnv)-1] = "GORGON_MUTANT_ID=" + strconv.Itoa(mutantID)
-	cmd.Env = cmdEnv
+
+	testFilter := ""
+	if len(e.tests) > 0 {
+		testFilter = strings.Join(e.tests, "|")
+	}
 
 	start := time.Now()
-	out, err := cmd.CombinedOutput()
+	raw, err := runTestBinary(
+		hardCtx,
+		e.testBinary,
+		e.pkgDir,
+		cmdEnv,
+		testFilter,
+		fmt.Sprintf("%.0fs", e.timeout.Seconds()),
+	)
 	duration := time.Since(start)
 
-	status := "survived"
-	killedBy := ""
-	killOutput := ""
-
-	outStr := string(out)
-
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		outStr += string(exitErr.Stderr)
-	}
-
-	isCompErr := isCompilationError(outStr)
-
-	if hardCtx.Err() != nil {
-		status = "timeout"
-		killedBy = "(timeout)"
-		killOutput = "test timed out"
-	} else if isCompErr {
-		status = "error"
-		killedBy = extractErrorType(outStr)
-		killOutput = outStr
-	} else if err != nil && outStr == "" {
-		status = "error"
-		killedBy = "runtime error"
-		killOutput = err.Error()
-	} else if hasNoTestsToRun(outStr, err) {
-		status = "untested"
-		killedBy = ""
-		killOutput = ""
-	} else if err == nil && duration < 50*time.Millisecond && strings.Contains(strings.ToLower(outStr), "no tests") {
-		// Silent case: binary exits 0 but no tests actually ran
-		status = "untested"
-		killedBy = ""
-		killOutput = ""
-	} else if err != nil {
-		status = "killed"
-		killedBy = parseFailedTest(outStr)
-		if len(outStr) > 300 {
-			killOutput = outStr[:300]
-		} else {
-			killOutput = outStr
-		}
-	}
-
-	// if e.log.IsDebug() && status != "survived" {
-	// 	e.log.Debug("Mutant #%d %s (pkg: %s, timeout=%v, killed_by=%s, duration=%v)\n  Cmd: %s %v\n  Output: %s",
-	// 		mutantID, status, e.pkgDir, e.timeout, killedBy, duration, e.testBinary, args, killOutput)
-	// }
+	r := classifyVerboseRun(raw, err, hardCtx.Err() == context.DeadlineExceeded)
 
 	return mutantResult{
 		id:           mutantID,
-		status:       status,
+		status:       r.status,
 		err:          err,
-		killedBy:     killedBy,
+		killedBy:     r.killedBy,
 		killDuration: duration,
-		killOutput:   killOutput,
+		killOutput:   r.killOutput,
 	}
-}
-
-func parseFailedTest(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		if strings.HasPrefix(line, "--- FAIL: ") {
-
-			parts := strings.SplitN(line, " ", 3)
-			if len(parts) >= 3 {
-
-				testName := parts[2]
-				if idx := strings.Index(testName, " ("); idx > 0 {
-					testName = testName[:idx]
-				}
-				return testName
-			}
-		}
-	}
-
-	if output != "" {
-		if isCompilationError(output) {
-			return extractErrorType(output)
-		}
-		return "(test output non-empty)"
-	}
-	return "(compilation/runtime error)"
-}
-
-func isCompilationError(output string) bool {
-	// Test runner output is never a compilation error — test failures produce "--- FAIL:"
-	// and panics during tests are caught mutations, not build failures.
-	if strings.Contains(output, "--- FAIL:") || strings.Contains(output, "=== RUN") {
-		return false
-	}
-	outputLower := strings.ToLower(output)
-	compPatterns := []string{
-		"compilation failed",
-		"build failed",
-		"syntax error",
-		"undefined:",
-		"undefined (name",
-		"cannot range over",
-		"invalid operation:",
-		"type *ast.",
-		"has no field or method",
-		"mismatched types",
-		"cannot assign",
-		"undefined label",
-		"cannot use",
-		"not declared",
-		"redeclared",
-		"no function",
-		"non-type",
-		// NOTE: runtime panic patterns ("panic:", "runtime error:", "nil pointer", etc.)
-		// are intentionally absent — a mutation that causes a panic is a killed mutant,
-		// not a compile failure. Those are handled by the err!=nil branch in runMutant.
-	}
-	for _, pattern := range compPatterns {
-		if strings.Contains(outputLower, strings.ToLower(pattern)) {
-			return true
-		}
-	}
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "=== ") && !strings.HasPrefix(line, "---") {
-			return true
-		}
-	}
-	return false
-}
-
-func extractErrorType(output string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-		if strings.Contains(line, "compilation failed") {
-			return extractFirstError(line)
-		}
-		if strings.Contains(line, "syntax error") {
-			return "syntax error: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "undefined:") {
-			return "undefined: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "invalid operation:") {
-			return "invalid operation: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "has no field or method") {
-			return "field/method not found: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "mismatched types") {
-			return "type mismatch: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "panic:") {
-			return "panic: " + extractFirstError(line)
-		}
-		if strings.Contains(line, "runtime error:") {
-			return "runtime error: " + extractFirstError(line)
-		}
-	}
-	return extractFirstError(output)
-}
-
-func extractFirstError(output string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "---") && !strings.HasPrefix(line, "===") {
-			if len(line) > 100 {
-				return line[:100]
-			}
-			return line
-		}
-	}
-	return "unknown error"
-}
-
-func hasNoTestsToRun(output string, runErr error) bool {
-	lower := strings.ToLower(output)
-	return strings.Contains(lower, "no tests to run") ||
-		strings.Contains(lower, "no test files") ||
-		strings.Contains(lower, "warning: no tests to run")
-}
-
-// packageHasTestFiles checks if a package directory contains any *_test.go files
-func packageHasTestFiles(pkgDir string) bool {
-	entries, err := os.ReadDir(pkgDir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
-			return true
-		}
-	}
-	return false
 }
 
 func (e *testExecutor) relPath() string {
@@ -582,6 +476,24 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			executor.buildTags = buildTags
 			pkgMuts := pkgToMutants[pkgDir]
 
+			// Authoritative test-file check via `go list`. If the package has
+			// no in-package or external test files, every mutant is UNTESTED
+			// and we skip compile/run entirely.
+			hasTests, listErr := packageHasGoTestFiles(compileCtx, tempDir, executor.relPath(), buildTags)
+			if listErr != nil {
+				executor.log.Debug("go list failed for %s: %v — falling through to compile", executor.relPath(), listErr)
+				hasTests = true // best effort: let compile decide
+			}
+			if !hasTests {
+				for _, mutantID := range mutantIDsForPkg {
+					resultsChan <- mutantResult{id: mutantID, status: "untested"}
+					if prog != nil {
+						prog.Record()
+					}
+				}
+				return nil
+			}
+
 			currentSites := make(map[int]MutantSite, len(mutantIDsForPkg))
 			for _, id := range mutantIDsForPkg {
 				if site, ok := mutantSites[id]; ok {
@@ -595,7 +507,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 				err := result.perMutant[mutantID]
 				if err != nil {
 					killedBy := "compilation error"
-					if strings.Contains(err.Error(), "mutation detected") {
+					if result.attributed[mutantID] {
 						killedBy = "(compiler)"
 					}
 					resultsChan <- mutantResult{
@@ -613,32 +525,17 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 			}
 
 			if _, statErr := os.Stat(executor.testBinary); os.IsNotExist(statErr) {
-				// Distinguish between "package has no test files" (truly untested)
-				// and "go test -c failed" (compile error that wasn't attributed to a
-				// specific mutant, e.g. a mutation that only breaks the test build).
-				
-				// Check if the original source package has test files
-				var origPkgDir string
-				if len(pkgMuts) > 0 && pkgMuts[0].Site.File != nil {
-					origPkgDir = filepath.Dir(pkgMuts[0].Site.File.Name())
-				}
-				hasTests := origPkgDir != "" && packageHasTestFiles(origPkgDir)
-				
-				compileFailed := result.compileFailed || result.compilerOutput != ""
+				// We confirmed via `go list` that the package has test files.
+				// If `go test -c` succeeded yet produced no binary, treat the
+				// remaining unattributed mutants as compile errors.
 				count := 0
 				for _, mutantID := range mutantIDsForPkg {
 					if result.perMutant[mutantID] == nil {
-						if compileFailed || (hasTests && !result.compileFailed) {
-							// Either explicit compile failure OR package has tests but binary wasn't created
-							resultsChan <- mutantResult{
-								id:         mutantID,
-								status:     "error",
-								killedBy:   "(compiler)",
-								killOutput: result.compilerOutput,
-							}
-						} else {
-							// Package genuinely has no test files
-							resultsChan <- mutantResult{id: mutantID, status: "untested"}
+						resultsChan <- mutantResult{
+							id:         mutantID,
+							status:     "error",
+							killedBy:   "(compiler)",
+							killOutput: result.compilerOutput,
 						}
 						if prog != nil {
 							prog.Record()
@@ -651,11 +548,7 @@ func compileAndRunPackages(ctx context.Context, tempDir string, pkgToMutantIDs m
 					if pkg == "" || pkg == "./" {
 						pkg = filepath.Base(pkgDir)
 					}
-					if compileFailed || hasTests {
-						executor.log.Debug("Test build failed for %s — %d mutant(s) marked as compile errors", pkg, count)
-					} else {
-						executor.log.Debug("No test binary for %s — package has no test files, %d mutant(s) marked untested", pkg, count)
-					}
+					executor.log.Debug("Test build failed for %s — %d mutant(s) marked as compile errors", pkg, count)
 				}
 				return nil
 			}
@@ -960,6 +853,21 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 		mutantIDs[i] = m.ID
 	}
 
+	// Authoritative test-file check before compile.
+	if hasTests, listErr := packageHasGoTestFiles(ctx, tempDir, executor.relPath(), buildTags); listErr == nil && !hasTests {
+		for _, m := range pkgMutants {
+			if m.Status == "" {
+				m.Status = "untested"
+			}
+		}
+		if prog != nil {
+			for range mutantIDs {
+				prog.Record()
+			}
+		}
+		return nil
+	}
+
 	sites := rebuildMutantSites(pkgMutants)
 
 	result := executor.compileWithAttribution(ctx, mutantIDs, sites)
@@ -967,7 +875,7 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 		err := result.perMutant[m.ID]
 		if err != nil {
 			m.Status = "error"
-			if strings.Contains(err.Error(), "mutation detected") {
+			if result.attributed[m.ID] {
 				m.KilledBy = "(compiler)"
 				m.KillOutput = fmt.Sprintf("compilation failed: %s", err.Error())
 			}
@@ -996,30 +904,15 @@ func runStandalonePackage(ctx context.Context, pkgDir string, pkgMutants []*Muta
 		return nil
 	}
 
-	// Check whether the test binary was actually produced. go test -c succeeds
-	// silently for packages with no test files but writes no binary. Mark all
-	// remaining (non-error) mutants as "untested" and log once per package.
+	// Test files were confirmed via `go list` above. If `go test -c` reported
+	// success but produced no binary, that is a silent build failure — every
+	// remaining mutant is a compile error.
 	if _, statErr := os.Stat(executor.testBinary); os.IsNotExist(statErr) {
-		pkgRelPath, _ := filepath.Rel(projectRoot, pkgDir)
-		if pkgRelPath == "" || pkgRelPath == "." {
-			pkgRelPath = filepath.Base(pkgDir)
-		}
-		
-		// Check if the package has test files to distinguish between
-		// "no test files" (untested) and "silent compile failure" (error)
-		hasTests := packageHasTestFiles(pkgDir)
-		
 		for _, m := range pkgMutants {
 			if m.Status == "" {
-				if hasTests {
-					// Package has tests but binary wasn't created — compile failure
-					m.Status = "error"
-					m.KilledBy = "(compiler)"
-					m.KillOutput = "test binary not created despite test files present"
-				} else {
-					// Package genuinely has no test files
-					m.Status = "untested"
-				}
+				m.Status = "error"
+				m.KilledBy = "(compiler)"
+				m.KillOutput = "test binary not created despite test files present"
 			}
 		}
 		if prog != nil {
@@ -1218,28 +1111,36 @@ func runMutantsAgainstBinary(ctx context.Context, binPath, workspaceDir string, 
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			cmd := exec.CommandContext(ctx, binPath,
-				fmt.Sprintf("-test.timeout=%.0fs", timeout.Seconds()))
-			cmd.Dir = workspaceDir
-			cmd.Env = append(os.Environ(),
+			env := append(os.Environ(),
 				fmt.Sprintf("GORGON_MUTANT_ID=%d", m.ID))
 
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				killedBy := parseFailedTest(string(out))
+			runCtx, cancel := context.WithTimeout(ctx, timeout+hardTimeoutMargin)
+			defer cancel()
+
+			raw, err := runTestBinary(
+				runCtx,
+				binPath,
+				workspaceDir,
+				env,
+				"",
+				fmt.Sprintf("%.0fs", timeout.Seconds()),
+			)
+			r := classifyVerboseRun(raw, err, runCtx.Err() == context.DeadlineExceeded)
+
+			killedBy := r.killedBy
+			if r.status == "killed" {
 				if killedBy == "" {
 					killedBy = suiteName
 				} else {
 					killedBy = killedBy + " [" + suiteName + "]"
 				}
-				resultsChan <- mutantResult{
-					id:       m.ID,
-					status:   "killed",
-					killedBy: killedBy,
-					killOutput: string(out),
-				}
-			} else {
-				resultsChan <- mutantResult{id: m.ID, status: "survived"}
+			}
+
+			resultsChan <- mutantResult{
+				id:         m.ID,
+				status:     r.status,
+				killedBy:   killedBy,
+				killOutput: r.killOutput,
 			}
 		}()
 	}
