@@ -287,28 +287,8 @@ func TestBothTestSuites_ValidKilling(t *testing.T) {
 }
 
 // ============================================================================
-// WORKFLOW OPERATORS
-// ============================================================================
-
-// TestWorkflow_DifferentOperatorsProduceDifferentResults verifies different operators produce different results
-func TestWorkflow_DifferentOperatorsProduceDifferentResults(t *testing.T) {
-	t.Skip("TODO: Verify different operators produce different mutation results")
-}
-
-func TestWorflow_AllOperatorsCanProduceMutations(t *testing.T) {
-	t.Skip("TODO: Verify that they're all enabled and working to make mutations")
-	// frankly a future might be to ensure that there's no error mutations being generated.
-	// this is a highly ambitious goal consider handlers.go would nee chanes in order to ensure mutations are done properly. 
-}
-
-// ============================================================================
 // WORKFLOW SCHEMATA TRANSFORMATION
 // ============================================================================
-
-// TestWorkflow_SchemataCompilationSuccess verifies schemata transformation produces compilable code everywhere in the repo
-func TestWorkflow_SchemataCompilationSuccess(t *testing.T) {
-	t.Skip("TODO: Verify schemata-transformed code compiles")
-}
 
 // TestWorkflow_PreflightCatchesBaselineErrors verifies preflight catches baseline errors
 func TestWorkflow_PreflightCatchesBaselineErrors(t *testing.T) {

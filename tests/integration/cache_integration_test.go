@@ -6,6 +6,40 @@ package integration
 import "testing"
 
 // ============================================================================
+// WORKFLOW CACHING
+// ============================================================================
+
+// TestWorkflow_CacheActuallyWorks verifies cache skips re-running identical mutants
+func TestWorkflow_CacheActuallyWorks(t *testing.T) {
+	t.Skip("TODO: Verify cache correctly skips re-running identical mutants")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction
+func TestWorkflow_CacheWithDiff(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline
+func TestWorkflow_CacheWithDiffAndBaseline(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + directory rules / subconfigs
+func TestWorkflow_CacheWithDiffAndBaseline_Subconfig(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + subconfig specifications")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + directory rules / subconfigs + org policy
+func TestWorkflow_CacheWithDiffAndBaseline_Subconfig_Orgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + subconfig specifications + org policy")
+}
+
+// TestWorkflow_CacheWithDiff verifies cache + diff interaction + baseline + org policy
+func TestWorkflow_CacheWithDiffAndBaseline_orgpolicy(t *testing.T) {
+	t.Skip("TODO: Verify cache works correctly with diff filtering and baseline + org policy")
+}
+
+// ============================================================================
 // CACHE BASIC FUNCTIONALITY
 // ============================================================================
 
