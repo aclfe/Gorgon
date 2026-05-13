@@ -22,10 +22,11 @@ type OrgPolicy struct {
 	// ForbiddenOperators lists operators that must never run.
 	ForbiddenOperators []string `yaml:"forbidden_operators,omitempty"`
 
-	// LockedSettings prevents any config below this level from changing
-	// specific settings. Valid values: "skip", "skip_func", "exclude",
-	// "include", "tests", "cache", "concurrent", "operators", "threshold",
-	// "sub_config_mode", "violation_mode".
+	// LockedSettings prevents sub-configs from overriding specific settings.
+	// Valid sub-config values: "skip", "skip_func", "exclude", "include",
+	// "tests", "concurrent", "operators", "threshold", "suppress", "dir_rules".
+	// Config-level settings ("cache", "sub_config_mode", "violation_mode")
+	// are enforced via other policy fields (e.g. RequireCache).
 	LockedSettings []string `yaml:"locked_settings,omitempty"`
 
 	// ForcedSkipPaths are paths that are always skipped, appended after

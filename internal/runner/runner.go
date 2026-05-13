@@ -81,6 +81,7 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 	if err != nil {
 		return fmt.Errorf("failed to discover sub-configs: %w", err)
 	}
+	resolver.SetMode(cfg.SubConfigMode)
 
 	// Apply org policy to root config
 	allOps := mutator.ListAll()
@@ -280,11 +281,11 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 
 		// Always write text report to terminal exactly once (handled inside reporter.Report)
-		_, reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts)
+		stats, reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts)
 		
 		// Generate badge even if report had errors (e.g., threshold failure)
 		if cfg.Badge != "" {
-			if err := generateBadge(cfg.Badge, baseDir); err != nil {
+			if err := generateBadge(cfg.Badge, baseDir, stats.Score); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate badge: %v\n", err)
 			}
 		}
@@ -616,14 +617,10 @@ func GetLastMutationScore(baseDir string) (float64, error) {
 }
 
 // generateBadge creates a badge file based on the mutation score
-func generateBadge(format, baseDir string) error {
-	score, err := GetLastMutationScore(baseDir)
-	if err != nil {
-		return err
-	}
-
+func generateBadge(format, baseDir string, score float64) error {
 	var output string
 	var filename string
+	var err error
 
 	switch format {
 	case "json":

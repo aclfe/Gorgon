@@ -25,6 +25,7 @@ type Resolver struct {
 	projectRoot string
 	entries     []entry // sorted shallowest→deepest for chain resolution
 	policy      *config.OrgPolicy
+	mode        config.SubConfigMode // merge (default), replace, or isolate
 }
 
 // Discover walks projectRoot finding all gorgon.yml files in subdirectories.
@@ -117,8 +118,21 @@ func DiscoverWithPolicy(projectRoot, rootConfigPath string, policy *config.OrgPo
 	return r, nil
 }
 
+// SetMode sets the sub-config resolution mode. Must be called before any
+// Effective* methods. Defaults to SubConfigMerge ("" or "merge") which is
+// the current behavior: full ancestor chain with replace semantics for
+// operators/threshold/tests and merge for filters/suppress/dir_rules.
+func (r *Resolver) SetMode(mode config.SubConfigMode) {
+	r.mode = mode
+}
+
 // chain returns all entries that are ancestors-or-self of the given file path,
-// ordered shallowest→deepest. This is the resolution chain for that file.
+// ordered shallowest→deepest. The SubConfigMode controls which entries appear:
+//
+//   - merge (default): full ancestor chain — all matching entries
+//   - replace: only the deepest (most specific) matching entry
+//   - isolate: only the entry whose directory exactly matches the file's
+//     directory; ancestor entries are excluded
 func (r *Resolver) chain(filePath string) []*config.SubConfig {
 	absFile, err := filepath.Abs(filePath)
 	if err != nil {
@@ -126,26 +140,61 @@ func (r *Resolver) chain(filePath string) []*config.SubConfig {
 	}
 	fileDir := filepath.Dir(absFile)
 
-	var chain []*config.SubConfig
-	for i := range r.entries {
-		e := &r.entries[i]
-		// Matches if the entry dir IS the file's dir, or is an ancestor
-		if fileDir == e.dir ||
-			strings.HasPrefix(fileDir+string(filepath.Separator), e.dir+string(filepath.Separator)) {
-			chain = append(chain, e.config)
+	switch r.mode {
+	case config.SubConfigIsolate:
+		// Only the entry whose directory exactly matches the file's directory
+		for i := len(r.entries) - 1; i >= 0; i-- {
+			if r.entries[i].dir == fileDir {
+				sc := r.entries[i].config
+				if r.policy != nil && !r.policy.IsZero() && len(r.policy.LockedSettings) > 0 {
+					return []*config.SubConfig{orgpolicy.ApplyToSubConfig(sc, nil, r.policy)}
+				}
+				return []*config.SubConfig{sc}
+			}
 		}
-	}
+		return nil
 
-	// Apply org policy locked settings to each sub-config in the chain
-	if r.policy != nil && !r.policy.IsZero() && len(r.policy.LockedSettings) > 0 {
-		filtered := make([]*config.SubConfig, len(chain))
-		for i, sc := range chain {
-			filtered[i] = orgpolicy.ApplyToSubConfig(sc, nil, r.policy)
+	case config.SubConfigReplace:
+		// Build the full chain, then take only the deepest entry
+		var chain []*config.SubConfig
+		for i := range r.entries {
+			e := &r.entries[i]
+			if fileDir == e.dir ||
+				strings.HasPrefix(fileDir+string(filepath.Separator), e.dir+string(filepath.Separator)) {
+				chain = append(chain, e.config)
+			}
 		}
-		return filtered
-	}
+		if len(chain) > 0 {
+			chain = chain[len(chain)-1:]
+		}
+		if r.policy != nil && !r.policy.IsZero() && len(r.policy.LockedSettings) > 0 {
+			filtered := make([]*config.SubConfig, len(chain))
+			for i, sc := range chain {
+				filtered[i] = orgpolicy.ApplyToSubConfig(sc, nil, r.policy)
+			}
+			return filtered
+		}
+		return chain
 
-	return chain // already sorted shallowest→deepest from Discover
+	default:
+		// merge mode (or empty string) — full ancestor chain
+		var chain []*config.SubConfig
+		for i := range r.entries {
+			e := &r.entries[i]
+			if fileDir == e.dir ||
+				strings.HasPrefix(fileDir+string(filepath.Separator), e.dir+string(filepath.Separator)) {
+				chain = append(chain, e.config)
+			}
+		}
+		if r.policy != nil && !r.policy.IsZero() && len(r.policy.LockedSettings) > 0 {
+			filtered := make([]*config.SubConfig, len(chain))
+			for i, sc := range chain {
+				filtered[i] = orgpolicy.ApplyToSubConfig(sc, nil, r.policy)
+			}
+			return filtered
+		}
+		return chain
+	}
 }
 
 // EffectiveOperators returns the operator list that applies to filePath.

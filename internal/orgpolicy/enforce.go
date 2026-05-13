@@ -59,7 +59,7 @@ func Apply(cfg *config.Config, p *config.OrgPolicy, allOps []mutator.Operator) R
 	// Forbidden operators
 	if len(p.ForbiddenOperators) > 0 {
 		out.Operators, violations = enforceForbiddenOperators(
-			out.Operators, p.ForbiddenOperators, violations,
+			out.Operators, p.ForbiddenOperators, allOps, violations,
 		)
 	}
 
@@ -127,6 +127,15 @@ func ApplyToSubConfig(sc *config.SubConfig, root *config.Config, p *config.OrgPo
 	if locked["threshold"] {
 		out.Threshold = nil
 	}
+	if locked["concurrent"] {
+		out.Concurrent = ""
+	}
+	if locked["suppress"] {
+		out.Suppress = nil
+	}
+	if locked["dir_rules"] {
+		out.DirRules = nil
+	}
 	return &out
 }
 
@@ -184,15 +193,29 @@ func enforceRequiredOperators(
 func enforceForbiddenOperators(
 	current []string,
 	forbidden []string,
+	allOps []mutator.Operator,
 	violations []Violation,
 ) ([]string, []Violation) {
+	// Expand "all" shorthand so forbidden operators are properly removed
+	effective := current
+	for _, c := range current {
+		if strings.TrimSpace(c) == "all" {
+			expanded := make([]string, 0, len(allOps))
+			for _, op := range allOps {
+				expanded = append(expanded, op.Name())
+			}
+			effective = expanded
+			break
+		}
+	}
+
 	deny := make(map[string]bool, len(forbidden))
 	for _, f := range forbidden {
 		deny[strings.TrimSpace(f)] = true
 	}
 
 	var out []string
-	for _, op := range current {
+	for _, op := range effective {
 		name := strings.TrimSpace(op)
 		if deny[name] {
 			violations = append(violations, Violation{
