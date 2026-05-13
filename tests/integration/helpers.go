@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	gotoken "go/token"
 	"math"
 	"os"
 	"path/filepath"
@@ -17,9 +20,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
+	"github.com/aclfe/gorgon/internal/runner"
 	"github.com/aclfe/gorgon/internal/subconfig"
 	coretesting "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/pkg/config"
@@ -697,3 +702,271 @@ func compareMutantLists(expected, actual []MutantInfo, formatName string) []stri
 
 	return discrepancies
 }
+
+// ============================================================================
+// CONFIG-DRIVEN PIPELINE HELPERS
+//
+// The helpers below accept an external gorgon.yml path (per-test fixture under
+// testdata/<TestName>/) plus a real-code target directory inside the repo and
+// drive the same engine/runner machinery the gorgon binary uses. They do not
+// rely on synthetic fixtures — they mutate production code so the tests
+// validate behavior end-to-end.
+// ============================================================================
+
+// findRepoRoot walks up from the working directory looking for go.mod and
+// returns the absolute path of the repository root.
+func findRepoRoot(t *testing.T) string {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repo root (no go.mod) above %s", cwd)
+		}
+		dir = parent
+	}
+}
+
+// loadIntegrationConfig loads a gorgon.yml file and resolves any relative
+// paths inside cfg.Tests against the config file's directory, mirroring the
+// convention the binary uses (cmd.Dir == filepath.Dir(configPath)).
+func loadIntegrationConfig(t *testing.T, configPath string) *config.Config {
+	t.Helper()
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("load config %s: %v", configPath, err)
+	}
+	configDir := filepath.Dir(configPath)
+	for i, p := range cfg.Tests {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if !filepath.IsAbs(p) {
+			cfg.Tests[i] = filepath.Join(configDir, p)
+		}
+	}
+	return cfg
+}
+
+// generateMutantsRaw runs traversal + GenerateMutants with no filters at all.
+// Used as a baseline to confirm a target file/function actually has mutants
+// before asserting that a filter removed them.
+func generateMutantsRaw(t *testing.T, targetDir string) []coretesting.Mutant {
+	t.Helper()
+	repoRoot := findRepoRoot(t)
+	ops := mutator.ListAll()
+
+	eng := engine.NewEngine(false)
+	eng.SetOperators(ops)
+	eng.SetProjectRoot(repoRoot)
+
+	if err := eng.Traverse(targetDir, nil); err != nil {
+		t.Fatalf("traverse %s: %v", targetDir, err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatalf("no mutation sites in %s — fixture broken", targetDir)
+	}
+	log := logger.New(false)
+	return coretesting.GenerateMutants(sites, ops, ops, repoRoot, nil, nil, log)
+}
+
+// generateMutantsWithConfig loads the config, traverses the target directory,
+// applies runner.FilterSites with the config (so skip/exclude/include/skip_func
+// take effect), and returns the resulting mutant list. It does NOT execute
+// any tests — call this when only filtering behavior matters.
+func generateMutantsWithConfig(t *testing.T, configPath, targetDir string) []coretesting.Mutant {
+	t.Helper()
+	cfg := loadIntegrationConfig(t, configPath)
+	repoRoot := findRepoRoot(t)
+
+	ops, err := cli.ParseOperators(cfg)
+	if err != nil {
+		t.Fatalf("parse operators: %v", err)
+	}
+	allOps := mutator.ListAll()
+
+	eng := engine.NewEngine(false)
+	eng.SetOperators(ops)
+	eng.SetProjectRoot(repoRoot)
+	eng.SetSuppressEntries(cfg.Suppress)
+
+	if err := eng.Traverse(targetDir, nil); err != nil {
+		t.Fatalf("traverse %s: %v", targetDir, err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatalf("no mutation sites in %s — fixture broken", targetDir)
+	}
+
+	resolver, _ := subconfig.Discover(repoRoot, configPath)
+	sites = runner.FilterSites(sites, []string{targetDir}, cfg, resolver)
+
+	log := logger.New(false)
+	return coretesting.GenerateMutants(sites, ops, allOps, repoRoot, cfg.DirRules, resolver, log)
+}
+
+// runMutantsWithConfig is generateMutantsWithConfig + GenerateAndRunSchemata.
+// It compiles the target package once and runs tests against each mutant so
+// Status / KilledBy fields are populated. Use this when you need to verify
+// kill attribution or the effect of cfg.Tests on mutant statuses.
+func runMutantsWithConfig(t *testing.T, configPath, targetDir string) ([]coretesting.Mutant, reporter.ReportStats) {
+	t.Helper()
+	cfg := loadIntegrationConfig(t, configPath)
+	repoRoot := findRepoRoot(t)
+
+	ops, err := cli.ParseOperators(cfg)
+	if err != nil {
+		t.Fatalf("parse operators: %v", err)
+	}
+	allOps := mutator.ListAll()
+	concurrent := cli.ParseConcurrent(cfg.Concurrent)
+
+	eng := engine.NewEngine(false)
+	eng.SetOperators(ops)
+	eng.SetProjectRoot(repoRoot)
+	eng.SetSuppressEntries(cfg.Suppress)
+
+	if err := eng.Traverse(targetDir, nil); err != nil {
+		t.Fatalf("traverse %s: %v", targetDir, err)
+	}
+	sites := eng.Sites()
+	if len(sites) == 0 {
+		t.Fatalf("no mutation sites in %s — fixture broken", targetDir)
+	}
+
+	resolver, _ := subconfig.Discover(repoRoot, configPath)
+	sites = runner.FilterSites(sites, []string{targetDir}, cfg, resolver)
+
+	testsByPkg, testPaths := buildTestsByPkg(t, cfg.Tests)
+
+	log := logger.New(false)
+	ctx := context.Background()
+	mutants, err := coretesting.GenerateAndRunSchemata(
+		ctx, sites, ops, allOps,
+		targetDir, repoRoot,
+		cfg.DirRules, resolver,
+		concurrent, nil,
+		testsByPkg, testPaths,
+		log, false,
+		cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg,
+	)
+	if err != nil {
+		t.Logf("pipeline error (some mutants may legitimately fail): %v", err)
+	}
+
+	totalMutants := coretesting.GetTotalMutants()
+	stats, _ := reporter.Report(
+		mutants, totalMutants, 0, resolver,
+		false, false, false,
+		"", "", "",
+		reporter.BaselineOptions{},
+	)
+	return mutants, stats
+}
+
+// buildTestsByPkg mirrors runner.extractTests (which is unexported) so the
+// integration tests can drive cfg.Tests through the same filter the binary
+// applies. Returns (testsByPkg, testPaths) suitable for GenerateAndRunSchemata.
+func buildTestsByPkg(t *testing.T, testPaths []string) (map[string][]string, []string) {
+	t.Helper()
+	byPkg := make(map[string][]string)
+	var paths []string
+	for _, p := range testPaths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			t.Fatalf("abs %s: %v", p, err)
+		}
+		info, err := os.Stat(abs)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		var pkgDir string
+		var files []string
+		if info.IsDir() {
+			pkgDir = abs
+			entries, err := os.ReadDir(abs)
+			if err != nil {
+				t.Fatalf("read dir %s: %v", abs, err)
+			}
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
+					files = append(files, filepath.Join(abs, e.Name()))
+				}
+			}
+		} else {
+			pkgDir = filepath.Dir(abs)
+			files = []string{abs}
+		}
+		for _, f := range files {
+			byPkg[pkgDir] = append(byPkg[pkgDir], parseTestNamesFromFile(f)...)
+		}
+		paths = append(paths, p)
+	}
+	return byPkg, paths
+}
+
+// parseTestNamesFromFile returns the names of all top-level Test* functions
+// declared in a Go test file.
+func parseTestNamesFromFile(filePath string) []string {
+	fset := gotoken.NewFileSet()
+	file, err := goparser.ParseFile(fset, filePath, nil, 0)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(fn.Name.Name, "Test") {
+			names = append(names, fn.Name.Name)
+		}
+	}
+	return names
+}
+
+// mutantsByFile groups mutants by source file basename and returns a
+// basename -> count map.
+func mutantsByFile(mutants []coretesting.Mutant) map[string]int {
+	out := make(map[string]int)
+	for _, m := range mutants {
+		if m.Site.File == nil {
+			continue
+		}
+		out[filepath.Base(m.Site.File.Name())]++
+	}
+	return out
+}
+
+// mutantsInFunction returns the subset of mutants whose enclosing function
+// has the given name in the file with the given basename.
+func mutantsInFunction(mutants []coretesting.Mutant, fileBasename, funcName string) []coretesting.Mutant {
+	var out []coretesting.Mutant
+	for _, m := range mutants {
+		if m.Site.File == nil {
+			continue
+		}
+		if filepath.Base(m.Site.File.Name()) != fileBasename {
+			continue
+		}
+		if m.Site.FunctionName == funcName {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+

@@ -1,0 +1,10 @@
+operators:
+  - all
+threshold: 0
+concurrent: 1
+cache: false
+unit_tests_enabled: false
+dir_rules:
+  - dir: internal/reporter
+    whitelist:
+      - negate_condition
