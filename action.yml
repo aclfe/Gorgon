@@ -134,7 +134,7 @@ runs:
     
     - name: Upload Badge
       if: inputs.upload-badge == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: mutation-badge
         path: |
@@ -144,7 +144,7 @@ runs:
     
     - name: Upload Reports
       if: inputs.upload-reports == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: mutation-reports
         path: |
