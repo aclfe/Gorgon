@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/aclfe/gorgon/internal/baseline"
-	"github.com/aclfe/gorgon/internal/reporter"
 	coretesting "github.com/aclfe/gorgon/internal/core"
+	"github.com/aclfe/gorgon/internal/reporter"
 )
 
 // ============================================================================
@@ -137,7 +137,7 @@ func TestBaseline_CustomFilename(t *testing.T) {
 // Load must return a non-empty timestamp.
 func TestBaseline_TimestampAutoSet(t *testing.T) {
 	dir := t.TempDir()
-	before := time.Now().UTC()
+	before := time.Now().UTC().Truncate(time.Second)
 
 	if err := baseline.Save(dir, "", &baseline.Data{Score: 50.0}); err != nil {
 		t.Fatalf("Save: %v", err)

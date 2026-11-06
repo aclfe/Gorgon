@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aclfe/gorgon/internal/badge"
 	"github.com/aclfe/gorgon/internal/cache"
 	"github.com/aclfe/gorgon/internal/cli"
 	"github.com/aclfe/gorgon/internal/core"
@@ -23,7 +24,6 @@ import (
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/subconfig"
 	"github.com/aclfe/gorgon/internal/suppressions"
-	"github.com/aclfe/gorgon/internal/badge"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -85,6 +85,9 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 	// Apply org policy to root config
 	allOps := mutator.ListAll()
+	if resolver.HasAnyOverrides() {
+		eng.SetOperators(allOps)
+	}
 	if policy != nil && !policy.IsZero() {
 		result := orgpolicy.Apply(cfg, policy, allOps)
 		cfg = result.Config
@@ -123,6 +126,26 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 			}
 		}
 	}
+
+	var excludeTagPaths []string
+	if cfg.ExternalSuites.Enabled {
+		for _, s := range cfg.ExternalSuites.Suites {
+			excludeTagPaths = append(excludeTagPaths, s.Paths...)
+		}
+	}
+	for _, t := range detectTestBuildTags(projectRoot, excludeTagPaths) {
+		found := false
+		for _, existing := range cfg.BuildTags {
+			if existing == t {
+				found = true
+				break
+			}
+		}
+		if !found {
+			cfg.BuildTags = append(cfg.BuildTags, t)
+		}
+	}
+	eng.SetBuildTags(cfg.BuildTags)
 
 	for _, target := range targets {
 		if err := eng.Traverse(target, nil); err != nil {
@@ -233,31 +256,12 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 		}
 		log.Debug("External suites enabled with %d suites", len(cfg.ExternalSuites.Suites))
 	}
-	var excludeTagPaths []string
-	if cfg.ExternalSuites.Enabled {
-		for _, s := range cfg.ExternalSuites.Suites {
-			excludeTagPaths = append(excludeTagPaths, s.Paths...)
-		}
-	}
-	autoTags := detectTestBuildTags(projectRoot, excludeTagPaths)
-	for _, t := range autoTags {
-		found := false
-		for _, existing := range cfg.BuildTags {
-			if existing == t {
-				found = true
-				break
-			}
-		}
-		if !found {
-			cfg.BuildTags = append(cfg.BuildTags, t)
-		}
-	}
-	if len(autoTags) > 0 {
-		log.Debug("Auto-detected build tags from test files: %v", autoTags)
+	if len(cfg.BuildTags) > 0 {
+		log.Debug("Build tags: %v", cfg.BuildTags)
 	}
 
 	mutants, err := testing.GenerateAndRunSchemata(ctx, sites, ops, allOps, baseDir, projectRoot, cfg.DirRules, resolver, concurrent, c, testsByPkg, testPaths, log, cfg.ProgBar, cfg.UnitTestsEnabled, cfg.ExternalSuites, cfg)
-	totalMutants := testing.GetTotalMutants()
+	totalMutants := len(mutants)
 
 	if len(mutants) > 0 {
 		blOpts := reporter.BaselineOptions{
@@ -282,14 +286,12 @@ func Run(flags *cli.Flags, cfg *config.Config, targets []string, configPath stri
 
 		// Always write text report to terminal exactly once (handled inside reporter.Report)
 		stats, reportErr := reporter.Report(mutants, totalMutants, cfg.Threshold, resolver, cfg.Debug, cfg.ShowKilled, cfg.ShowSurvived, output, debugFilePath, format, blOpts)
-		
 		// Generate badge even if report had errors (e.g., threshold failure)
 		if cfg.Badge != "" {
 			if err := generateBadge(cfg.Badge, baseDir, stats.Score); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate badge: %v\n", err)
 			}
 		}
-		
 		if reportErr != nil {
 			if cfg.Cache {
 				path, pathErr := cache.Path(baseDir)
@@ -605,14 +607,12 @@ func GetLastMutationScore(baseDir string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("baseline file not found: %w", err)
 	}
-	
 	var baseline struct {
 		Score float64 `json:"score"`
 	}
 	if err := json.Unmarshal(data, &baseline); err != nil {
 		return 0, fmt.Errorf("failed to parse baseline: %w", err)
 	}
-	
 	return baseline.Score, nil
 }
 
@@ -644,7 +644,6 @@ func generateBadge(format, baseDir string, score float64) error {
 	fmt.Printf("Badge generated: %s\n", outputPath)
 	return nil
 }
-
 
 // detectTestBuildTags walks projectRoot, parses //go:build constraints from
 // *_test.go files, and returns the union of single-tag identifiers used.

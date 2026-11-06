@@ -1,17 +1,16 @@
 package testing
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
-	"os"
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/printer"
+	"go/token"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/aclfe/gorgon/internal/cache"
-	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/subconfig"
@@ -27,8 +26,12 @@ const (
 	StatusInvalid      = "invalid"
 	StatusTimeout      = "timeout"
 	StatusError        = "error"
-	StatusCompileError = "error" // compile errors share the "error" status; distinguished by KilledBy == "(compiler)"
+	StatusCompileError = "compile_error"
 )
+
+func IsTerminalPreRun(status string) bool {
+	return status == StatusInvalid || status == StatusCompileError
+}
 
 type Mutant struct {
 	ID           int
@@ -73,8 +76,7 @@ func effectiveOperators(filePath, projectRoot string, base []mutator.Operator, r
 		return base
 	}
 
-	// Whitelist takes priority
-	if len(best.Whitelist) > 0 {
+	if best.Whitelist != nil {
 		allow := make(map[string]bool, len(best.Whitelist))
 		for _, op := range best.Whitelist {
 			allow[strings.TrimSpace(op)] = true
@@ -118,26 +120,27 @@ func effectiveOperators(filePath, projectRoot string, base []mutator.Operator, r
 }
 
 func GenerateMutants(sites []engine.Site, operators []mutator.Operator, allOps []mutator.Operator, projectRoot string, dirRules []config.DirOperatorRule, resolver *subconfig.Resolver, log *logger.Logger) []Mutant {
+	sorted := make([]engine.Site, len(sites))
+	copy(sorted, sites)
+	engine.SortSites(sorted)
 
-	type siteKey struct {
-		file string
-		line int
-		col  int
-		ntyp uint8
-	}
-	seen := make(map[siteKey]bool, len(sites))
-
-	mutants := make([]Mutant, 0, len(sites)*len(operators))
+	seen := make(map[engine.SiteKey]bool, len(sorted))
+	mutants := make([]Mutant, 0, len(sorted))
 	mutantID := 1
 
-	// Sort operators by name to ensure deterministic ordering
-	sortedOps := make([]mutator.Operator, len(operators))
-	copy(sortedOps, operators)
-	sort.Slice(sortedOps, func(i, j int) bool {
-		return sortedOps[i].Name() < sortedOps[j].Name()
-	})
+	subSuppress := newSubconfigSuppressions(resolver, projectRoot)
+	seenEffects := make(map[string]bool)
 
-	for _, site := range sites {
+	for _, site := range sorted {
+		if site.Node == nil || site.File == nil {
+			continue
+		}
+		key := site.Key()
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
 		// 1. Apply sub-config operator override (replace semantics)
 		ops := operators
 		if resolver != nil && resolver.HasAnyOverrides() {
@@ -154,143 +157,207 @@ func GenerateMutants(sites []engine.Site, operators []mutator.Operator, allOps [
 			continue
 		}
 
-		key := siteKey{
-			file: site.File.Name(),
-			line: site.Line,
-			col:  site.Column,
-			ntyp: schemata_nodes.NodeTypeToUint8(site.Node),
-		}
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-
+		ops = sortedUniqueOperators(ops)
+		var chosen []mutator.Operator
 		for _, op := range ops {
-			if canApply(op, site) {
-				mutants = append(mutants, Mutant{
-					ID:       mutantID,
-					Site:     site,
-					Operator: op,
-				})
-				mutantID++
+			if !siteAllows(site, op) {
+				continue
 			}
+			if subSuppress.ignored(site, op.Name()) {
+				continue
+			}
+			mutated, changed := mutation(op, site)
+			if !changed {
+				continue
+			}
+			if key, ok := effectKey(site, mutated); ok {
+				if seenEffects[key] {
+					continue
+				}
+				seenEffects[key] = true
+			}
+			chosen = append(chosen, op)
+		}
+		chosen = dropEquivalentConditionOps(chosen)
+
+		for _, op := range chosen {
+			mutants = append(mutants, Mutant{
+				ID:       mutantID,
+				Site:     site,
+				Operator: op,
+			})
+			mutantID++
 		}
 	}
 	return mutants
 }
 
-func ResolveCache(mutants []Mutant, baseDir string, c *cache.Cache) (toRun []int, fileHashes map[string]string, err error) {
-	if c == nil {
-		indices := make([]int, 0, len(mutants))
-		for i := range mutants {
-			if mutants[i].Status == "" {
-				indices = append(indices, i)
+func siteAllows(site engine.Site, op mutator.Operator) bool {
+	name := op.Name()
+	if site.Ops != nil && site.EvaluatedOps[name] {
+		for _, n := range site.Ops {
+			if n == name {
+				return true
 			}
 		}
-		return indices, nil, nil
+		return false
 	}
-
-	fileHashes = make(map[string]string)
-	for i := range mutants {
-		f := mutants[i].Site.File.Name()
-		if _, ok := fileHashes[f]; !ok {
-			h, err := hashFile(f)
-			if err != nil {
-				continue
-			}
-			fileHashes[f] = h
-		}
+	if !canApply(op, site) {
+		return false
 	}
-
-	var cachedCount int
-	for i := range mutants {
-		m := &mutants[i]
-		fh := fileHashes[m.Site.File.Name()]
-		if fh == "" {
-			continue
-		}
-
-		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
-			schemata_nodes.NodeTypeToUint8(m.Site.Node), m.Operator.Name(), fh)
-		if entry, ok := c.Get(key); ok {
-			m.Status = entry.Status
-			cachedCount++
-		}
-	}
-
-	if cachedCount == len(mutants) {
-		_ = c.Save(baseDir)
-		return nil, fileHashes, nil
-	}
-
-	toRun = make([]int, 0, len(mutants)-cachedCount)
-	for i := range mutants {
-		if mutants[i].Status == "" {
-			toRun = append(toRun, i)
-		}
-	}
-	return toRun, fileHashes, nil
+	return !engine.IsIgnored(site.Directives, site.Line, name, site.Column)
 }
 
-func SaveCache(mutants []Mutant, baseDir string, c *cache.Cache, fileHashes map[string]string) {
-	if c == nil {
-		return
+func sortedUniqueOperators(ops []mutator.Operator) []mutator.Operator {
+	out := make([]mutator.Operator, 0, len(ops))
+	seen := make(map[string]bool, len(ops))
+	for _, op := range ops {
+		if op == nil || seen[op.Name()] {
+			continue
+		}
+		seen[op.Name()] = true
+		out = append(out, op)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name() < out[j].Name() })
+	return out
+}
 
-	if fileHashes == nil {
-		fileHashes = make(map[string]string)
-		for i := range mutants {
-			f := mutants[i].Site.File.Name()
-			if mutants[i].Status == "" {
-				continue
-			}
-			if _, ok := fileHashes[f]; !ok {
-				h, err := hashFile(f)
-				if err != nil {
+func SiteContext(site engine.Site, op mutator.Operator) mutator.Context {
+	ctx := mutator.Context{
+		ReturnType:    site.ReturnType,
+		FunctionName:  site.FunctionName,
+		File:          site.FileAST,
+		EnclosingFunc: site.EnclosingFunc,
+		Parent:        site.Parent,
+	}
+	if op != nil && site.Hints != nil {
+		ctx.Hint = site.Hints[op.Name()]
+	}
+	return ctx
+}
+
+func mutation(op mutator.Operator, site engine.Site) (ast.Node, bool) {
+	mutated := mutator.ApplyOperatorWithContext(op, site.Node, SiteContext(site, op))
+	if mutated == nil {
+		return nil, false
+	}
+	return mutated, printNode(mutated) != printNode(site.Node)
+}
+
+func effectKey(site engine.Site, mutated ast.Node) (string, bool) {
+	if site.File == nil {
+		return "", false
+	}
+	if _, ok := site.Node.(*ast.ReturnStmt); ok {
+		return fmt.Sprintf("%s:%d:%d:%s", site.File.Name(), site.Offset, site.EndOffset, printNode(mutated)), true
+	}
+	ret, ok := site.Parent.(*ast.ReturnStmt)
+	if !ok {
+		return "", false
+	}
+	expr, ok := mutated.(ast.Expr)
+	if !ok || !ret.Pos().IsValid() {
+		return "", false
+	}
+	cp := *ret
+	cp.Results = make([]ast.Expr, len(ret.Results))
+	replaced := false
+	for i, r := range ret.Results {
+		if r == site.Node {
+			cp.Results[i] = expr
+			replaced = true
+		} else {
+			cp.Results[i] = r
+		}
+	}
+	if !replaced {
+		return "", false
+	}
+	start, end := site.File.Offset(ret.Pos()), site.File.Offset(ret.End())
+	return fmt.Sprintf("%s:%d:%d:%s", site.File.Name(), start, end, printNode(&cp)), true
+}
+
+func printNode(n ast.Node) string {
+	var buf bytes.Buffer
+	if err := printer.Fprint(&buf, token.NewFileSet(), n); err != nil {
+		return fmt.Sprintf("%p", n)
+	}
+	return buf.String()
+}
+
+func dropEquivalentConditionOps(ops []mutator.Operator) []mutator.Operator {
+	generic := func(name string) bool {
+		return strings.HasPrefix(name, "if_condition_") || strings.HasPrefix(name, "for_condition_")
+	}
+	ordered := make([]mutator.Operator, 0, len(ops))
+	for _, op := range ops {
+		if !generic(op.Name()) {
+			ordered = append(ordered, op)
+		}
+	}
+	for _, op := range ops {
+		if generic(op.Name()) {
+			ordered = append(ordered, op)
+		}
+	}
+	seenKind := make(map[mutator.ConditionKind]bool)
+	keep := make(map[string]bool, len(ops))
+	for _, op := range ordered {
+		if cop, ok := op.(mutator.ConditionOperator); ok {
+			kind := cop.ConditionKind()
+			if kind != mutator.ConditionNone {
+				if seenKind[kind] {
 					continue
 				}
-				fileHashes[f] = h
+				seenKind[kind] = true
 			}
 		}
+		keep[op.Name()] = true
 	}
+	out := make([]mutator.Operator, 0, len(ops))
+	for _, op := range ops {
+		if keep[op.Name()] {
+			out = append(out, op)
+		}
+	}
+	return out
+}
 
-	for i := range mutants {
-		m := &mutants[i]
-		if m.Status == "" {
-			continue
-		}
-		fh := fileHashes[m.Site.File.Name()]
-		if fh == "" {
-			continue
-		}
-		key := c.Key(m.Site.File.Name(), m.Site.Line, m.Site.Column,
-			schemata_nodes.NodeTypeToUint8(m.Site.Node), m.Operator.Name(), fh)
-		c.Set(key, m.Status)
+type subconfigSuppressions struct {
+	resolver *subconfig.Resolver
+	root     string
+	byFile   map[string]map[int]map[string]map[int]bool
+}
+
+func newSubconfigSuppressions(resolver *subconfig.Resolver, root string) *subconfigSuppressions {
+	if resolver == nil || !resolver.HasAnyOverrides() {
+		return nil
 	}
-	_ = c.Save(baseDir)
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		abs = root
+	}
+	return &subconfigSuppressions{resolver: resolver, root: abs, byFile: make(map[string]map[int]map[string]map[int]bool)}
+}
+
+func (s *subconfigSuppressions) ignored(site engine.Site, op string) bool {
+	if s == nil {
+		return false
+	}
+	file := site.File.Name()
+	abs, err := filepath.Abs(file)
+	if err != nil {
+		abs = file
+	}
+	d, ok := s.byFile[abs]
+	if !ok {
+		entries := s.resolver.EffectiveSuppress(file, nil)
+		d = engine.BuildDirectives(entries, s.root)[abs]
+		s.byFile[abs] = d
+	}
+	return engine.IsIgnored(d, site.Line, op, site.Column)
 }
 
 func canApply(op mutator.Operator, site engine.Site) bool {
-	if cop, ok := op.(mutator.ContextualOperator); ok {
-		ctx := mutator.Context{ReturnType: site.ReturnType, EnclosingFunc: site.EnclosingFunc}
-		return cop.CanApplyWithContext(site.Node, ctx)
-	}
-	return op.CanApply(site.Node)
-}
-
-func hashFile(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	bufPtr := hashBufPool.Get().(*[]byte)
-	defer hashBufPool.Put(bufPtr)
-
-	if _, err := io.CopyBuffer(h, f, *bufPtr); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return mutator.CanApplyWithContext(op, site.Node, SiteContext(site, op))
 }

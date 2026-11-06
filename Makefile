@@ -21,7 +21,7 @@ BUILD_DIR   := bin
 PKGS := $(shell go list ./... | grep -v "cmd/gorgon$$" | grep -v "examples")
 COVER_PKGS := $(shell echo $(PKGS) | sed 's/ /,/g')
 
-.PHONY: all check tidy test coverage deadcode vet lint clean help build install cross-compile bench bench-compare bench-mem
+.PHONY: all check tidy test coverage deadcode vet lint clean help build install cross-compile bench bench-compare bench-mem e2e-quick e2e-ground-truth e2e
 
 all: check build install cross-compile
 	$(SECTION)
@@ -50,6 +50,26 @@ test:
 	$(INFO) Running unit tests with race detector...
 	@go test -v -race $(PKGS)
 	$(SUCCESS) Unit tests passed.
+
+E2E_SLOW := ^(TestVerifyMutations_GroundTruth|TestWorkflow_OverallScoreValidation|TestWorkflow_NoMutantsLost)$$
+
+e2e-quick:
+	$(SECTION)
+	$(INFO) Running e2e tests except the whole-repo runs...
+	@go test -count=1 -tags=e2e -timeout=20m -skip '$(E2E_SLOW)' ./tests/e2e/...
+	$(SUCCESS) Quick e2e passed.
+
+e2e-ground-truth:
+	$(SECTION)
+	$(INFO) Comparing a sample of verdicts against directly applied mutations...
+	@GORGON_VERIFY_MAX=$${GORGON_VERIFY_MAX:-60} go test -count=1 -tags=e2e -timeout=30m -run '^TestVerifyMutations_GroundTruth$$' ./tests/e2e/...
+	$(SUCCESS) Ground truth agrees.
+
+e2e:
+	$(SECTION)
+	$(INFO) Running the full e2e suite (slow; CI runs it sharded)...
+	@GORGON_VERIFY_MAX=0 go test -count=1 -tags=e2e -timeout=90m ./tests/e2e/...
+	$(SUCCESS) E2E passed.
 
 coverage:
 	$(SECTION)
@@ -184,6 +204,9 @@ help:
 	@echo "  $(CYAN)make lint$(RESET)       → Run golangci-lint"
 	@echo "  $(CYAN)make vet$(RESET)        → Run go vet + staticcheck"
 	@echo "  $(CYAN)make clean$(RESET)      → Remove generated files"
+	@echo "  $(CYAN)make e2e-quick$(RESET)  → E2E without the whole-repo runs"
+	@echo "  $(CYAN)make e2e-ground-truth$(RESET) → Sampled verdict check (GORGON_VERIFY_MAX=N)"
+	@echo "  $(CYAN)make e2e$(RESET)        → Full E2E suite (slow)"
 	@echo ""
 	@echo "$(BOLD)Benchmarking:$(RESET)"
 	@echo "  $(MAGENTA)make bench$(RESET)         → Run performance benchmarks"

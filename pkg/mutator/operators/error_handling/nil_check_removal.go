@@ -17,6 +17,10 @@ func (NilCheckRemoval) CanApply(n ast.Node) bool {
 	return false
 }
 
+func (NilCheckRemoval) ConditionKind() mutator.ConditionKind {
+	return mutator.ConditionForceTrue
+}
+
 func (NilCheckRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	ifStmt, ok := n.(*ast.IfStmt)
 	if !ok {

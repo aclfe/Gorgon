@@ -305,6 +305,7 @@ func writeHTMLReport(mutants []testing.Mutant, stats ReportStats, threshold floa
 				hasError := false
 				hasUntested := false
 				hasTimeout := false
+				scored := 0
 
 				for _, m := range mutantsOnLine {
 					lineStatuses[i].Mutants = append(lineStatuses[i].Mutants, MutantInfo{
@@ -314,37 +315,37 @@ func writeHTMLReport(mutants []testing.Mutant, stats ReportStats, threshold floa
 						KilledBy: m.KilledBy,
 					})
 
-					switch m.Status {
+					switch effectiveStatus(m) {
 					case testing.StatusSurvived:
 						hasSurvived = true
 						allKilled = false
+						scored++
 					case testing.StatusUntested:
 						hasUntested = true
 						allKilled = false
+						scored++
 					case testing.StatusTimeout:
 						hasTimeout = true
-						allKilled = false
-					case testing.StatusError:
+						scored++
+					case testing.StatusError, testing.StatusCompileError:
 						hasError = true
-						allKilled = false
 					case testing.StatusKilled:
-						// OK
+						scored++
 					default:
-						allKilled = false
 					}
 				}
 
-				// Priority: survived > timeout > untested > error > killed
-				if hasSurvived {
+				switch {
+				case hasSurvived:
 					lineStatuses[i].Status = testing.StatusSurvived
-				} else if hasTimeout {
-					lineStatuses[i].Status = testing.StatusTimeout
-				} else if hasUntested {
+				case hasUntested:
 					lineStatuses[i].Status = testing.StatusUntested
-				} else if hasError {
-					lineStatuses[i].Status = testing.StatusError
-				} else if allKilled {
+				case scored > 0 && allKilled && hasTimeout:
+					lineStatuses[i].Status = testing.StatusTimeout
+				case scored > 0 && allKilled:
 					lineStatuses[i].Status = testing.StatusKilled
+				case hasError:
+					lineStatuses[i].Status = testing.StatusError
 				}
 			}
 		}
@@ -352,7 +353,7 @@ func writeHTMLReport(mutants []testing.Mutant, stats ReportStats, threshold floa
 		fileKilled, fileSurvived, fileUntested, fileTimeout := 0, 0, 0, 0
 		for _, mutantsOnLine := range lineMutants {
 			for _, m := range mutantsOnLine {
-				switch m.Status {
+				switch effectiveStatus(m) {
 				case testing.StatusKilled:
 					fileKilled++
 				case testing.StatusSurvived:

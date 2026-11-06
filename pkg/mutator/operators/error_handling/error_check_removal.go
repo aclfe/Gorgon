@@ -17,6 +17,10 @@ func (ErrorCheckRemoval) CanApply(n ast.Node) bool {
 	return false
 }
 
+func (ErrorCheckRemoval) ConditionKind() mutator.ConditionKind {
+	return mutator.ConditionForceFalse
+}
+
 func (ErrorCheckRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	ifStmt, ok := n.(*ast.IfStmt)
 	if !ok {

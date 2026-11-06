@@ -46,9 +46,7 @@ func (b zeroValueReturnBase) Mutate(n ast.Node) ast.Node {
 	if !b.checkExpr(ret.Results[0]) {
 		return nil
 	}
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{b.zeroValueFn(ret.Results[0])},
-	}
+	return replaceFirstResult(ret, b.zeroValueFn(ret.Results[0]))
 }
 
 func (b zeroValueReturnBase) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
@@ -62,9 +60,14 @@ func (b zeroValueReturnBase) MutateWithContext(n ast.Node, ctx mutator.Context) 
 	if !b.checkExpr(ret.Results[0]) {
 		return nil
 	}
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{b.zeroValueFn(ret.Results[0])},
-	}
+	return replaceFirstResult(ret, b.zeroValueFn(ret.Results[0]))
+}
+
+func replaceFirstResult(ret *ast.ReturnStmt, first ast.Expr) *ast.ReturnStmt {
+	results := make([]ast.Expr, len(ret.Results))
+	copy(results, ret.Results)
+	results[0] = first
+	return &ast.ReturnStmt{Return: ret.Return, Results: results}
 }
 
 // ZeroValueReturnNumeric mutates numeric literals to their zero value.

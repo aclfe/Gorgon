@@ -42,13 +42,28 @@ const (
 )
 
 // CalculateScore returns the mutation score based on the given counts.
-// Score = Killed / (Killed + Survived + Untested + Timeout) * 100
+
 func CalculateScore(killed, survived, untested, timeout int) float64 {
 	denom := killed + survived + untested + timeout
 	if denom == 0 {
 		return 0
 	}
-	return float64(killed) / float64(denom) * percentageMultiplier
+	return float64(killed+timeout) / float64(denom) * percentageMultiplier
+}
+
+func (s ReportStats) ScoredCount() int {
+	return s.Killed + s.Survived + s.Untested + s.Timeout
+}
+
+func effectiveStatus(m testing.Mutant) string {
+	if m.Status == "" {
+		return testing.StatusUntested
+	}
+	return m.Status
+}
+
+func isErrorStatus(status string) bool {
+	return status == testing.StatusError || status == testing.StatusCompileError
 }
 
 // ScoreClass returns "good", "amber", or "bad" based on score and threshold.
@@ -112,7 +127,7 @@ func FormatDebugErrors(mutants []testing.Mutant, stats ReportStats) string {
 		opTotal := make(map[string]int)
 		for _, mutant := range mutants {
 			opTotal[mutant.Operator.Name()]++
-			if mutant.Status == testing.StatusError {
+			if isErrorStatus(mutant.Status) {
 				opErrors[mutant.Operator.Name()]++
 			}
 		}
@@ -137,7 +152,7 @@ func FormatDebugErrors(mutants []testing.Mutant, stats ReportStats) string {
 		sb.WriteString("\nError Count by Operator:\n")
 		opErrorCount := make(map[string]int)
 		for _, mutant := range mutants {
-			if mutant.Status == testing.StatusError {
+			if isErrorStatus(mutant.Status) {
 				opErrorCount[mutant.Operator.Name()]++
 			}
 		}
@@ -148,7 +163,7 @@ func FormatDebugErrors(mutants []testing.Mutant, stats ReportStats) string {
 	}
 
 	if stats.Untested > 0 {
-		sb.WriteString("\nUntested by Operator (binary missing - package failed to compile):\n")
+		sb.WriteString("\nUntested by Operator (no test exercised these mutants):\n")
 		opUntested := make(map[string]int)
 		opTotal := make(map[string]int)
 		for _, mutant := range mutants {
@@ -192,7 +207,7 @@ func GroupMutantsByFile(mutants []testing.Mutant) map[string]map[int][]testing.M
 func StatsForFile(mutants []testing.Mutant) ReportStats {
 	var s ReportStats
 	for _, m := range mutants {
-		switch m.Status {
+		switch effectiveStatus(m) {
 		case testing.StatusKilled:
 			s.Killed++
 		case testing.StatusSurvived:
@@ -203,12 +218,10 @@ func StatsForFile(mutants []testing.Mutant) ReportStats {
 			s.Timeout++
 		case testing.StatusInvalid:
 			s.Invalid++
+		case testing.StatusCompileError:
+			s.CompileErrors++
 		case testing.StatusError:
-			if m.KilledBy == "(compiler)" {
-				s.CompileErrors++
-			} else {
-				s.RuntimeErrors++
-			}
+			s.RuntimeErrors++
 		}
 	}
 	s.TotalErrors = s.CompileErrors + s.RuntimeErrors
@@ -219,9 +232,10 @@ func StatsForFile(mutants []testing.Mutant) ReportStats {
 // computeStats counts mutant statuses and calculates the unified score.
 func computeStats(mutants []testing.Mutant, totalMutants int) ReportStats {
 	var s ReportStats
-	s.Total = totalMutants
+	s.Total = len(mutants)
+	_ = totalMutants
 	for _, m := range mutants {
-		switch m.Status {
+		switch effectiveStatus(m) {
 		case testing.StatusKilled:
 			s.Killed++
 		case testing.StatusSurvived:
@@ -232,12 +246,10 @@ func computeStats(mutants []testing.Mutant, totalMutants int) ReportStats {
 			s.Timeout++
 		case testing.StatusInvalid:
 			s.Invalid++
+		case testing.StatusCompileError:
+			s.CompileErrors++
 		case testing.StatusError:
-			if m.KilledBy == "(compiler)" {
-				s.CompileErrors++
-			} else {
-				s.RuntimeErrors++
-			}
+			s.RuntimeErrors++
 		}
 	}
 	s.TotalErrors = s.CompileErrors + s.RuntimeErrors
@@ -409,7 +421,7 @@ func checkPerPackageThresholds(mutants []testing.Mutant, rootThreshold float64, 
 		if pkgs[dir] == nil {
 			pkgs[dir] = &pkgStats{sampleFile: m.Site.File.Name()}
 		}
-		switch m.Status {
+		switch effectiveStatus(m) {
 		case testing.StatusKilled:
 			pkgs[dir].killed++
 		case testing.StatusSurvived:
@@ -427,7 +439,7 @@ func checkPerPackageThresholds(mutants []testing.Mutant, rootThreshold float64, 
 		if denom == 0 {
 			continue
 		}
-		score := float64(stats.killed) / float64(denom) * percentageMultiplier
+		score := CalculateScore(stats.killed, stats.survived, stats.untested, stats.timeout)
 		threshold := resolver.EffectiveThreshold(stats.sampleFile, rootThreshold)
 		if threshold > 0 && score < threshold {
 			failures = append(failures,
@@ -451,7 +463,7 @@ func extractUniqueCompilerErrors(mutants []testing.Mutant) []string {
 	var unique []string
 	prefix := "compilation failed: "
 	for _, m := range mutants {
-		if m.Status == testing.StatusError && m.Error != nil {
+		if m.Status == testing.StatusCompileError && m.Error != nil {
 			msg := m.Error.Error()
 			if idx := len(prefix); len(msg) > idx && msg[:idx] == prefix {
 				msg = msg[idx:]
@@ -488,7 +500,7 @@ func writePerMutantErrors(out io.Writer, mutants []testing.Mutant, maxLines int)
 	seen := make(map[string]bool)
 	shownCount := 0
 	for _, mutant := range mutants {
-		if mutant.Status != testing.StatusError || mutant.Error == nil {
+		if !isErrorStatus(mutant.Status) || mutant.Error == nil {
 			continue
 		}
 		errMsg := mutant.Error.Error()

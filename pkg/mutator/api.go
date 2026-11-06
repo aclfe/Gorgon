@@ -4,6 +4,8 @@ package mutator
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
+	"sort"
 )
 
 type Context struct {
@@ -15,6 +17,11 @@ type Context struct {
 	EnclosingFunc *ast.FuncDecl
 	File          *ast.File
 	Parent        ast.Node
+
+	Info *types.Info
+	Pkg  *types.Package
+
+	Hint string
 }
 
 type Operator interface {
@@ -31,6 +38,11 @@ type ContextualOperator interface {
 
 type TypeAwareOperator interface {
 	RequiresTypeCheck() bool
+}
+
+type HintingOperator interface {
+	Operator
+	MutationHint(node ast.Node, ctx Context) string
 }
 
 // SafetyConstrainedOperator is the explicit contract operators use to declare
@@ -61,15 +73,39 @@ type SafetyConstrainedOperator interface {
 }
 
 func ApplyOperator(op Operator, node ast.Node, returnType string, file *ast.File, enclosingFunc *ast.FuncDecl) ast.Node {
-	ctx := Context{
+	return ApplyOperatorWithContext(op, node, Context{
 		ReturnType:    returnType,
 		File:          file,
 		EnclosingFunc: enclosingFunc,
-	}
+	})
+}
+
+func ApplyOperatorWithContext(op Operator, node ast.Node, ctx Context) ast.Node {
 	if cop, ok := op.(ContextualOperator); ok {
 		return cop.MutateWithContext(node, ctx)
 	}
 	return op.Mutate(node)
+}
+
+func CanApplyWithContext(op Operator, node ast.Node, ctx Context) bool {
+	if cop, ok := op.(ContextualOperator); ok {
+		return cop.CanApplyWithContext(node, ctx)
+	}
+	return op.CanApply(node)
+}
+
+type ConditionKind int
+
+const (
+	ConditionNone ConditionKind = iota
+	ConditionForceTrue
+	ConditionForceFalse
+	ConditionNegate
+)
+
+type ConditionOperator interface {
+	Operator
+	ConditionKind() ConditionKind
 }
 
 type OperatorInitializer func() Operator
@@ -116,6 +152,7 @@ func (r *OperatorRegistry) List() []Operator {
 			ops = append(ops, init())
 		}
 	}
+	sortOperators(ops)
 	return ops
 }
 
@@ -238,10 +275,17 @@ func ListAll() []Operator {
 	for _, op := range globalRegistry.operators {
 		ops = append(ops, op)
 	}
-	for _, init := range globalRegistry.initializers {
-		ops = append(ops, init())
+	for name, init := range globalRegistry.initializers {
+		if _, exists := globalRegistry.operators[name]; !exists {
+			ops = append(ops, init())
+		}
 	}
+	sortOperators(ops)
 	return ops
+}
+
+func sortOperators(ops []Operator) {
+	sort.Slice(ops, func(i, j int) bool { return ops[i].Name() < ops[j].Name() })
 }
 
 func All() map[string]Operator {
@@ -268,4 +312,17 @@ func ListCategories() []string {
 		cats = append(cats, k)
 	}
 	return cats
+}
+
+type LoopMutation int
+
+const (
+	LoopNone LoopMutation = iota
+	LoopSkipBody
+	LoopBreakAfterBody
+)
+
+type LoopOperator interface {
+	Operator
+	LoopMutation() LoopMutation
 }

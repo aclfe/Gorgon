@@ -4,6 +4,7 @@ package arithmetic_flip
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 	"github.com/aclfe/gorgon/pkg/mutator/tokens"
@@ -20,7 +21,6 @@ func (ArithmeticFlip) CanApply(n ast.Node) bool {
 	if !ok {
 		return false
 	}
-	
 	// Only apply to numeric operators, not string concatenation
 	// The + operator can be used for both, so we need to be careful
 	if be.Op == token.ADD {
@@ -29,7 +29,6 @@ func (ArithmeticFlip) CanApply(n ast.Node) bool {
 			return false
 		}
 	}
-	
 	_, ok = tokens.ArithmeticFlipTokens[be.Op]
 	return ok
 }
@@ -55,6 +54,27 @@ func (ArithmeticFlip) Mutate(n ast.Node) ast.Node {
 	}
 }
 
+func (a ArithmeticFlip) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
+	if !a.CanApply(n) {
+		return false
+	}
+	if ctx.Info != nil {
+		be := n.(*ast.BinaryExpr)
+		if t := ctx.Info.TypeOf(be); t != nil {
+			if b, ok := t.Underlying().(*types.Basic); ok && b.Info()&types.IsString != 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a ArithmeticFlip) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
+	return a.Mutate(n)
+}
+
 func init() {
 	mutator.Register(ArithmeticFlip{})
 }
+
+var _ mutator.ContextualOperator = ArithmeticFlip{}

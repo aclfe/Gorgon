@@ -18,6 +18,10 @@ func (NegateCondition) CanApply(n ast.Node) bool {
 	return false
 }
 
+func (NegateCondition) ConditionKind() mutator.ConditionKind {
+	return mutator.ConditionNegate
+}
+
 func (NegateCondition) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	ie, ok := n.(*ast.IfStmt)
 	if !ok || ie.Cond == nil {

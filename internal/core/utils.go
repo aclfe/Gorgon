@@ -1,10 +1,7 @@
-
 package testing
 
 import (
 	"fmt"
-	"go/parser"
-	"go/token"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,176 +10,11 @@ import (
 	"sync"
 )
 
-
 var hashBufPool = sync.Pool{
 	New: func() any {
 		buf := make([]byte, 32*1024)
 		return &buf
 	},
-}
-
-
-//
-//nolint:gocognit,gocyclo,cyclop
-func CopyDir(src, dst string) error {
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat source: %w", err)
-	}
-	if !srcInfo.IsDir() {
-		return copySingleFile(src, dst)
-	}
-
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		dstPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			if info.Name() == ".git" || info.Name() == "vendor" || strings.HasPrefix(info.Name(), "_") {
-				return filepath.SkipDir
-			}
-			return os.MkdirAll(dstPath, info.Mode())
-		}
-
-		if !strings.HasSuffix(path, ".go") && path != "go.mod" && path != "go.sum" {
-			return nil
-		}
-
-		return copyFileWithBuffer(path, dstPath)
-	})
-}
-
-
-func extractFilePath(filePath string) string {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, filePath, nil, parser.PackageClauseOnly)
-	if err == nil && file.Name != nil {
-		return file.Name.Name
-	}
-	return ""
-}
-
-
-func copyDir(src, dst string) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("failed to read dir %s: %w", src, err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") {
-			continue
-		}
-		if err := copyFileWithBuffer(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
-			return fmt.Errorf("failed to copy %s: %w", entry.Name(), err)
-		}
-	}
-	return nil
-}
-
-
-
-
-func linkOrCopyDir(src, dst string, mutatedPaths map[string]bool) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("failed to read dir %s: %w", src, err)
-	}
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-
-		if entry.IsDir() {
-			
-			
-			if hasGoFiles(srcPath) {
-				if err := copyDirContents(srcPath, dstPath, mutatedPaths); err != nil {
-					return fmt.Errorf("failed to copy dir %s: %w", entry.Name(), err)
-				}
-			}
-			continue
-		}
-
-		
-		if mutatedPaths[srcPath] {
-			continue
-		}
-
-		
-		
-		if err := copyFileWithBuffer(srcPath, dstPath); err != nil {
-			return fmt.Errorf("failed to copy %s: %w", entry.Name(), err)
-		}
-	}
-	return nil
-}
-
-
-func hasGoFiles(dir string) bool {
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
-			return true
-		}
-	}
-	return false
-}
-
-
-func copyDirContents(src, dst string, mutatedPaths map[string]bool) error {
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-		if entry.IsDir() {
-			if hasGoFiles(srcPath) {
-				if err := copyDirContents(srcPath, dstPath, mutatedPaths); err != nil {
-					return err
-				}
-			}
-			continue
-		}
-		if mutatedPaths[srcPath] {
-			continue
-		}
-		
-		if err := copyFileWithBuffer(srcPath, dstPath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-
-func smartLink(src, dst string) error {
-	
-	if err := os.Symlink(src, dst); err == nil {
-		return nil
-	}
-	
-	if err := os.Link(src, dst); err == nil {
-		return nil
-	}
-	
-	return fmt.Errorf("link failed")
-}
-
-func copySingleFile(src, dst string) error {
-	return copyFileWithBuffer(src, filepath.Join(dst, filepath.Base(src)))
 }
 
 func copyFileWithBuffer(src, dst string) error {
@@ -192,7 +24,11 @@ func copyFileWithBuffer(src, dst string) error {
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.Create(dst)
+	mode := os.FileMode(0o644)
+	if info, err := srcFile.Stat(); err == nil {
+		mode = info.Mode().Perm() | 0o200
+	}
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", dst, err)
 	}
@@ -206,8 +42,6 @@ func copyFileWithBuffer(src, dst string) error {
 	}
 	return nil
 }
-
-
 
 func FindGoModDir(dir string) string {
 	absDir, err := filepath.Abs(dir)
@@ -226,9 +60,6 @@ func FindGoModDir(dir string) string {
 	}
 	return ""
 }
-
-
-
 
 func UniqueErrorLines(output string, skipPrefix string) []string {
 	var errs []string
@@ -253,15 +84,12 @@ func UniqueErrorLines(output string, skipPrefix string) []string {
 	return errs
 }
 
-
 type CompilerError struct {
 	File    string
 	Line    int
 	Col     int
 	Message string
 }
-
-
 
 func ParseCompilerErrors(output string) []CompilerError {
 	var errors []CompilerError
@@ -273,7 +101,7 @@ func ParseCompilerErrors(output string) []CompilerError {
 		if strings.HasPrefix(line, "# ") {
 			continue
 		}
-		
+
 		if parsed, ok := parseCompilerErrorLine(line); ok {
 			errors = append(errors, parsed)
 		}
@@ -282,7 +110,7 @@ func ParseCompilerErrors(output string) []CompilerError {
 }
 
 func parseCompilerErrorLine(line string) (CompilerError, bool) {
-	
+
 	idx := strings.Index(line, ": ")
 	if idx < 0 {
 		return CompilerError{}, false
@@ -291,8 +119,6 @@ func parseCompilerErrorLine(line string) (CompilerError, bool) {
 	locPart := line[:idx]
 	msg := line[idx+2:]
 
-	
-	
 	rest, col, ok := splitLastInt(locPart)
 	if !ok {
 		return CompilerError{}, false
@@ -301,7 +127,7 @@ func parseCompilerErrorLine(line string) (CompilerError, bool) {
 	if !ok {
 		return CompilerError{}, false
 	}
-	
+
 	filePath := rest
 
 	return CompilerError{
@@ -323,9 +149,4 @@ func splitLastInt(s string) (string, int, bool) {
 		return "", 0, false
 	}
 	return s[:lastColon], n, true
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

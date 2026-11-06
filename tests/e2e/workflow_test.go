@@ -95,7 +95,6 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 	}
 
 	// Verify internal score calculation matches formula
-	// Formula: Score = Killed / (Killed + Survived + Untested + Timeout) * 100
 	// CompileErrors, RuntimeErrors, and Invalid are excluded from denominator
 	internalExpected := calculateExpectedScore(stats)
 	if math.Abs(stats.Score-internalExpected) > 0.01 {
@@ -108,7 +107,7 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 	// Using rounded comparison to handle floating point precision properly
 	if stats.CompileErrors > 0 {
 		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.CompileErrors
-		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		incorrectScore := float64(stats.Killed+stats.Timeout) / float64(incorrectDenom) * 100
 		actualRounded := math.Round(stats.Score*100000) / 100000
 		incorrectRounded := math.Round(incorrectScore*100000) / 100000
 		if actualRounded == incorrectRounded {
@@ -119,7 +118,7 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 
 	if stats.RuntimeErrors > 0 {
 		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.RuntimeErrors
-		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		incorrectScore := float64(stats.Killed+stats.Timeout) / float64(incorrectDenom) * 100
 		actualRounded := math.Round(stats.Score*100000) / 100000
 		incorrectRounded := math.Round(incorrectScore*100000) / 100000
 		if actualRounded == incorrectRounded {
@@ -130,7 +129,7 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 
 	if stats.Invalid > 0 {
 		incorrectDenom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout + stats.Invalid
-		incorrectScore := float64(stats.Killed) / float64(incorrectDenom) * 100
+		incorrectScore := float64(stats.Killed+stats.Timeout) / float64(incorrectDenom) * 100
 		actualRounded := math.Round(stats.Score*100000) / 100000
 		incorrectRounded := math.Round(incorrectScore*100000) / 100000
 		if actualRounded == incorrectRounded {
@@ -150,7 +149,7 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 
 	denom := stats.Killed + stats.Survived + stats.Untested + stats.Timeout
 	if denom > 0 {
-		expected := float64(stats.Killed) / float64(denom) * 100
+		expected := float64(stats.Killed+stats.Timeout) / float64(denom) * 100
 		if d := stats.Score - expected; d < -0.01 || d > 0.01 {
 			t.Errorf("score %.4f != formula result %.4f (killed=%d denom=%d)",
 				stats.Score, expected, stats.Killed, denom)
@@ -170,8 +169,8 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 
 // TestWorkflow_NoMutantsLost.
 // Bug 1: Duplicate ID - Verified
-// Bug 2: Clear status for first mutant - Works verified. 
-// Bug 3: Empty file property - Go routine failed. 
+// Bug 2: Clear status for first mutant - Works verified.
+// Bug 3: Empty file property - Go routine failed.
 
 // --- FAIL: TestWorkflow_NoMutantsLost (76.60s)
 // panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
@@ -187,8 +186,8 @@ func TestWorkflow_OverallScoreValidation(t *testing.T) {
 // go/token.(*File).Name(...)
 // 	/usr/local/go/src/go/token/position.go:117
 
-// Bug 4: Skip mutant ID 3 in HTML report - Verified. 
-// Bug 5: Duplicate mutant ID 4 in JSON - Verified. 
+// Bug 4: Skip mutant ID 3 in HTML report - Verified.
+// Bug 5: Duplicate mutant ID 4 in JSON - Verified.
 func TestWorkflow_NoMutantsLost(t *testing.T) {
 	if os.Getenv("GORGON_MUTANT_ID") != "" {
 		t.Skip("skipping full pipeline test during mutation run")
@@ -352,7 +351,7 @@ func TestWorkflow_DiffPathFile(t *testing.T) {
 	t.Skip("TODO: Verify -diff accepts patch file path")
 }
 
-// TestWorkflow_DiffPathFile verifies many types of inputs / arguments work. 
+// TestWorkflow_DiffPathFile verifies many types of inputs / arguments work.
 func TestWorkflow_DiffPathFileInputs(t *testing.T) {
 	t.Skip("TODO: Verify many inputs / combinations work.")
 }
@@ -362,7 +361,7 @@ func TestWorkflow_DiffPathFileInputs(t *testing.T) {
 // ============================================================================
 
 // TestWorkflow_ConcurrentExecutionSafe verifies concurrent execution produces consistent results
-// I know there is an issue right now, it's quite flaky frankly speaking. 
+// I know there is an issue right now, it's quite flaky frankly speaking.
 func TestWorkflow_ConcurrentExecutionSafe(t *testing.T) {
 	t.Skip("TODO: Verify concurrent execution is deterministic")
 }
@@ -411,7 +410,7 @@ func TestWorkflow_InvalidMutantsClassified(t *testing.T) {
 	t.Skip("TODO: Verify invalid mutants are marked as 'invalid' status")
 }
 
-// frankly I think I can merged all of this into 1 test, but we'll keep multiple just for a reminder. 
+// frankly I think I can merged all of this into 1 test, but we'll keep multiple just for a reminder.
 // THe main issue is that they're not being attributed correctly I believe.
 
 // ============================================================================
@@ -487,7 +486,6 @@ func TestWorkflow_SubConfigInheritance(t *testing.T) {
 // sensitive feature, needs way more placeholder tests in diverse settings and complex configurations (especially sub config and org policy etc and many others)
 // Subjected to increase.
 
-
 // ============================================================================
 // WORKFLOW BASELINE
 // ============================================================================
@@ -504,7 +502,6 @@ func TestWorkflow_BaselineTolerance(t *testing.T) {
 
 // sensitive feature, needs way more placeholder tests in diverse settings and complex configurations (especially sub config and org policy etc and many others)
 // Subjected to increase.
-
 
 // ============================================================================
 // WORKFLOW DRY RUN
@@ -547,7 +544,6 @@ func TestWorkflow_ThresholdCheckingAllFiles(t *testing.T) {
 	t.Skip("TODO: Verify threshold verifies -threshold flags works on all output files")
 }
 
-
 // ============================================================================
 // WORKFLOW SUPPRESSIONS
 // ============================================================================
@@ -588,15 +584,15 @@ func TestWorkflow_ConfigureGoVersion(t *testing.T) {
 // TestWorkflow_ChunkLargeFiles verifies chunk_large_files prevents OOM
 func TestWorkflow_ChunkLargeFiles(t *testing.T) {
 	t.Skip("TODO: Verify chunk_large_files prevents OOM on large files") // I might or might not keep this. I'm not sure if we really need chunking.
-	// The main issue before was the memory management in handlers was blowing up with recursive calls and badly written code causing an exponential blast in memory. 
-	// The memory issue isn't persisting, but that raises a concern, do we need chunking if the memry usage even ona 500 line file isn't anything significant. 
+	// The main issue before was the memory management in handlers was blowing up with recursive calls and badly written code causing an exponential blast in memory.
+	// The memory issue isn't persisting, but that raises a concern, do we need chunking if the memry usage even ona 500 line file isn't anything significant.
 }
 
 // ============================================================================
 // WORKFLOW MEMORY CHECKING
 // ============================================================================
 
-// TestWorkflow_MemoryUsage verifies memory usage isn't OOM-ing or close to OOM-ing. If it is, that's 100% an issue with code. Inherently, gorgon uses less memory. 
+// TestWorkflow_MemoryUsage verifies memory usage isn't OOM-ing or close to OOM-ing. If it is, that's 100% an issue with code. Inherently, gorgon uses less memory.
 func TestWorkflow_MemoryUsage(t *testing.T) {
 	t.Skip("TODO: Verify memory usage isn't OOM-ing or close to OOM-ing")
 }

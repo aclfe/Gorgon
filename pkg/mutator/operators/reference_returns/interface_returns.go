@@ -27,7 +27,7 @@ func (InterfaceReturns) CanApplyWithContext(n ast.Node, ctx mutator.Context) boo
 	if !ok || len(ret.Results) == 0 {
 		return false
 	}
-	if ctx.ReturnType != "interface{}" {
+	if ctx.ReturnType != "interface{}" && ctx.ReturnType != "any" {
 		return false
 	}
 	expr := ret.Results[0]

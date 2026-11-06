@@ -3,6 +3,8 @@
 
 package regression
 
+import "testing"
+
 // TestAllPackagesBuild ensures all packages in the repo compile without errors.
 // This catches issues like undefined variables, missing imports, type errors, etc.
 func TestAllPackagesBuild(t *testing.T) {
@@ -46,5 +48,5 @@ func TestAllPackagesBuild(t *testing.T) {
 	// 	})
 	// }
 	t.Skip("Skipping build test for now, need a stronger implementation to follow through with this")
-	
+
 }

@@ -1,12 +1,9 @@
-
 // utilities used by mutation operators.
 package analysis
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
-	"sync"
 )
 
 func IsReturnStmtWithResults(n ast.Node, min int) (*ast.ReturnStmt, bool) {
@@ -17,36 +14,11 @@ func IsReturnStmtWithResults(n ast.Node, min int) (*ast.ReturnStmt, bool) {
 	return ret, true
 }
 
-var (
-	caseClauseCache = make(map[string]bool)
-	caseClauseMu    sync.RWMutex
-)
-
-func caseClauseCacheKey(ret *ast.ReturnStmt, file *ast.File) string {
-	return fmt.Sprintf("%p:%d", file, ret.Pos())
-}
-
 func IsInsideCaseClause(ret *ast.ReturnStmt, file *ast.File) bool {
 	if file == nil {
 		return false
 	}
-
-	key := caseClauseCacheKey(ret, file)
-
-	caseClauseMu.RLock()
-	cached, ok := caseClauseCache[key]
-	caseClauseMu.RUnlock()
-	if ok {
-		return cached
-	}
-
-	result := isInsideCaseClauseSlow(ret, file)
-
-	caseClauseMu.Lock()
-	caseClauseCache[key] = result
-	caseClauseMu.Unlock()
-
-	return result
+	return isInsideCaseClauseSlow(ret, file)
 }
 
 func isInsideCaseClauseSlow(ret *ast.ReturnStmt, file *ast.File) bool {
