@@ -2,6 +2,7 @@ package constant_replacement
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
@@ -132,40 +133,40 @@ func (ConstantReplacement) MutateWithContext(n ast.Node, ctx mutator.Context) as
 }
 
 func mutateBasicLit(bl *ast.BasicLit) ast.Node {
+	val := constant.MakeFromLiteral(bl.Value, bl.Kind, 0)
+	if val.Kind() == constant.Unknown {
+		return nil
+	}
 	switch bl.Kind {
 	case token.INT:
-		if bl.Value == "0" {
+		if constant.Sign(val) == 0 {
 			return &ast.BasicLit{Kind: token.INT, Value: "1"}
 		}
 		return &ast.BasicLit{Kind: token.INT, Value: "0"}
 
 	case token.FLOAT:
-		if bl.Value == "0.0" {
+		if constant.Sign(val) == 0 {
 			return &ast.BasicLit{Kind: token.FLOAT, Value: "1.0"}
 		}
 		return &ast.BasicLit{Kind: token.FLOAT, Value: "0.0"}
 
 	case token.STRING:
-		if isEmptyStringLiteral(bl.Value) {
+		if constant.StringVal(val) == "" {
 			return &ast.BasicLit{Kind: token.STRING, Value: `" "`}
 		}
 		return &ast.BasicLit{Kind: token.STRING, Value: `""`}
 
 	case token.CHAR:
-		if bl.Value == "'a'" {
+		r, ok := constant.Int64Val(val)
+		if !ok {
+			return nil
+		}
+		if r == 'a' {
 			return &ast.BasicLit{Kind: token.CHAR, Value: "'b'"}
 		}
 		return &ast.BasicLit{Kind: token.CHAR, Value: "'a'"}
 	}
 	return nil
-}
-
-func isEmptyStringLiteral(value string) bool {
-	if len(value) != 2 {
-		return false
-	}
-	first := value[0]
-	return (first == '"' || first == '`') && value[1] == first
 }
 
 func isTimeDuration(expr ast.Expr) bool {

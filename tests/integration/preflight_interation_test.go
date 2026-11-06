@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/aclfe/gorgon/internal/cli"
+	coretesting "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/orgpolicy"
-	coretesting "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -321,16 +321,9 @@ func Add(a, b int) int {
 	}
 
 	// Create a mutant for the binary expression a + b.
-	ops := mutator.ListAll()
-	var negateCond mutator.Operator
-	for _, op := range ops {
-		if op.Name() == "negate_condition" {
-			negateCond = op
-			break
-		}
-	}
-	if negateCond == nil {
-		t.Fatalf("negate_condition operator not found")
+	arith, ok := mutator.Get("arithmetic_flip")
+	if !ok {
+		t.Fatalf("arithmetic_flip operator not found")
 	}
 
 	// Find the binary expression node.
@@ -346,14 +339,17 @@ func Add(a, b int) int {
 		t.Fatalf("no binary expression in test source")
 	}
 
+	tfile := fset.File(binExpr.Pos())
 	mutant := coretesting.Mutant{
 		ID:       1,
-		Operator: negateCond,
+		Operator: arith,
 		Site: engine.Site{
-			File:    fset.File(binExpr.Pos()),
-			FileAST: fileAST,
-			Fset:    fset,
-			Node:    binExpr,
+			File:      tfile,
+			FileAST:   fileAST,
+			Fset:      fset,
+			Node:      binExpr,
+			Offset:    tfile.Offset(binExpr.Pos()),
+			EndOffset: tfile.Offset(binExpr.End()),
 		},
 	}
 

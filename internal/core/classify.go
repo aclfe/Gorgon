@@ -3,27 +3,32 @@ package testing
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // runResult is the structured outcome of running one mutant against the
 // prebuilt test binary. Derived from the test framework's documented verbose
 // output protocol — no error-message substring matching.
 type runResult struct {
-	status     string // "killed" | "survived" | "timeout" | "untested" | "error"
+	status     string
 	killedBy   string
 	killOutput string
+	duration   time.Duration
+	sawRun     bool
 }
 
 // runTestBinary executes a prebuilt go test binary directly. The binary is
 // invoked with -test.v so the test framework emits the documented event lines
 // ("=== RUN", "--- PASS:", "--- FAIL:") used by classifyVerboseRun.
-func runTestBinary(ctx context.Context, binary, dir string, env []string, testFilter, testTimeout string) ([]byte, error) {
+func runTestBinary(ctx context.Context, binary, dir string, env []string, testFilter string, testTimeout time.Duration) ([]byte, error) {
 	args := []string{"-test.v"}
-	if testTimeout != "" {
-		args = append(args, "-test.timeout="+testTimeout)
+	if testTimeout > 0 {
+		args = append(args, "-test.timeout="+testTimeout.String())
 	}
 	if testFilter != "" {
 		args = append(args, "-test.run="+testFilter)
@@ -32,7 +37,23 @@ func runTestBinary(ctx context.Context, binary, dir string, env []string, testFi
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = dir
 	cmd.Env = env
+	cmd.WaitDelay = time.Second
 	return cmd.CombinedOutput()
+}
+
+func envWithMutant(id int) []string {
+	base := os.Environ()
+	env := make([]string, 0, len(base)+1)
+	for _, kv := range base {
+		if strings.HasPrefix(kv, "GORGON_MUTANT_ID=") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	if id != 0 {
+		env = append(env, fmt.Sprintf("GORGON_MUTANT_ID=%d", id))
+	}
+	return env
 }
 
 // Documented `go test -v` line prefixes. These have been part of the testing
@@ -43,35 +64,19 @@ func runTestBinary(ctx context.Context, binary, dir string, env []string, testFi
 //	--- FAIL: <name> (<duration>)
 //	--- SKIP: <name> (<duration>)
 const (
-	prefixRUN  = "=== RUN   "
-	prefixFAIL = "--- FAIL: "
+	prefixRUN      = "=== RUN   "
+	prefixFAIL     = "--- FAIL: "
+	timeoutPanic   = "panic: test timed out after"
+	noTestsWarning = "testing: warning: no tests to run"
 )
 
-// classifyVerboseRun consumes the binary's stdout+stderr and the exit error
-// and produces a deterministic mutant status. Rules:
 //
-//   - context deadline exceeded                -> timeout
-//   - any "--- FAIL: <name>" line              -> killed (first such name)
-//   - at least one "=== RUN " line, exit==0    -> survived
-//   - at least one "=== RUN " line, exit!=0    -> killed ("runtime error")
-//     (test ran, then the process crashed in a goroutine)
-//   - no "=== RUN " line, exit==0              -> untested
-//   - no "=== RUN " line, exit!=0              -> error (init/TestMain crash)
-func classifyVerboseRun(output []byte, runErr error, deadlineExceeded bool) runResult {
-	if deadlineExceeded {
-		return runResult{
-			status:     "timeout",
-			killedBy:   "(timeout)",
-			killOutput: "test timed out",
-		}
-	}
 
+func classifyVerboseRun(output []byte, runErr error, deadlineExceeded bool, baselineRan bool) runResult {
 	firstFail := ""
 	sawRun := false
 	for _, line := range bytes.Split(output, []byte{'\n'}) {
-		s := string(line)
-		// Allow leading whitespace from subtests indented by Go's test runner.
-		s = strings.TrimLeft(s, " \t")
+		s := strings.TrimLeft(string(line), " \t")
 		if !sawRun && strings.HasPrefix(s, prefixRUN) {
 			sawRun = true
 		}
@@ -80,34 +85,38 @@ func classifyVerboseRun(output []byte, runErr error, deadlineExceeded bool) runR
 		}
 	}
 
-	if firstFail != "" {
-		return runResult{
-			status:     "killed",
-			killedBy:   firstFail,
-			killOutput: truncOutput(output),
-		}
-	}
-
-	if !sawRun {
-		if runErr != nil {
-			return runResult{
-				status:     "error",
-				killedBy:   "runtime error",
-				killOutput: truncOutput(output),
-			}
-		}
-		return runResult{status: "untested"}
+	if deadlineExceeded || bytes.Contains(output, []byte(timeoutPanic)) {
+		return runResult{status: StatusTimeout, killedBy: "(timeout)", killOutput: truncOutput(output), sawRun: sawRun}
 	}
 
 	if runErr != nil {
-		return runResult{
-			status:     "killed",
-			killedBy:   "runtime error",
-			killOutput: truncOutput(output),
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) {
+			return runResult{
+				status:     StatusError,
+				killedBy:   "",
+				killOutput: fmt.Sprintf("test binary could not be run: %v", runErr),
+				sawRun:     sawRun,
+			}
 		}
+		killedBy := firstFail
+		if killedBy == "" {
+			if sawRun {
+				killedBy = "(test binary crashed)"
+			} else {
+				killedBy = "(crashed before running tests: init or TestMain)"
+			}
+		}
+		return runResult{status: StatusKilled, killedBy: killedBy, killOutput: truncOutput(output), sawRun: sawRun}
 	}
 
-	return runResult{status: "survived"}
+	if !sawRun {
+		if baselineRan {
+			return runResult{status: StatusSurvived, killOutput: "no test ran under this mutant (the baseline ran tests); the suite still passed", sawRun: false}
+		}
+		return runResult{status: StatusUntested, sawRun: false}
+	}
+	return runResult{status: StatusSurvived, sawRun: true}
 }
 
 // parseFailLineName extracts the test name from a documented FAIL line of the
@@ -127,11 +136,28 @@ func parseFailLineName(line string) string {
 }
 
 func truncOutput(b []byte) string {
-	const maxOut = 300
+	const maxOut = 2000
 	if len(b) > maxOut {
 		return string(b[:maxOut])
 	}
 	return string(b)
+}
+
+func failingTests(output []byte) []string {
+	var names []string
+	seen := make(map[string]bool)
+	for _, line := range bytes.Split(output, []byte{'\n'}) {
+		s := string(line)
+		if !strings.HasPrefix(s, prefixFAIL) {
+			continue
+		}
+		name := parseFailLineName(s)
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // packageHasGoTestFiles asks `go list` whether the given package import-path

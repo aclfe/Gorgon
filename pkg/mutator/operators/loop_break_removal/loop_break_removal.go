@@ -2,6 +2,7 @@ package loop_break_removal
 
 import (
 	"go/ast"
+	"go/token"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 	"github.com/aclfe/gorgon/pkg/mutator/analysis"
@@ -22,7 +23,7 @@ func (LoopBreakRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) boo
 	if !ok {
 		return false
 	}
-	if branch.Tok != 0 {
+	if branch.Tok != token.BREAK || branch.Label != nil {
 		return false
 	}
 	return analysis.IsInsideLoop(n, ctx.File)
@@ -34,7 +35,7 @@ func (LoopBreakRemoval) Mutate(n ast.Node) ast.Node {
 
 func (LoopBreakRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	branch, ok := n.(*ast.BranchStmt)
-	if !ok || branch.Tok != 0 {
+	if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 		return nil
 	}
 	if !analysis.IsInsideLoop(n, ctx.File) {

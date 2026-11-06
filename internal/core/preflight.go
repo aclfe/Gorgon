@@ -3,12 +3,12 @@ package testing
 import (
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/importer"
 	"go/parser"
 	"go/token"
 	"go/types"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -39,6 +39,10 @@ const (
 // Level 3 catches type errors (wrong inferred types, scope leaks from :=
 // wrapping, blanked imports) before the workspace build step.
 func RunPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
+	return RunPreflightWithTags(mutants, nil, log)
+}
+
+func RunPreflightWithTags(mutants []Mutant, buildTags []string, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	var invalid []PreflightResult
 
 	level1Valid, level1Invalid := quickStaticFilter(mutants)
@@ -55,7 +59,7 @@ func RunPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightRe
 		return nil, invalid
 	}
 
-	level3Valid, level3Invalid := level3TypeCheckPreflight(level2Valid, log)
+	level3Valid, level3Invalid := level3TypeCheckPreflight(level2Valid, buildTags, log)
 	invalid = append(invalid, level3Invalid...)
 
 	LogPreflightResults(log, len(mutants), invalid, len(level3Valid))
@@ -149,145 +153,69 @@ func checkFileWithSchemata(filePath string, mutants []Mutant) ([]Mutant, []Prefl
 		return makeAllInvalid(mutants, fmt.Sprintf("cannot read source file: %v", err))
 	}
 
+	ptrs := make([]*Mutant, len(mutants))
+	for i := range mutants {
+		ptrs[i] = &mutants[i]
+	}
+
 	var valid []Mutant
 	var invalid []PreflightResult
 
-	for j := range mutants {
-		mutant := mutants[j]
-
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-		if err != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("parse error: %v", err),
-			})
-			continue
+	res, ok := injectAndCheck(src, filePath, ptrs)
+	if !ok {
+		for i := range mutants {
+			single, singleOK := injectAndCheck(src, filePath, []*Mutant{&mutants[i]})
+			if !singleOK {
+				invalid = append(invalid, PreflightResult{
+					MutantID:    mutants[i].ID,
+					Status:      StatusCompileError,
+					ErrorReason: "schemata produced code that cannot be formatted or parsed",
+				})
+				continue
+			}
+			if reason, notApplied := single.NotApplied[mutants[i].ID]; notApplied {
+				invalid = append(invalid, PreflightResult{
+					MutantID:    mutants[i].ID,
+					Status:      StatusInvalid,
+					ErrorReason: "not injectable: " + reason,
+				})
+				continue
+			}
+			valid = append(valid, mutants[i])
 		}
-
-		tmpf, err := os.CreateTemp("", "gorgon-preflight-*.go")
-		if err != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("cannot create temp file for preflight: %v", err),
-			})
-			continue
-		}
-		tmpPath := tmpf.Name()
-		tmpf.Close()
-
-		mutantsPtr := []*Mutant{&mutant}
-		posMap, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutantsPtr)
-
-		_ = os.Remove(tmpPath)
-
-		if schemataErr != nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: fmt.Sprintf("schemata apply failed: %v", schemataErr),
-			})
-			continue
-		}
-
-		if posMap == nil {
-			invalid = append(invalid, PreflightResult{
-				MutantID:    mutant.ID,
-				Status:      StatusCompileError,
-				ErrorReason: "schemata produced an un-formattable AST",
-			})
-			continue
-		}
-
-		if pm, ok := posMap[mutant.ID]; ok {
-			mutant.TempLine = pm.TempLine
-			mutant.TempCol = pm.TempCol
-		}
-
-		valid = append(valid, mutant)
+		return valid, invalid
 	}
 
-	if len(valid) > 1 {
-		if combinedInvalid, reason := checkCombinedFileWithSchemata(filePath, src, valid); len(combinedInvalid) > 0 {
-			for _, badID := range combinedInvalid {
-				for i := range valid {
-					if valid[i].ID == badID {
-						invalid = append(invalid, PreflightResult{
-							MutantID:    badID,
-							Status:      StatusCompileError,
-							ErrorReason: "combined schemata conflict: " + reason,
-						})
-						valid[i].Status = StatusCompileError
-						break
-					}
-				}
+	for i := range mutants {
+		m := mutants[i]
+		if reason, notApplied := res.NotApplied[m.ID]; notApplied || !res.Applied[m.ID] {
+			if reason == "" {
+				reason = "mutation was not injected"
 			}
-			var filtered []Mutant
-			for _, v := range valid {
-				if v.Status != StatusCompileError {
-					filtered = append(filtered, v)
-				}
-			}
-			return filtered, invalid
+			invalid = append(invalid, PreflightResult{
+				MutantID:    m.ID,
+				Status:      StatusInvalid,
+				ErrorReason: "not injectable: " + reason,
+			})
+			continue
 		}
+		if pm, ok := res.Positions[m.ID]; ok {
+			m.TempLine, m.TempCol = pm.TempLine, pm.TempCol
+		}
+		valid = append(valid, m)
 	}
-
 	return valid, invalid
 }
 
-func checkCombinedFileWithSchemata(filePath string, src []byte, mutants []Mutant) ([]int, string) {
-	if len(mutants) < 2 {
-		return nil, ""
+func injectAndCheck(src []byte, filePath string, mutants []*Mutant) (*ApplyResult, bool) {
+	out, res, err := ApplySchemataToSource(src, filePath, mutants)
+	if err != nil || res == nil {
+		return res, false
 	}
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-	if err != nil {
-		return nil, ""
+	if _, err := parser.ParseFile(token.NewFileSet(), filePath, out, 0); err != nil {
+		return res, false
 	}
-
-	mutPtrs := make([]*Mutant, len(mutants))
-	for i := range mutants {
-		mutPtrs[i] = &mutants[i]
-	}
-
-	tmpf, err := os.CreateTemp("", "gorgon-preflight-combined-*.go")
-	if err != nil {
-		return nil, ""
-	}
-	tmpPath := tmpf.Name()
-	tmpf.Close()
-	defer os.Remove(tmpPath)
-
-	_, schemataErr := ApplySchemataToAST(file, fset, tmpPath, src, mutPtrs)
-	if schemataErr != nil {
-		rejected := make([]int, len(mutants))
-		for i, m := range mutants {
-			rejected[i] = m.ID
-		}
-		return rejected, "combined schemata apply failed"
-	}
-
-	dir, err := os.MkdirTemp("", "gorgon-combined-check-*")
-	if err != nil {
-		return nil, ""
-	}
-	defer os.RemoveAll(dir)
-
-	cmd := exec.Command("go", "build", "-o", filepath.Join(dir, "combined.bin"), ".")
-	cmd.Dir = filepath.Dir(filePath)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		rejected := make([]int, len(mutants))
-		for i, m := range mutants {
-			rejected[i] = m.ID
-		}
-		return rejected, string(out)
-	}
-
-	return nil, ""
+	return res, true
 }
 
 // ── Level 3 ──────────────────────────────────────────────────────────────────
@@ -304,7 +232,7 @@ func checkCombinedFileWithSchemata(filePath string, src []byte, mutants []Mutant
 // and subtracted so that pre-existing bugs in user code (which Gorgon can't
 // fix and shouldn't blame on the mutation) don't false-positive every mutant
 // in the file.
-func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, []PreflightResult) {
+func level3TypeCheckPreflight(mutants []Mutant, buildTags []string, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	// Group by source file.
 	groups := make(map[string][]Mutant)
 	for i := range mutants {
@@ -314,7 +242,7 @@ func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, [
 		}
 	}
 
-	cache := newPkgImportCache()
+	cache := newPkgImportCache(buildTags)
 
 	// Process files with bounded concurrency.
 	// go/types.Check is CPU-heavy and allocates significantly per call.
@@ -335,7 +263,7 @@ func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, [
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			v, inv := typeCheckFileGroup(filePath, fileMutants, cache, log)
+			v, inv := typeCheckFileGroup(filePath, fileMutants, cache, buildTags, log)
 			resultCh <- result{v, inv}
 		}()
 	}
@@ -352,7 +280,6 @@ func level3TypeCheckPreflight(mutants []Mutant, log *logger.Logger) ([]Mutant, [
 	return valid, invalid
 }
 
-
 // schemataHelperSrc is injected into every package during the real mutation run.
 // Including it here lets go/types resolve the activeMutantID identifier that
 // the schemata transformation introduces.
@@ -363,12 +290,11 @@ import (
 	"strconv"
 )
 
-var activeMutantID int
+var activeMutantID = gorgonActiveMutantIDFromEnv()
 
-func init() {
-	if idStr := os.Getenv("GORGON_MUTANT_ID"); idStr != "" {
-		activeMutantID, _ = strconv.Atoi(idStr)
-	}
+func gorgonActiveMutantIDFromEnv() int {
+	id, _ := strconv.Atoi(os.Getenv("GORGON_MUTANT_ID"))
+	return id
 }
 `
 
@@ -389,11 +315,13 @@ func typeErrorMessage(s string) string {
 	return s
 }
 
-func loadSiblingFiles(pkgDir, excludePath string) []siblingFile {
+func loadSiblingFiles(pkgDir, excludePath string, buildTags []string) []siblingFile {
 	entries, err := os.ReadDir(pkgDir)
 	if err != nil {
 		return nil
 	}
+	bctx := build.Default
+	bctx.BuildTags = append([]string(nil), buildTags...)
 	var out []siblingFile
 	for _, e := range entries {
 		if e.IsDir() {
@@ -405,6 +333,9 @@ func loadSiblingFiles(pkgDir, excludePath string) []siblingFile {
 		}
 		p := filepath.Join(pkgDir, name)
 		if p == excludePath {
+			continue
+		}
+		if match, err := bctx.MatchFile(pkgDir, name); err == nil && !match {
 			continue
 		}
 		data, err := os.ReadFile(p)
@@ -436,12 +367,13 @@ func parsePackageName(src []byte, filePath string) string {
 // across every mutant in a file — and across files in the same directory —
 // keeps preflight latency proportional to package count, not mutant count.
 type pkgImportCache struct {
-	mu      sync.Mutex
-	loaded  map[string]*resolvedImporter // pkgDir → importer
+	mu        sync.Mutex
+	loaded    map[string]*resolvedImporter
+	buildTags []string
 }
 
-func newPkgImportCache() *pkgImportCache {
-	return &pkgImportCache{loaded: make(map[string]*resolvedImporter)}
+func newPkgImportCache(buildTags []string) *pkgImportCache {
+	return &pkgImportCache{loaded: make(map[string]*resolvedImporter), buildTags: buildTags}
 }
 
 // importerFor returns a types.Importer that resolves imports for the package
@@ -458,7 +390,7 @@ func (c *pkgImportCache) importerFor(pkgDir string) types.Importer {
 	}
 	c.mu.Unlock()
 
-	deps := loadPackageDeps(pkgDir)
+	deps := loadPackageDeps(pkgDir, c.buildTags)
 	imp := &resolvedImporter{deps: deps, fallback: importer.Default()}
 
 	c.mu.Lock()
@@ -470,13 +402,16 @@ func (c *pkgImportCache) importerFor(pkgDir string) types.Importer {
 // loadPackageDeps invokes packages.Load for the package at pkgDir with full
 // type information and returns a flat import-path → *types.Package map of
 // every package reachable in its transitive dependency graph.
-func loadPackageDeps(pkgDir string) map[string]*types.Package {
+func loadPackageDeps(pkgDir string, buildTags []string) map[string]*types.Package {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedDeps | packages.NeedImports |
 			packages.NeedTypesInfo,
 		Dir:   pkgDir,
 		Tests: false,
+	}
+	if len(buildTags) > 0 {
+		cfg.BuildFlags = []string{"-tags=" + strings.Join(buildTags, ",")}
 	}
 	pkgs, err := packages.Load(cfg, ".")
 	if err != nil || len(pkgs) == 0 {
@@ -574,7 +509,7 @@ func LogPreflightResults(log *logger.Logger, totalMutants int, results []Preflig
 		level1, level2, validCount, totalMutants)
 }
 
-func typeCheckFileGroup(filePath string, mutants []Mutant, cache *pkgImportCache, log *logger.Logger) ([]Mutant, []PreflightResult) {
+func typeCheckFileGroup(filePath string, mutants []Mutant, cache *pkgImportCache, buildTags []string, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Debug("[PREFLIGHT L3] Cannot read %s — skipping type-check", filePath)
@@ -582,7 +517,7 @@ func typeCheckFileGroup(filePath string, mutants []Mutant, cache *pkgImportCache
 	}
 
 	pkgDir := filepath.Dir(filePath)
-	siblings := loadSiblingFiles(pkgDir, filePath)
+	siblings := loadSiblingFiles(pkgDir, filePath, buildTags)
 	pkgName := parsePackageName(src, filePath)
 	helper := fmt.Sprintf(schemataHelperSrc, pkgName)
 	imp := cache.importerFor(pkgDir)
@@ -651,53 +586,51 @@ func computeBaselineErrors(filePath string, src []byte, siblings []siblingFile, 
 }
 
 func runTypeCheck(filePath string, src []byte, mutPtrs []*Mutant, siblings []siblingFile, helper, pkgDir string, imp types.Importer, baseline map[string]int) (newErrors []string, panicked bool) {
-    fset := token.NewFileSet()
-    mutatedAST, err := ApplySchemataInMemory(src, filePath, fset, mutPtrs)
-    if err != nil {
-        return []string{"schemata: " + err.Error()}, false
-    }
+	fset := token.NewFileSet()
+	mutatedAST, err := ApplySchemataInMemory(src, filePath, fset, mutPtrs)
+	if err != nil {
+		return []string{"schemata: " + err.Error()}, false
+	}
 
-    allFiles := []*ast.File{mutatedAST}
-    for _, sib := range siblings {
-        if f, err := parser.ParseFile(fset, sib.path, sib.src, 0); err == nil {
-            allFiles = append(allFiles, f)
-        }
-    }
-    if hf, err := parser.ParseFile(fset, "gorgon_schemata.go", helper, 0); err == nil {
-        allFiles = append(allFiles, hf)
-    }
+	allFiles := []*ast.File{mutatedAST}
+	for _, sib := range siblings {
+		if f, err := parser.ParseFile(fset, sib.path, sib.src, 0); err == nil {
+			allFiles = append(allFiles, f)
+		}
+	}
+	if hf, err := parser.ParseFile(fset, "gorgon_schemata.go", helper, 0); err == nil {
+		allFiles = append(allFiles, hf)
+	}
 
-    budget := make(map[string]int, len(baseline))
-    for k, v := range baseline {
-        budget[k] = v
-    }
+	budget := make(map[string]int, len(baseline))
+	for k, v := range baseline {
+		budget[k] = v
+	}
 
-    defer func() {
-        if r := recover(); r != nil {
-            // go/types panicked formatting an error about a schemata-generated node.
-            // We can't determine which mutants are bad, so pass them all through.
-            // The real build step will catch any actual compile errors.
-            newErrors = nil
-            panicked = true
-        }
-    }()
+	defer func() {
+		if r := recover(); r != nil {
+			// go/types panicked formatting an error about a schemata-generated node.
+			// We can't determine which mutants are bad, so pass them all through.
+			// The real build step will catch any actual compile errors.
+			newErrors = nil
+			panicked = true
+		}
+	}()
 
-    conf := &types.Config{
-        Importer: imp,
-        Error: func(e error) {
-            msg := typeErrorMessage(e.Error())
-            if budget[msg] > 0 {
-                budget[msg]--
-            } else {
-                newErrors = append(newErrors, e.Error())
-            }
-        },
-    }
-    conf.Check(pkgDir, fset, allFiles, nil)
-    return newErrors, false
+	conf := &types.Config{
+		Importer: imp,
+		Error: func(e error) {
+			msg := typeErrorMessage(e.Error())
+			if budget[msg] > 0 {
+				budget[msg]--
+			} else {
+				newErrors = append(newErrors, e.Error())
+			}
+		},
+	}
+	conf.Check(pkgDir, fset, allFiles, nil)
+	return newErrors, false
 }
-
-
 
 func bisectMutants(filePath string, src []byte, mutants []Mutant, siblings []siblingFile, helper, pkgDir string, imp types.Importer, baseline map[string]int, log *logger.Logger) ([]Mutant, []PreflightResult) {
 	if len(mutants) == 0 {

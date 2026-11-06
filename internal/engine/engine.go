@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,6 +40,19 @@ type Engine struct {
 	FileProgressFunc func(filename string)
 	totalFiles       int
 	filesProcessed   int
+	buildTags        []string
+	evaluatedOps     map[string]bool
+}
+
+func (e *Engine) SetBuildTags(tags []string) {
+	e.buildTags = append([]string(nil), tags...)
+}
+
+func (e *Engine) buildFlags() []string {
+	if len(e.buildTags) == 0 {
+		return nil
+	}
+	return []string{"-tags=" + strings.Join(e.buildTags, ",")}
 }
 
 func NewEngine(printAST bool) *Engine {
@@ -49,7 +63,13 @@ func NewEngine(printAST bool) *Engine {
 }
 
 func (e *Engine) SetOperators(ops []mutator.Operator) {
-	e.operators = ops
+	sorted := append([]mutator.Operator(nil), ops...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name() < sorted[j].Name() })
+	e.operators = sorted
+	e.evaluatedOps = make(map[string]bool, len(sorted))
+	for _, op := range sorted {
+		e.evaluatedOps[op.Name()] = true
+	}
 }
 
 func (e *Engine) SetProjectRoot(root string) {
@@ -69,7 +89,15 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 			root = cwd
 		}
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	MergeDirectives(e.ignoreDirectives, BuildDirectives(entries, root))
+}
 
+type Directives = map[string]map[int]map[string]map[int]bool
+
+func BuildDirectives(entries []config.SuppressEntry, root string) Directives {
+	out := make(Directives)
 	for _, entry := range entries {
 		loc := strings.TrimSpace(entry.Location)
 		if loc == "" {
@@ -80,30 +108,30 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 			continue
 		}
 		filePath := loc[:lastColon]
-		line, err := strconv.Atoi(loc[lastColon+1:])
+		line, err := strconv.Atoi(strings.TrimSpace(loc[lastColon+1:]))
 		if err != nil {
 			continue
 		}
 
 		if !filepath.IsAbs(filePath) {
 			filePath = filepath.Join(root, filePath)
-			if abs, err := filepath.Abs(filePath); err == nil {
-				filePath = abs
-			}
+		}
+		if abs, err := filepath.Abs(filePath); err == nil {
+			filePath = abs
 		}
 
-		if e.ignoreDirectives[filePath] == nil {
-			e.ignoreDirectives[filePath] = make(map[int]map[string]map[int]bool)
+		if out[filePath] == nil {
+			out[filePath] = make(map[int]map[string]map[int]bool)
 		}
-		if e.ignoreDirectives[filePath][line] == nil {
-			e.ignoreDirectives[filePath][line] = make(map[string]map[int]bool)
+		if out[filePath][line] == nil {
+			out[filePath][line] = make(map[string]map[int]bool)
 		}
 
 		if len(entry.Operators) == 0 {
-			if e.ignoreDirectives[filePath][line][""] == nil {
-				e.ignoreDirectives[filePath][line][""] = make(map[int]bool)
+			if out[filePath][line][""] == nil {
+				out[filePath][line][""] = make(map[int]bool)
 			}
-			e.ignoreDirectives[filePath][line][""][0] = true
+			out[filePath][line][""][0] = true
 			continue
 		}
 
@@ -113,23 +141,45 @@ func (e *Engine) SetSuppressEntries(entries []config.SuppressEntry) {
 				continue
 			}
 			parts := strings.SplitN(op, ":", 2)
-			operator := parts[0]
+			operator := strings.TrimSpace(parts[0])
 			column := 0
 			if len(parts) == 2 {
-				if col, err := strconv.Atoi(parts[1]); err == nil {
+				if col, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
 					column = col
 				}
 			}
-			if e.ignoreDirectives[filePath][line][operator] == nil {
-				e.ignoreDirectives[filePath][line][operator] = make(map[int]bool)
+			if out[filePath][line][operator] == nil {
+				out[filePath][line][operator] = make(map[int]bool)
 			}
-			if column == 0 {
-				e.ignoreDirectives[filePath][line][operator][0] = true
-			} else {
-				e.ignoreDirectives[filePath][line][operator][column] = true
+			out[filePath][line][operator][column] = true
+		}
+	}
+	return out
+}
+
+func MergeDirectives(dst, src Directives) {
+	for file, lines := range src {
+		if dst[file] == nil {
+			dst[file] = make(map[int]map[string]map[int]bool)
+		}
+		for line, ops := range lines {
+			if dst[file][line] == nil {
+				dst[file][line] = make(map[string]map[int]bool)
+			}
+			for op, cols := range ops {
+				if dst[file][line][op] == nil {
+					dst[file][line][op] = make(map[int]bool)
+				}
+				for col, v := range cols {
+					dst[file][line][op][col] = v
+				}
 			}
 		}
 	}
+}
+
+func IsIgnored(directives map[int]map[string]map[int]bool, line int, operator string, column int) bool {
+	return isIgnored(directives, line, operator, column)
 }
 
 func findEnclosingFuncFast(node ast.Node, parents map[ast.Node]ast.Node) *ast.FuncDecl {
@@ -168,106 +218,6 @@ func getPackageName(file *ast.File) string {
 		return file.Name.Name
 	}
 	return ""
-}
-
-type typeDeclCache struct {
-	resolved map[string]string
-	built    bool
-}
-
-func (c *typeDeclCache) buildOnce(file *ast.File, fset *token.FileSet) {
-	if c.built {
-		return
-	}
-	c.resolved = make(map[string]string)
-	c.built = true
-
-	for _, decl := range file.Decls {
-		gd, ok := decl.(*ast.GenDecl)
-		if !ok || gd.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gd.Specs {
-			ts, ok := spec.(*ast.TypeSpec)
-			if !ok || ts.Type == nil {
-				continue
-			}
-			if _, exists := c.resolved[ts.Name.Name]; exists {
-				continue
-			}
-			c.resolved[ts.Name.Name] = typeToString(ts.Type, file, fset, c)
-		}
-	}
-}
-
-func typeToString(t ast.Expr, file *ast.File, fset *token.FileSet, typeCache *typeDeclCache) string {
-	if t == nil {
-		return ""
-	}
-	switch expr := t.(type) {
-	case *ast.Ident:
-		if typeCache != nil {
-			if resolved, ok := typeCache.resolved[expr.Name]; ok {
-				return resolved
-			}
-		}
-		return resolveTypeName(expr.Name, file, fset, typeCache)
-	case *ast.StarExpr:
-		return "*" + typeToString(expr.X, file, fset, typeCache)
-	case *ast.ArrayType:
-		if expr.Len == nil {
-			return "[]" + typeToString(expr.Elt, file, fset, typeCache)
-		}
-		return "[" + exprToString(expr.Len, fset) + "]" + typeToString(expr.Elt, file, fset, typeCache)
-	case *ast.MapType:
-		return "map[" + typeToString(expr.Key, file, fset, typeCache) + "]" + typeToString(expr.Value, file, fset, typeCache)
-	case *ast.ChanType:
-		return "chan " + typeToString(expr.Value, file, fset, typeCache)
-	case *ast.InterfaceType:
-		return "interface{}"
-	case *ast.FuncType:
-		return "func"
-	case *ast.SelectorExpr:
-		if ident, ok := expr.X.(*ast.Ident); ok {
-			return ident.Name + "." + expr.Sel.Name
-		}
-		return expr.Sel.Name
-	case *ast.ParenExpr:
-		return typeToString(expr.X, file, fset, typeCache)
-	case *ast.Ellipsis:
-		return "..." + typeToString(expr.Elt, file, fset, typeCache)
-	default:
-		return ""
-	}
-}
-
-func resolveTypeName(typeName string, file *ast.File, fset *token.FileSet, typeCache *typeDeclCache) string {
-	if file == nil {
-		return typeName
-	}
-	if typeCache != nil {
-		if resolved, ok := typeCache.resolved[typeName]; ok {
-			return resolved
-		}
-	}
-	for _, decl := range file.Decls {
-		gd, ok := decl.(*ast.GenDecl)
-		if !ok || gd.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gd.Specs {
-			ts, ok := spec.(*ast.TypeSpec)
-			if !ok || ts.Type == nil || ts.Name.Name != typeName {
-				continue
-			}
-			resolved := typeToString(ts.Type, file, fset, typeCache)
-			if typeCache != nil {
-				typeCache.resolved[typeName] = resolved
-			}
-			return resolved
-		}
-	}
-	return typeName
 }
 
 func exprToString(expr ast.Expr, fset *token.FileSet) string {
@@ -358,15 +308,13 @@ func (e *Engine) ProjectRoot() string {
 }
 
 type contextCache struct {
-	contexts  map[ast.Node]*mutator.Context
-	typeCache typeDeclCache
-	pool      *sync.Pool
+	contexts map[ast.Node]*mutator.Context
+	pool     *sync.Pool
 }
 
 func newContextCache() *contextCache {
 	return &contextCache{
-		contexts:  make(map[ast.Node]*mutator.Context),
-		typeCache: typeDeclCache{},
+		contexts: make(map[ast.Node]*mutator.Context),
 		pool: &sync.Pool{
 			New: func() any { return &mutator.Context{} },
 		},
@@ -398,6 +346,7 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 	}
 
 	ctx := cache.pool.Get().(*mutator.Context)
+	*ctx = mutator.Context{}
 	ctx.FileName = fset.File(file.Pos()).Name()
 	ctx.PackageName = getPackageName(file)
 	ctx.File = file
@@ -415,32 +364,28 @@ func buildContextLazy(node ast.Node, file *ast.File, fset *token.FileSet, cache 
 		// expressions inside callbacks (e.g. ast.Inspect) get the outer
 		// FuncDecl's return type and produce uncompilable code.
 		if results := findInnermostFuncResults(node, parents); results != nil && len(results.List) > 0 {
-			{
-				// Extract all return types for multi-value returns
-				var types []string
-				for _, field := range results.List {
-					typeStr := typeToString(field.Type, file, fset, &cache.typeCache)
-					// Handle multiple names with same type: (a, b int) -> int, int
-					if len(field.Names) > 1 {
-						for range field.Names {
-							types = append(types, typeStr)
-						}
-					} else {
-						types = append(types, typeStr)
-					}
-				}
-				if len(types) == 1 {
-					ctx.ReturnType = types[0]
-				} else {
-					// Use comma-separated for multi-value returns
-					ctx.ReturnType = strings.Join(types, ",")
-				}
-			}
+			ctx.ReturnType = resultTypeString(results, fset)
 		}
 	}
 
 	cache.contexts[node] = ctx
 	return ctx
+}
+
+func resultTypeString(results *ast.FieldList, fset *token.FileSet) string {
+	// Extract all return types for multi-value returns
+	var types []string
+	for _, field := range results.List {
+		typeStr := exprToString(field.Type, fset)
+		n := len(field.Names)
+		if n == 0 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			types = append(types, typeStr)
+		}
+	}
+	return strings.Join(types, ",")
 }
 
 //nolint:gocognit,cyclop
@@ -472,6 +417,9 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 	}
 
 	if len(modFiles) == 0 {
+		if hasEnclosingModule(path) {
+			return e.traverseModule(path, visitor)
+		}
 		pkgDirs, err := findGoPackages(path)
 		if err != nil {
 			return fmt.Errorf("failed to find Go packages: %w", err)
@@ -485,6 +433,23 @@ func (e *Engine) Traverse(path string, visitor Visitor) error {
 	}
 
 	return e.traverseModule(path, visitor)
+}
+
+func hasEnclosingModule(dir string) bool {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(abs, "go.mod")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(abs)
+		if parent == abs {
+			return false
+		}
+		abs = parent
+	}
 }
 
 func findGoPackages(root string) ([]string, error) {
@@ -540,27 +505,43 @@ func (e *Engine) mergeIgnoreDirectives(absPath string, ignoreMap map[int]map[str
 	}
 }
 
-func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Visitor, printAST bool) error {
-	fileCache := newContextCache()
-	defer func() {
-		for _, ctx := range fileCache.contexts {
-			fileCache.pool.Put(ctx)
+func (e *Engine) fileDirectives(absPath string, comments map[int]map[string]map[int]bool) map[int]map[string]map[int]bool {
+	e.mergeIgnoreDirectives(absPath, comments)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	src := e.ignoreDirectives[absPath]
+	out := make(map[int]map[string]map[int]bool, len(src))
+	for line, ops := range src {
+		m := make(map[string]map[int]bool, len(ops))
+		for op, cols := range ops {
+			c := make(map[int]bool, len(cols))
+			for col, v := range cols {
+				c[col] = v
+			}
+			m[op] = c
 		}
-	}()
+		out[line] = m
+	}
+	return out
+}
 
+func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, info *types.Info, pkg *types.Package, visitor Visitor, printAST bool) error {
 	for _, file := range files {
 		tfile := fset.File(file.Pos())
+		if tfile == nil {
+			continue
+		}
 		if e.FileProgressFunc != nil {
 			e.FileProgressFunc(tfile.Name())
 		}
 
+		fileCache := newContextCache()
 		parents := buildParentMap(file)
-		ignoreMap := parseIgnoreComments(file, fset)
-
-		fileCache.typeCache.buildOnce(file, fset)
+		noMutate := buildNoMutateSet(file)
+		tc := newTypeContext(info, pkg, file)
 
 		absPath, _ := filepath.Abs(tfile.Name())
-		e.mergeIgnoreDirectives(absPath, ignoreMap)
+		directives := e.fileDirectives(absPath, parseIgnoreComments(file, fset))
 
 		if printAST {
 			fmt.Printf("\n=== AST for %s ===\n", tfile.Name())
@@ -574,43 +555,18 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 			if node == nil {
 				return true
 			}
-
-			mctx := buildContextLazy(node, file, fset, fileCache, parents, true)
-
-			for _, op := range e.operators {
-				apply := false
-				if cop, ok := op.(mutator.ContextualOperator); ok {
-					apply = cop.CanApplyWithContext(node, *mctx)
-				} else {
-					apply = op.CanApply(node)
-				}
-				if !apply {
-					continue
-				}
-
-				pos := schemata_nodes.GetNodePosition(node, fset)
-				if isIgnored(ignoreMap, pos.Line, op.Name(), pos.Column) {
-					continue
-				}
-
-				fileSites = append(fileSites, Site{
-					File:          tfile,
-					FileAST:       file,
-					Fset:          fset,
-					Line:          pos.Line,
-					Column:        pos.Column,
-					Node:          node,
-					ReturnType:    mctx.ReturnType,
-					FunctionName:  mctx.FunctionName,
-					EnclosingFunc: mctx.EnclosingFunc,
-				})
+			if site, ok := e.siteFor(node, file, tfile, fset, parents, noMutate, tc, directives, fileCache); ok {
+				fileSites = append(fileSites, site)
 			}
-
 			if visitor != nil {
 				return visitor(node)
 			}
 			return true
 		})
+
+		for _, ctx := range fileCache.contexts {
+			fileCache.pool.Put(ctx)
+		}
 
 		if len(fileSites) > 0 {
 			e.mu.Lock()
@@ -626,6 +582,99 @@ func (e *Engine) processFiles(files []*ast.File, fset *token.FileSet, visitor Vi
 		e.mu.Unlock()
 	}
 	return nil
+}
+
+func (e *Engine) siteFor(node ast.Node, file *ast.File, tfile *token.File, fset *token.FileSet,
+	parents map[ast.Node]ast.Node, noMutate map[ast.Node]bool, tc *typeContext,
+	directives map[int]map[string]map[int]bool, fileCache *contextCache) (Site, bool) {
+
+	if noMutate[node] || !node.Pos().IsValid() || !node.End().IsValid() {
+		return Site{}, false
+	}
+	switch node.(type) {
+	case *ast.File, *ast.GenDecl, *ast.Comment, *ast.CommentGroup:
+		return Site{}, false
+	}
+
+	parent := parents[node]
+	if _, isStmt := node.(ast.Stmt); isStmt && !injectedInPlace(node) && !isReplaceableStmtSlot(parent, node) {
+		return Site{}, false
+	}
+	exprType := ""
+	if expr, isExpr := node.(ast.Expr); isExpr {
+		if !isReplaceableExprSlot(parent, node) || isInAssignableChain(node, parents) {
+			return Site{}, false
+		}
+		if tc != nil {
+			if tc.isTypeExpr(expr) {
+				return Site{}, false
+			}
+			if pexpr, ok := parent.(ast.Expr); ok && tc.isConstant(expr) && tc.isConstant(pexpr) {
+				return Site{}, false
+			}
+			t, ok := tc.exprType(expr)
+			if !ok {
+				return Site{}, false
+			}
+			exprType = t
+		}
+	}
+
+	mctx := buildContextLazy(node, file, fset, fileCache, parents, true)
+	ctx := *mctx
+	if tc != nil {
+		ctx.Info = tc.info
+		ctx.Pkg = tc.pkg
+	}
+	pos := schemata_nodes.GetNodePosition(node, fset)
+
+	var opNames []string
+	var hints map[string]string
+	for _, op := range e.operators {
+		if !mutator.CanApplyWithContext(op, node, ctx) {
+			continue
+		}
+		if isIgnored(directives, pos.Line, op.Name(), pos.Column) {
+			continue
+		}
+		if hop, ok := op.(mutator.HintingOperator); ok {
+			hint := hop.MutationHint(node, ctx)
+			if hint == "" && ctx.Info != nil {
+				continue
+			}
+			if hint != "" {
+				if hints == nil {
+					hints = make(map[string]string)
+				}
+				hints[op.Name()] = hint
+			}
+		}
+		opNames = append(opNames, op.Name())
+	}
+	if len(opNames) == 0 {
+		return Site{}, false
+	}
+	sort.Strings(opNames)
+
+	return Site{
+		File:          tfile,
+		FileAST:       file,
+		Fset:          fset,
+		Line:          pos.Line,
+		Column:        pos.Column,
+		Offset:        tfile.Offset(node.Pos()),
+		EndOffset:     tfile.Offset(node.End()),
+		Node:          node,
+		Parent:        parent,
+		ReturnType:    mctx.ReturnType,
+		FunctionName:  mctx.FunctionName,
+		EnclosingFunc: mctx.EnclosingFunc,
+		ExprType:      exprType,
+		Ops:           opNames,
+		EvaluatedOps:  e.evaluatedOps,
+		Directives:    directives,
+		Hints:         hints,
+	}, true
 }
 
 func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
@@ -666,7 +715,7 @@ func (e *Engine) traverseSinglePkgDir(dir string, visitor Visitor) error {
 	e.totalFiles += len(files)
 	e.mu.Unlock()
 
-	return e.processFiles(files, fset, visitor, false)
+	return e.processFiles(files, fset, nil, nil, visitor, false)
 }
 
 func findGoModFiles(root string) ([]string, error) {
@@ -685,9 +734,11 @@ func findGoModFiles(root string) ([]string, error) {
 
 func (e *Engine) traverseModule(path string, visitor Visitor) error {
 	cfg := &packages.Config{
-		Mode:  packages.NeedFiles | packages.NeedSyntax,
-		Dir:   path,
-		Tests: false,
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
+			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
+		Dir:        path,
+		Tests:      false,
+		BuildFlags: e.buildFlags(),
 	}
 
 	pkgs, err := packages.Load(cfg, "./...")
@@ -720,7 +771,11 @@ func (e *Engine) traverseModule(path string, visitor Visitor) error {
 				wg.Done()
 			}()
 
-			if err := e.processFiles(pkg.Syntax, pkg.Fset, visitor, e.PrintAST); err != nil {
+			info, tpkg := pkg.TypesInfo, pkg.Types
+			if tpkg == nil || info == nil || len(pkg.TypeErrors) > 0 {
+				info, tpkg = nil, nil
+			}
+			if err := e.processFiles(pkg.Syntax, pkg.Fset, info, tpkg, visitor, e.PrintAST); err != nil {
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = err
@@ -750,7 +805,7 @@ func (e *Engine) traverseSingleFile(path string, visitor Visitor) error {
 		return fmt.Errorf("failed to parse file %q: %w", path, err)
 	}
 
-	return e.processFiles([]*ast.File{file}, fset, visitor, e.PrintAST)
+	return e.processFiles([]*ast.File{file}, fset, nil, nil, visitor, e.PrintAST)
 }
 
 func (e *Engine) Sites() []Site {
@@ -759,18 +814,22 @@ func (e *Engine) Sites() []Site {
 	copy(sites, e.sites)
 	e.mu.Unlock()
 
-	sort.Slice(sites, func(i, j int) bool {
-		si, sj := &sites[i], &sites[j]
-		if si.File.Name() != sj.File.Name() {
-			return si.File.Name() < sj.File.Name()
-		}
-		if si.Line != sj.Line {
-			return si.Line < sj.Line
-		}
-		if si.Column != sj.Column {
-			return si.Column < sj.Column
-		}
-		return schemata_nodes.NodeTypeToUint8(si.Node) < schemata_nodes.NodeTypeToUint8(sj.Node)
-	})
+	SortSites(sites)
 	return sites
+}
+
+func SortSites(sites []Site) {
+	sort.SliceStable(sites, func(i, j int) bool {
+		ki, kj := sites[i].Key(), sites[j].Key()
+		if ki.File != kj.File {
+			return ki.File < kj.File
+		}
+		if ki.Offset != kj.Offset {
+			return ki.Offset < kj.Offset
+		}
+		if ki.EndOffset != kj.EndOffset {
+			return ki.EndOffset > kj.EndOffset
+		}
+		return ki.NodeType < kj.NodeType
+	})
 }

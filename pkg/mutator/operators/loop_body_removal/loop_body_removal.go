@@ -16,13 +16,19 @@ func (LoopBodyRemoval) CanApply(n ast.Node) bool {
 	return false
 }
 
+func (LoopBodyRemoval) LoopMutation() mutator.LoopMutation {
+	return mutator.LoopSkipBody
+}
+
 func (LoopBodyRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
 	if n == nil {
 		return false
 	}
-	switch n.(type) {
-	case *ast.ForStmt, *ast.RangeStmt:
-		return true
+	switch s := n.(type) {
+	case *ast.ForStmt:
+		return s.Body != nil && len(s.Body.List) > 0
+	case *ast.RangeStmt:
+		return s.Body != nil && len(s.Body.List) > 0
 	}
 	return false
 }

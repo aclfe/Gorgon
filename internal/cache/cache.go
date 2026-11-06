@@ -11,17 +11,22 @@ import (
 	"sync"
 )
 
+const SchemaVersion = 2
+
 type Entry struct {
-	Status string `json:"status"`
+	Status   string `json:"status"`
+	KilledBy string `json:"killed_by,omitempty"`
 }
 
 type Cache struct {
+	Version int              `json:"version"`
 	Entries map[string]Entry `json:"entries"`
 	mu      sync.RWMutex
 }
 
 func New() *Cache {
 	return &Cache{
+		Version: SchemaVersion,
 		Entries: make(map[string]Entry),
 	}
 }
@@ -68,6 +73,9 @@ func Load(projectDir string) (*Cache, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("failed to parse cache: %w", err)
 	}
+	if c.Version != SchemaVersion || c.Entries == nil {
+		return New(), nil
+	}
 	return &c, nil
 }
 
@@ -84,7 +92,10 @@ func (c *Cache) Save(projectDir string) error {
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
+	c.Version = SchemaVersion
 	data, err := json.MarshalIndent(c, "", "  ")
+	c.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache: %w", err)
 	}
@@ -95,7 +106,6 @@ func (c *Cache) Save(projectDir string) error {
 }
 
 func (c *Cache) Key(filePath string, line, col int, nodeType uint8, operator string, fileHash string) string {
-	// Format: "filePath:line:col:nodeType:operator:fileHash"
 	const colon = byte(':')
 	cap := len(filePath) + len(operator) + len(fileHash) + 30
 	buf := make([]byte, 0, cap)
@@ -124,7 +134,11 @@ func (c *Cache) Get(key string) (Entry, bool) {
 }
 
 func (c *Cache) Set(key string, status string) {
+	c.SetEntry(key, Entry{Status: status})
+}
+
+func (c *Cache) SetEntry(key string, e Entry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.Entries[key] = Entry{Status: status}
+	c.Entries[key] = e
 }

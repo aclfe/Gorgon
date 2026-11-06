@@ -87,7 +87,8 @@ func TestReporter_CalculateScore(t *testing.T) {
 		{killed: 50, survived: 50, untested: 0, timeout: 0, want: 50},
 		{killed: 3, survived: 1, untested: 0, timeout: 0, want: 75},
 		{killed: 80, survived: 10, untested: 10, timeout: 0, want: 80},
-		{killed: 40, survived: 30, untested: 20, timeout: 10, want: 40},
+		{killed: 40, survived: 30, untested: 20, timeout: 10, want: 50},
+		{killed: 0, survived: 0, untested: 0, timeout: 4, want: 100},
 	}
 
 	for _, c := range cases {
@@ -120,7 +121,8 @@ func TestReporter_StatsForFile(t *testing.T) {
 		makeMutant(coretesting.StatusKilled, "TestBar"),
 		makeMutant(coretesting.StatusSurvived, ""),
 		makeMutant(coretesting.StatusUntested, ""),
-		makeMutant(coretesting.StatusError, "(compiler)"),
+		makeMutant(coretesting.StatusCompileError, "(compiler)"),
+		makeMutant(coretesting.StatusTimeout, "(timeout)"),
 		makeMutant(coretesting.StatusInvalid, ""),
 	}
 
@@ -144,9 +146,11 @@ func TestReporter_StatsForFile(t *testing.T) {
 	if stats.TotalErrors != 1 {
 		t.Errorf("TotalErrors = %d, want 1", stats.TotalErrors)
 	}
+	if stats.Timeout != 1 {
+		t.Errorf("Timeout = %d, want 1", stats.Timeout)
+	}
 
-	// Score = 2 / (2+1+1) * 100 = 50 (errors and invalid excluded from denom)
-	want := 50.0
+	want := 60.0
 	if stats.Score != want {
 		t.Errorf("Score = %.2f, want %.2f", stats.Score, want)
 	}

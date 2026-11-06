@@ -18,10 +18,10 @@ type junitTestSuite struct {
 }
 
 type junitTestCase struct {
-	XMLName   xml.Name `xml:"testcase"`
-	Name      string   `xml:"name,attr"`
-	Classname string   `xml:"classname,attr"`
-	Time      float64  `xml:"time,attr"`
+	XMLName   xml.Name      `xml:"testcase"`
+	Name      string        `xml:"name,attr"`
+	Classname string        `xml:"classname,attr"`
+	Time      float64       `xml:"time,attr"`
 	Failure   *junitFailure `xml:"failure,omitempty"`
 	Skipped   *junitSkipped `xml:"skipped,omitempty"`
 }
@@ -49,35 +49,36 @@ func writeJUnitReport(mutants []testing.Mutant, stats ReportStats, outputFile st
 			Classname: m.Operator.Name(),
 		}
 
-		switch m.Status {
+		switch effectiveStatus(m) {
 		case testing.StatusKilled:
 			tc.Time = m.KillDuration.Seconds()
+		case testing.StatusCompileError:
+			tc.Skipped = &junitSkipped{
+				Message: "Mutant does not compile: " + m.ErrorReason,
+			}
 		case testing.StatusSurvived:
 			tc.Failure = &junitFailure{
 				Message: "Mutant survived",
 				Text:    formatMutantInfo(m),
 			}
 		case testing.StatusTimeout:
-			tc.Failure = &junitFailure{
-				Message: "Mutant timeout",
-				Text:    formatMutantInfo(m),
-			}
+			tc.Time = m.KillDuration.Seconds()
 		case testing.StatusError:
-			errMsg := ""
-			if m.Error != nil {
+			errMsg := m.ErrorReason
+			if errMsg == "" && m.Error != nil {
 				errMsg = m.Error.Error()
 			}
-			tc.Failure = &junitFailure{
-				Message: "Execution error",
-				Text:    errMsg,
+			tc.Skipped = &junitSkipped{
+				Message: "Mutant not evaluated: " + errMsg,
 			}
 		case testing.StatusUntested:
-			tc.Skipped = &junitSkipped{
-				Message: "Package failed to compile or has no tests",
+			tc.Failure = &junitFailure{
+				Message: "Mutant not covered by any test",
+				Text:    formatMutantInfo(m),
 			}
 		case testing.StatusInvalid:
 			tc.Skipped = &junitSkipped{
-				Message: "Mutant marked invalid",
+				Message: "Mutant invalid: " + m.ErrorReason,
 			}
 		}
 

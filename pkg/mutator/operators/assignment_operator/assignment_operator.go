@@ -5,6 +5,7 @@ package assignment_operator
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
@@ -73,6 +74,37 @@ func (AssignmentOperator) Mutate(n ast.Node) ast.Node {
 	}
 }
 
+func (a AssignmentOperator) CanApplyWithContext(n ast.Node, ctx mutator.Context) bool {
+	if !a.CanApply(n) {
+		return false
+	}
+	if ctx.Info == nil {
+		return true
+	}
+	as := n.(*ast.AssignStmt)
+	t := ctx.Info.TypeOf(as.Lhs[0])
+	if t == nil {
+		return false
+	}
+	b, ok := t.Underlying().(*types.Basic)
+	if !ok {
+		return false
+	}
+	numeric := b.Info()&types.IsNumeric != 0
+	switch as.Tok {
+	case token.ASSIGN:
+		return numeric || b.Info()&types.IsString != 0
+	default:
+		return numeric
+	}
+}
+
+func (a AssignmentOperator) MutateWithContext(n ast.Node, _ mutator.Context) ast.Node {
+	return a.Mutate(n)
+}
+
 func init() {
 	mutator.Register(AssignmentOperator{})
 }
+
+var _ mutator.ContextualOperator = AssignmentOperator{}

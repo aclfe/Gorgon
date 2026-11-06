@@ -21,6 +21,7 @@ type jsonMutant struct {
 	Column   int    `json:"column"`
 	KilledBy string `json:"killed_by,omitempty"`
 	Error    string `json:"error,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func writeJSONReport(mutants []testing.Mutant, stats ReportStats, outputFile string) error {
@@ -44,6 +45,7 @@ func writeJSONReport(mutants []testing.Mutant, stats ReportStats, outputFile str
 		if m.Error != nil {
 			jm.Error = m.Error.Error()
 		}
+		jm.Reason = m.ErrorReason
 		report.Mutants = append(report.Mutants, jm)
 	}
 

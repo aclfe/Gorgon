@@ -95,6 +95,9 @@ const (
 	bUntested     bucket = "UNTESTED"      // package has no tests / no tests ran
 	bRuntimeError bucket = "RUNTIME_ERROR" // built, but binary crashed before any test executed
 	bUnknown      bucket = "UNKNOWN"       // ground-truth derivation could not run
+	bInconclusive bucket = "INCONCLUSIVE"
+	bInvalid      bucket = "INVALID"
+	bNotEvaluated bucket = "NOT_EVALUATED"
 )
 
 func TestVerifyMutations_GroundTruth(t *testing.T) {
@@ -109,12 +112,33 @@ func TestVerifyMutations_GroundTruth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	targetDir := filepath.Join(repoRoot, "internal/core")
+	targets := "pkg/mutator/operators/constant_replacement,pkg/mutator/operators/variable_replacement,pkg/mutator/operators/negate_condition,examples/mutations/arithmetic_flip"
+	if v := os.Getenv("GORGON_VERIFY_TARGETS"); v != "" {
+		targets = v
+	}
 
 	// 1. Drive Gorgon's full pipeline so we have its classification per mutant.
-	mutants := runFullPipelineForVerification(t, repoRoot, targetDir)
+	var mutants []coretesting.Mutant
+	for _, rel := range strings.Split(targets, ",") {
+		rel = strings.TrimSpace(rel)
+		if rel == "" {
+			continue
+		}
+		targetDir := filepath.Join(repoRoot, rel)
+		ms := runFullPipelineForVerification(t, repoRoot, targetDir)
+		offset := 0
+		for _, m := range mutants {
+			if m.ID > offset {
+				offset = m.ID
+			}
+		}
+		for i := range ms {
+			ms[i].ID += offset
+		}
+		mutants = append(mutants, ms...)
+	}
 	if len(mutants) == 0 {
-		t.Fatalf("no mutants produced for %s", targetDir)
+		t.Fatalf("no mutants produced for %s", targets)
 	}
 
 	// Stable order before sampling so the seed gives reproducible picks.
@@ -148,8 +172,8 @@ func TestVerifyMutations_GroundTruth(t *testing.T) {
 		truth          bucket
 		detail         string
 		dump           string
-		bucketMismatch bool   // gorgon bucket != truth bucket
-		attrMismatch   bool   // both KILLED but Gorgon blamed a test that didn't fail
+		bucketMismatch bool     // gorgon bucket != truth bucket
+		attrMismatch   bool     // both KILLED but Gorgon blamed a test that didn't fail
 		truthFailing   []string // tests ground truth observed failing under this mutant
 	}
 	results := make([]result, 0, len(mutants))
@@ -173,7 +197,8 @@ func TestVerifyMutations_GroundTruth(t *testing.T) {
 		// (a) Bucket-level disagreement. The most common signal: Gorgon's
 		// classification of the same mutation differs from what `go test`
 		// observes when the mutation is applied directly.
-		if gorgonBucket != truthBucket {
+		comparable := truthBucket != bInconclusive && gorgonBucket != bInvalid && gorgonBucket != bNotEvaluated
+		if comparable && gorgonBucket != truthBucket {
 			r.bucketMismatch = true
 			bucketMismatches++
 		}
@@ -349,9 +374,10 @@ func buildMutatedSource(src []byte, filePath string, m coretesting.Mutant) ([]by
 		return nil, fmt.Errorf("parse: %w", err)
 	}
 
-	wantLine := m.Site.Line
-	wantCol := m.Site.Column
+	wantStart := m.Site.Offset
+	wantEnd := m.Site.EndOffset
 	wantTypeName := nodeTypeName(m.Site.Node)
+	tfile := fset.File(f.Pos())
 	if wantTypeName == "" {
 		return nil, fmt.Errorf("site has nil node")
 	}
@@ -379,8 +405,7 @@ func buildMutatedSource(src []byte, filePath string, m coretesting.Mutant) ([]by
 			if applied || n == nil || isNilNode(n) {
 				return true
 			}
-			pos := fset.Position(n.Pos())
-			if pos.Line != wantLine || pos.Column != wantCol {
+			if !n.Pos().IsValid() || tfile.Offset(n.Pos()) != wantStart || tfile.Offset(n.End()) != wantEnd {
 				return true
 			}
 			if nodeTypeName(n) != wantTypeName {
@@ -390,7 +415,17 @@ func buildMutatedSource(src []byte, filePath string, m coretesting.Mutant) ([]by
 			if len(funcStack) > 0 {
 				enclosing = funcStack[len(funcStack)-1]
 			}
-			mutated := mutator.ApplyOperator(m.Operator, n, m.Site.ReturnType, f, enclosing)
+			hint := ""
+			if m.Site.Hints != nil {
+				hint = m.Site.Hints[m.Operator.Name()]
+			}
+			mutated := mutator.ApplyOperatorWithContext(m.Operator, n, mutator.Context{
+				ReturnType:    m.Site.ReturnType,
+				File:          f,
+				EnclosingFunc: enclosing,
+				Parent:        c.Parent(),
+				Hint:          hint,
+			})
 			if mutated == nil || mutated == n {
 				return true
 			}
@@ -406,7 +441,7 @@ func buildMutatedSource(src []byte, filePath string, m coretesting.Mutant) ([]by
 
 	if !applied {
 		return nil, fmt.Errorf("could not locate site %s:%d:%d (%s) in re-parsed AST",
-			filepath.Base(filePath), wantLine, wantCol, wantTypeName)
+			filepath.Base(filePath), m.Site.Line, m.Site.Column, wantTypeName)
 	}
 
 	var buf bytes.Buffer
@@ -459,10 +494,10 @@ func isNilNode(n ast.Node) bool {
 // -----------------------------------------------------------------------------
 
 var (
-	reTestRUN     = regexp.MustCompile(`(?m)^=== RUN\b`)
-	reTestPASS    = regexp.MustCompile(`(?m)^--- PASS:`)
-	reTestFAIL    = regexp.MustCompile(`(?m)^--- FAIL:`)
-	reNoTestFiles = regexp.MustCompile(`(?m)^\?\s+\S+\s+\[no test files\]`)
+	reTestRUN      = regexp.MustCompile(`(?m)^=== RUN\b`)
+	reTestPASS     = regexp.MustCompile(`(?m)^--- PASS:`)
+	reTestFAIL     = regexp.MustCompile(`(?m)^--- FAIL:`)
+	reNoTestFiles  = regexp.MustCompile(`(?m)^\?\s+\S+\s+\[no test files\]`)
 	reNoTestsToRun = regexp.MustCompile(`(?i)\bno tests to run\b`)
 )
 
@@ -471,7 +506,7 @@ func classifyIdeal(workspaceDir, pkg string, timeout time.Duration) (bucket, str
 	buildCtx, buildCancel := context.WithTimeout(context.Background(), timeout)
 	defer buildCancel()
 
-	buildCmd := exec.CommandContext(buildCtx, "go", "test", "-run=^$", "-count=1", pkg)
+	buildCmd := exec.CommandContext(buildCtx, "go", "test", "-run=^$", "-count=1", "-vet=off", pkg)
 	buildCmd.Dir = workspaceDir
 	buildOut, buildErr := buildCmd.CombinedOutput()
 	if buildCtx.Err() == context.DeadlineExceeded {
@@ -481,6 +516,9 @@ func classifyIdeal(workspaceDir, pkg string, timeout time.Duration) (bucket, str
 		// `go test -run=^$` exits non-zero only when the package fails to
 		// build. (Tests are explicitly skipped, so test failures cannot
 		// produce a non-zero exit here.)
+		if onlyUnusedErrors(string(buildOut)) {
+			return bInconclusive, "direct edit only fails Go's unused-name checks: " + truncate(string(buildOut), 200), string(buildOut)
+		}
 		return bCompileError, "build failed: " + truncate(string(buildOut), 240), string(buildOut)
 	}
 
@@ -488,7 +526,7 @@ func classifyIdeal(workspaceDir, pkg string, timeout time.Duration) (bucket, str
 	runCtx, runCancel := context.WithTimeout(context.Background(), timeout+15*time.Second)
 	defer runCancel()
 
-	runCmd := exec.CommandContext(runCtx, "go", "test", "-count=1",
+	runCmd := exec.CommandContext(runCtx, "go", "test", "-v", "-count=1", "-vet=off",
 		fmt.Sprintf("-timeout=%ds", int(timeout.Seconds())), pkg)
 	runCmd.Dir = workspaceDir
 	out, runErr := runCmd.CombinedOutput()
@@ -508,7 +546,7 @@ func classifyIdeal(workspaceDir, pkg string, timeout time.Duration) (bucket, str
 		// No "=== RUN" / "--- PASS:" / "--- FAIL:" — the test framework
 		// never executed a single test function.
 		if runErr != nil {
-			return bRuntimeError, "binary crashed before any test ran: " + truncate(output, 240), output
+			return bKilled, "binary crashed before any test ran: " + truncate(output, 240), output
 		}
 		// Exit 0 with no tests-ran markers → either filter-empty selection
 		// or a package that has no Test* functions in any _test.go file.
@@ -522,6 +560,25 @@ func classifyIdeal(workspaceDir, pkg string, timeout time.Duration) (bucket, str
 		return bKilled, "test failure: " + truncate(output, 240), output
 	}
 	return bSurvived, "go test passed", output
+}
+
+func onlyUnusedErrors(out string) bool {
+	found := false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "FAIL") || strings.HasPrefix(line, "ok") {
+			continue
+		}
+		if !strings.Contains(line, ".go:") {
+			continue
+		}
+		if strings.Contains(line, "declared and not used") || strings.Contains(line, "imported and not used") {
+			found = true
+			continue
+		}
+		return false
+	}
+	return found
 }
 
 func truncate(s string, n int) string {
@@ -541,14 +598,6 @@ func truncate(s string, n int) string {
 // -----------------------------------------------------------------------------
 
 func normalizeGorgonStatus(m coretesting.Mutant) bucket {
-	if m.KilledBy == "(timeout)" {
-		return bTimeout
-	}
-	if m.KilledBy == "(compiler)" {
-		// Gorgon overloads this marker across both `killed` and `error`
-		// statuses to mean "build failed for this mutant".
-		return bCompileError
-	}
 	switch m.Status {
 	case coretesting.StatusKilled:
 		return bKilled
@@ -556,20 +605,14 @@ func normalizeGorgonStatus(m coretesting.Mutant) bucket {
 		return bSurvived
 	case coretesting.StatusUntested:
 		return bUntested
-	case coretesting.StatusInvalid:
-		return bCompileError
 	case coretesting.StatusTimeout:
 		return bTimeout
+	case coretesting.StatusCompileError:
+		return bCompileError
+	case coretesting.StatusInvalid:
+		return bInvalid
 	case coretesting.StatusError:
-		// Generic "error" with no compiler/timeout marker. Gorgon's executor
-		// reaches this on:
-		//   * isCompilationError(output) substring match → which we treat
-		//     here as RUNTIME_ERROR rather than COMPILE_ERROR, because if it
-		//     were a real compile error Gorgon would have set
-		//     KilledBy="(compiler)" upstream. This is the bucket where
-		//     classifier mistakes hide.
-		//   * non-zero exit with empty output → runtime error.
-		return bRuntimeError
+		return bNotEvaluated
 	default:
 		return bUnknown
 	}

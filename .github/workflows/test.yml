@@ -56,8 +56,7 @@ jobs:
         suite:
           - { name: "Unit", dir: "./...", tags: "", pattern: "" }
           - { name: "Integration", dir: "./tests/integration/...", tags: "integration", pattern: "" }
-          - { name: "E2E", dir: "./tests/e2e/...", tags: "", pattern: "" }
-          - { name: "Regression", dir: "./tests/regression/...", tags: "", pattern: "" }
+          - { name: "Regression", dir: "./tests/regression/...", tags: "regression", pattern: "" }
           - { name: "Stress", dir: "./tests/stress/...", tags: "", pattern: "" }
 
     steps:
@@ -81,3 +80,39 @@ jobs:
           else
             go test -v -race -parallel=4 ${{ matrix.suite.dir }}
           fi
+
+  e2e:
+    name: E2E - ${{ matrix.shard.name }}
+    runs-on: ubuntu-latest
+    needs: check-new-go
+    if: ${{ needs.check-new-go.outputs.should_test == 'true' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: "ground truth", run: "^TestVerifyMutations_GroundTruth$", skip: "" }
+          - { name: "score validation", run: "^TestWorkflow_OverallScoreValidation$", skip: "" }
+          - { name: "no mutants lost", run: "^TestWorkflow_NoMutantsLost$", skip: "" }
+          - { name: "rest", run: "", skip: "^(TestVerifyMutations_GroundTruth|TestWorkflow_OverallScoreValidation|TestWorkflow_NoMutantsLost)$" }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run E2E tests (${{ matrix.shard.name }})
+        env:
+          GORGON_VERIFY_MAX: "0"
+        run: |
+          ARGS=(-v -count=1 -timeout=55m -tags=e2e)
+          if [ -n "${{ matrix.shard.run }}" ]; then ARGS+=(-run "${{ matrix.shard.run }}"); fi
+          if [ -n "${{ matrix.shard.skip }}" ]; then ARGS+=(-skip "${{ matrix.shard.skip }}"); fi
+          go test "${ARGS[@]}" ./tests/e2e/...

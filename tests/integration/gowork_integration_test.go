@@ -241,9 +241,9 @@ func TestGoWork_ModuleFor_ReturnsLongestMatch(t *testing.T) {
 		Root:    "/workspace",
 		Modules: []string{"/workspace/mod", "/workspace/mod/sub"},
 	}
-	t.Skip("TODO: call ws.ModuleFor('/workspace/mod/sub/pkg/file.go'); " +
-		"assert result == '/workspace/mod/sub' (not '/workspace/mod'); " +
-		"longest-match wins to correctly attribute files in nested modules")
+	if got := ws.ModuleFor("/workspace/mod/sub/pkg/file.go"); got != "/workspace/mod/sub" {
+		t.Errorf("ModuleFor longest match: want '/workspace/mod/sub' got %q", got)
+	}
 }
 
 // TestGoWork_ModuleFor_SiblingPrefix_NotMatched verifies that ModuleFor does
@@ -290,7 +290,7 @@ func TestGoWork_WorkspaceSetup_CopiesGoWorkSum(t *testing.T) {
 // ModuleWorkspace.Setup handles a plain module project (no go.work) correctly
 // by discovering go.mod and treating it as the sole module root.
 func TestGoWork_WorkspaceSetup_FallsBackToGoMod_WhenNoGoWork(t *testing.T) {
-	repoRoot := findRepoRoot(t)
+	_ = findRepoRoot(t)
 	t.Skip("TODO: verify that ws.Setup(repoRoot, nil) succeeds even when the repo has " +
 		"no go.work (single-module mode); assert ws.TempDir contains go.mod")
 }

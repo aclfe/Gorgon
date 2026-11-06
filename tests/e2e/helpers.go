@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
+	coretesting "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/internal/engine"
 	"github.com/aclfe/gorgon/internal/logger"
 	"github.com/aclfe/gorgon/internal/reporter"
 	"github.com/aclfe/gorgon/internal/subconfig"
-	coretesting "github.com/aclfe/gorgon/internal/core"
 	"github.com/aclfe/gorgon/pkg/config"
 	"github.com/aclfe/gorgon/pkg/mutator"
 
@@ -69,16 +69,16 @@ type MutantInfo struct {
 // ReportData represents the JSON report structure
 type ReportData struct {
 	Summary struct {
-		Score          float64 `json:"score"`
-		Killed         int     `json:"killed"`
-		Survived       int     `json:"survived"`
-		CompileErrors  int     `json:"compile_errors"`
-		RuntimeErrors  int     `json:"runtime_errors"`
-		Timeout        int     `json:"timeout"`
-		Untested       int     `json:"untested"`
-		Invalid        int     `json:"invalid"`
-		Total          int     `json:"total"`
-		TotalErrors    int     `json:"total_errors"`
+		Score         float64 `json:"score"`
+		Killed        int     `json:"killed"`
+		Survived      int     `json:"survived"`
+		CompileErrors int     `json:"compile_errors"`
+		RuntimeErrors int     `json:"runtime_errors"`
+		Timeout       int     `json:"timeout"`
+		Untested      int     `json:"untested"`
+		Invalid       int     `json:"invalid"`
+		Total         int     `json:"total"`
+		TotalErrors   int     `json:"total_errors"`
 	} `json:"summary"`
 	Mutants []MutantInfo `json:"mutants"`
 }
@@ -561,7 +561,7 @@ func calculateExpectedScore(stats reporter.ReportStats) float64 {
 	if denom == 0 {
 		return 0
 	}
-	return float64(stats.Killed) / float64(denom) * 100
+	return float64(stats.Killed+stats.Timeout) / float64(denom) * 100
 }
 
 func runPipelineWithMutantTracking(t *testing.T, fixtureDir string, outputDir string) ([]MutantInfo, reporter.ReportStats) {
@@ -736,14 +736,14 @@ func extractMutantsFromText(path string) ([]MutantInfo, error) {
 
 func validateMutantStatus(status string) error {
 	validStatuses := map[string]bool{
-		"killed":         true,
-		"survived":       true,
-		"error":          true,
-		"timeout":        true,
-		"untested":       true,
-		"invalid":        true,
-		"compile_error":  true,
-		"runtime_error":  true,
+		"killed":        true,
+		"survived":      true,
+		"error":         true,
+		"timeout":       true,
+		"untested":      true,
+		"invalid":       true,
+		"compile_error": true,
+		"runtime_error": true,
 	}
 
 	if status == "" {

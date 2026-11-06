@@ -20,7 +20,7 @@ external_suites:
     suites:
         - name: integration-tests
           paths:
-            - ../../../integration/...
+            - ../../extsuite/...
           tags:
             - integration
           short_circuit: true

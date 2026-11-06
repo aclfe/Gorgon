@@ -9,7 +9,8 @@ func returnNilMutate(n ast.Node) ast.Node {
 	if !ok || len(ret.Results) == 0 {
 		return nil
 	}
-	return &ast.ReturnStmt{
-		Results: []ast.Expr{&ast.Ident{Name: "nil"}},
-	}
+	results := make([]ast.Expr, len(ret.Results))
+	copy(results, ret.Results)
+	results[0] = &ast.Ident{Name: "nil"}
+	return &ast.ReturnStmt{Return: ret.Return, Results: results}
 }

@@ -11,64 +11,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
-	"sync"
 
 	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/aclfe/gorgon/internal/core/schemata_nodes"
-	"github.com/aclfe/gorgon/internal/logger"
 )
-
-var formatBufPool = sync.Pool{
-	New: func() any { return new(bytes.Buffer) },
-}
-
-//
-
-var validNodeTypeReplacements = map[schemata_nodes.NodeType][]schemata_nodes.NodeType{
-	schemata_nodes.NTBinaryExpr:     {schemata_nodes.NTBinaryExpr, schemata_nodes.NTCallExpr},
-	schemata_nodes.NTUnaryExpr:      {schemata_nodes.NTUnaryExpr, schemata_nodes.NTCallExpr},
-	schemata_nodes.NTCallExpr:       {schemata_nodes.NTCallExpr},
-	schemata_nodes.NTIdent:          {schemata_nodes.NTIdent, schemata_nodes.NTCallExpr, schemata_nodes.NTBasicLit},
-	schemata_nodes.NTBasicLit:       {schemata_nodes.NTBasicLit, schemata_nodes.NTCallExpr, schemata_nodes.NTIdent},
-	schemata_nodes.NTCaseClause:     {schemata_nodes.NTCaseClause},
-	schemata_nodes.NTIfStmt:         {schemata_nodes.NTIfStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTForStmt:        {schemata_nodes.NTForStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTRangeStmt:      {schemata_nodes.NTRangeStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTAssignStmt:     {schemata_nodes.NTAssignStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTExprStmt},
-	schemata_nodes.NTIncDecStmt:     {schemata_nodes.NTIncDecStmt, schemata_nodes.NTCallExpr, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTDeferStmt:      {schemata_nodes.NTDeferStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTGoStmt:         {schemata_nodes.NTGoStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSendStmt:       {schemata_nodes.NTSendStmt, schemata_nodes.NTCallExpr, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSwitchStmt:     {schemata_nodes.NTSwitchStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTTypeSwitchStmt: {schemata_nodes.NTTypeSwitchStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTReturnStmt:     {schemata_nodes.NTReturnStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTErrStmt},
-	schemata_nodes.NTBranchStmt:     {schemata_nodes.NTBranchStmt, schemata_nodes.NTExprStmt, schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTSelectStmt:     {schemata_nodes.NTSelectStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTCommClause:     {schemata_nodes.NTCommClause, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTLabeledStmt:    {schemata_nodes.NTLabeledStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTExprStmt:       {schemata_nodes.NTExprStmt, schemata_nodes.NTBlockStmt, schemata_nodes.NTErrStmt},
-	schemata_nodes.NTDeclStmt:       {schemata_nodes.NTDeclStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTErrStmt:        {schemata_nodes.NTErrStmt, schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTBlockStmt:      {schemata_nodes.NTBlockStmt},
-	schemata_nodes.NTFuncDecl:       {schemata_nodes.NTFuncDecl},
-}
-
-func ApplySchemataToFile(filePath string, fileMutants []*Mutant) (map[int]PositionMapping, error) {
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", filePath, err)
-	}
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", filePath, err)
-	}
-
-	return applySchemataToAST(file, fset, filePath, src, fileMutants)
-}
 
 type PositionMapping struct {
 	OriginalLine int
@@ -77,668 +24,254 @@ type PositionMapping struct {
 	TempCol      int
 }
 
-func ApplySchemataToAST(fileAST *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) (map[int]PositionMapping, error) {
-	return applySchemataToAST(fileAST, fset, filePath, src, fileMutants)
+type ApplyResult struct {
+	Applied    map[int]bool
+	NotApplied map[int]string
+	Positions  map[int]PositionMapping
+}
+
+func newApplyResult() *ApplyResult {
+	return &ApplyResult{
+		Applied:    make(map[int]bool),
+		NotApplied: make(map[int]string),
+		Positions:  make(map[int]PositionMapping),
+	}
+}
+
+type siteKey struct {
+	Offset int
+	End    int
+	Type   uint8
+}
+
+func buildSiteMap(mutants []*Mutant) map[siteKey][]schemata_nodes.MutantForSite {
+	sites := make(map[siteKey][]schemata_nodes.MutantForSite, len(mutants))
+	for _, m := range mutants {
+		if m.Site.Node == nil {
+			continue
+		}
+		key := siteKey{Offset: m.Site.Offset, End: m.Site.EndOffset, Type: schemata_nodes.NodeTypeToUint8(m.Site.Node)}
+		hint := ""
+		if m.Site.Hints != nil && m.Operator != nil {
+			hint = m.Site.Hints[m.Operator.Name()]
+		}
+		sites[key] = append(sites[key], schemata_nodes.MutantForSite{
+			ID:            m.ID,
+			Op:            m.Operator,
+			ReturnType:    m.Site.ReturnType,
+			EnclosingFunc: m.Site.EnclosingFunc,
+			ExprType:      m.Site.ExprType,
+			Hint:          hint,
+		})
+	}
+	for k := range sites {
+		ms := sites[k]
+		sort.Slice(ms, func(i, j int) bool { return ms[i].ID < ms[j].ID })
+	}
+	return sites
+}
+
+//
+
+func applySchemataToFileAST(file *ast.File, fset *token.FileSet, mutants []*Mutant) *ApplyResult {
+	res := newApplyResult()
+	tfile := fset.File(file.Pos())
+	sites := buildSiteMap(mutants)
+	if tfile == nil {
+		for _, m := range mutants {
+			res.NotApplied[m.ID] = "source file has no position information"
+		}
+		return res
+	}
+
+	plans := make(map[ast.Node]schemata_nodes.SitePlan)
+	var stack []ast.Node
+	var funcStack []*ast.FuncDecl
+	ast.Inspect(file, func(n ast.Node) bool {
+		if n == nil {
+			if top := stack[len(stack)-1]; top != nil {
+				if fd, ok := top.(*ast.FuncDecl); ok && len(funcStack) > 0 && funcStack[len(funcStack)-1] == fd {
+					funcStack = funcStack[:len(funcStack)-1]
+				}
+			}
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		var parent ast.Node
+		if len(stack) > 0 {
+			parent = stack[len(stack)-1]
+		}
+		stack = append(stack, n)
+		if fd, ok := n.(*ast.FuncDecl); ok {
+			funcStack = append(funcStack, fd)
+		}
+		if !n.Pos().IsValid() || !n.End().IsValid() {
+			return true
+		}
+		key := siteKey{Offset: tfile.Offset(n.Pos()), End: tfile.Offset(n.End()), Type: schemata_nodes.NodeTypeToUint8(n)}
+		ms, ok := sites[key]
+		if !ok {
+			return true
+		}
+		delete(sites, key)
+		var encl *ast.FuncDecl
+		if len(funcStack) > 0 {
+			encl = funcStack[len(funcStack)-1]
+		}
+		plans[n] = schemata_nodes.BuildPlan(n, ms, parent, file, encl)
+		return true
+	})
+
+	astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+		n := c.Node()
+		plan, ok := plans[n]
+		if !ok {
+			return true
+		}
+		repl, applied, notApplied := schemata_nodes.Inject(n, plan)
+		for id, reason := range notApplied {
+			res.NotApplied[id] = reason
+		}
+		if repl != n {
+			if err := replaceNode(c, repl); err != nil {
+				for _, id := range applied {
+					res.NotApplied[id] = "mutation cannot be placed here: " + err.Error()
+				}
+				applied = nil
+			}
+		}
+		for _, id := range applied {
+			res.Applied[id] = true
+		}
+		return true
+	})
+
+	for _, ms := range sites {
+		for _, m := range ms {
+			res.NotApplied[m.ID] = "mutation site not found in source"
+		}
+	}
+	for _, m := range mutants {
+		if !res.Applied[m.ID] {
+			if _, ok := res.NotApplied[m.ID]; !ok {
+				res.NotApplied[m.ID] = "mutation was not injected"
+			}
+		} else {
+			delete(res.NotApplied, m.ID)
+		}
+	}
+	return res
+}
+
+func replaceNode(c *astutil.Cursor, repl ast.Node) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	c.Replace(repl)
+	return nil
+}
+
+func ApplySchemataToSource(src []byte, filePath string, mutants []*Mutant) ([]byte, *ApplyResult, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse %s: %w", filePath, err)
+	}
+	res := applySchemataToFileAST(file, fset, mutants)
+
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, file); err != nil {
+		return nil, res, fmt.Errorf("format %s: %w", filePath, err)
+	}
+	out := buf.Bytes()
+
+	found := findGuardLines(out)
+	for _, m := range mutants {
+		if !res.Applied[m.ID] {
+			continue
+		}
+		pos, ok := found[m.ID]
+		if !ok {
+			delete(res.Applied, m.ID)
+			res.NotApplied[m.ID] = "guard missing from generated code"
+			continue
+		}
+		res.Positions[m.ID] = PositionMapping{
+			OriginalLine: m.Site.Line,
+			OriginalCol:  m.Site.Column,
+			TempLine:     pos.TempLine,
+			TempCol:      pos.TempCol,
+		}
+	}
+	return out, res, nil
+}
+
+func WriteSchemataFile(srcPath, outPath string, mutants []*Mutant) (*ApplyResult, error) {
+	src, err := os.ReadFile(srcPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", srcPath, err)
+	}
+	out, res, err := ApplySchemataToSource(src, srcPath, mutants)
+	if err != nil {
+		return res, err
+	}
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		return res, fmt.Errorf("failed to create directory: %w", err)
+	}
+	if err := os.WriteFile(outPath, out, filePermissions); err != nil {
+		return res, fmt.Errorf("write failed: %w", err)
+	}
+	return res, nil
 }
 
 // ApplySchemataInMemory applies schemata to a fresh parse of src and returns
 // the mutated AST without any disk I/O. Used by preflight type-checking.
 func ApplySchemataInMemory(src []byte, filePath string, fset *token.FileSet, fileMutants []*Mutant) (*ast.File, error) {
+	file, _, err := ApplySchemataInMemoryResult(src, filePath, fset, fileMutants)
+	return file, err
+}
+
+func ApplySchemataInMemoryResult(src []byte, filePath string, fset *token.FileSet, fileMutants []*Mutant) (*ast.File, *ApplyResult, error) {
 	file, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
-	posToMutants := buildPositionToMutantsMap(fileMutants)
-	constNodes := findConstNodes(file)
-
-	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
-	})
-
-	// fixUnusedImports removed: schemata preserves original code in else branch,
-	// so any import used originally is still used. Blanking aliases breaks code.
-	fixUnusedLoopVarsAfterMutationFast(file)
-
-	return file, nil
+	res := applySchemataToFileAST(file, fset, fileMutants)
+	return file, res, nil
 }
 
-func buildPositionMapping(mutants []*Mutant, fset *token.FileSet) map[int]PositionMapping {
-	result := make(map[int]PositionMapping, len(mutants))
-	for _, m := range mutants {
-		if m.Site.Node == nil {
-			continue
-		}
-		origPos := fset.Position(m.Site.Node.Pos())
-		tempNode := findNodeByID(mutants, m.ID)
-		if tempNode != nil {
-			tempPos := fset.Position(tempNode.Pos())
-			result[m.ID] = PositionMapping{
-				OriginalLine: origPos.Line,
-				OriginalCol:  origPos.Column,
-				TempLine:     tempPos.Line,
-				TempCol:      tempPos.Column,
-			}
-		} else {
-			result[m.ID] = PositionMapping{
-				OriginalLine: origPos.Line,
-				OriginalCol:  origPos.Column,
-				TempLine:     origPos.Line,
-				TempCol:      origPos.Column,
-			}
-		}
+func findGuardLines(content []byte) map[int]PositionMapping {
+	result := make(map[int]PositionMapping)
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "", content, parser.SkipObjectResolution)
+	if file == nil {
+		_ = err
+		return result
 	}
-	return result
-}
-
-func findNodeByID(mutants []*Mutant, id int) ast.Node {
-	for _, m := range mutants {
-		if m.ID == id {
-			return m.Site.Node
-		}
-	}
-	return nil
-}
-
-func extractMutantIDs(mutants []*Mutant) []int {
-	ids := make([]int, len(mutants))
-	for i, m := range mutants {
-		ids[i] = m.ID
-	}
-	return ids
-}
-
-//
-//	if activeMutantID == 42 {
-//
-
-func findMutantPositionsInFile(filePath string, mutantIDs []int, originalPositions map[int]PositionMapping) map[int]PositionMapping {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return originalPositions
-	}
-
-	// Build result seeded with originals
-	result := make(map[int]PositionMapping, len(mutantIDs))
-	for id, pos := range originalPositions {
-		result[id] = pos
-	}
-
-	// Build set of IDs we need to find
-	needed := make(map[int]bool, len(mutantIDs))
-	for _, id := range mutantIDs {
-		needed[id] = true
-	}
-
-	// Single pass: scan each line once, match any mutant ID pattern found
-	lines := bytes.Split(content, []byte{'\n'})
-	prefix := []byte("activeMutantID == ")
-	for lineNum, line := range lines {
-		idx := bytes.Index(line, prefix)
-		if idx < 0 {
-			continue
-		}
-		rest := line[idx+len(prefix):]
-		// parse the integer
-		end := 0
-		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
-			end++
-		}
-		if end == 0 {
-			continue
-		}
-		id, err := strconv.Atoi(string(rest[:end]))
-		if err != nil || !needed[id] {
-			continue
-		}
-		orig := originalPositions[id]
-		result[id] = PositionMapping{
-			OriginalLine: orig.OriginalLine,
-			OriginalCol:  orig.OriginalCol,
-			TempLine:     lineNum + 1,
-			TempCol:      idx + 1,
-		}
-	}
-
-	return result
-}
-
-func applySchemataToAST(file *ast.File, fset *token.FileSet, filePath string, src []byte, fileMutants []*Mutant) (map[int]PositionMapping, error) {
-	posToMutants := buildPositionToMutantsMap(fileMutants)
-	constNodes := findConstNodes(file)
-
-	astutil.Apply(file, nil, func(cursor *astutil.Cursor) bool {
-		return applySchemataVisitor(cursor, fset, posToMutants, constNodes, file, nil)
-	})
-
-	// fixUnusedImports removed: schemata preserves original code in else branch,
-	// so any import used originally is still used. Blanking aliases breaks code.
-	fixUnusedLoopVarsAfterMutationFast(file)
-
-	buf := formatBufPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	if err := format.Node(buf, fset, file); err != nil {
-		formatBufPool.Put(buf)
-		if len(src) > 0 {
-			_ = os.WriteFile(filePath, src, filePermissions)
-		}
-		return nil, nil
-	}
-
-	if buf.Len() == 0 {
-		formatBufPool.Put(buf)
-		if len(src) > 0 {
-			_ = os.WriteFile(filePath, src, filePermissions)
-		}
-		return nil, nil
-	}
-
-	// Compute positions from the buffer BEFORE writing — eliminates the
-	// disk write+re-read cycle and keeps only one copy of the data live.
-	origPositions := buildPositionMapping(fileMutants, fset)
-	mutantIDs := extractMutantIDs(fileMutants)
-	positionMap := findMutantPositionsInBytes(buf.Bytes(), mutantIDs, origPositions)
-
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-		formatBufPool.Put(buf)
-		return nil, fmt.Errorf("failed to create directory: %w", err)
-	}
-	if err := os.WriteFile(filePath, buf.Bytes(), filePermissions); err != nil {
-		formatBufPool.Put(buf)
-		return nil, fmt.Errorf("write failed: %w", err)
-	}
-	formatBufPool.Put(buf) // released immediately after write, before returning
-
-	return positionMap, nil
-}
-
-func findMutantPositionsInBytes(content []byte, mutantIDs []int, originalPositions map[int]PositionMapping) map[int]PositionMapping {
-	result := make(map[int]PositionMapping, len(mutantIDs))
-	for id, pos := range originalPositions {
-		result[id] = pos
-	}
-
-	needed := make(map[int]bool, len(mutantIDs))
-	for _, id := range mutantIDs {
-		needed[id] = true
-	}
-
-	prefix := []byte("activeMutantID == ")
-	lines := bytes.Split(content, []byte{'\n'})
-	for lineNum, line := range lines {
-		idx := bytes.Index(line, prefix)
-		if idx < 0 {
-			continue
-		}
-		rest := line[idx+len(prefix):]
-		end := 0
-		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
-			end++
-		}
-		if end == 0 {
-			continue
-		}
-		id, err := strconv.Atoi(string(rest[:end]))
-		if err != nil || !needed[id] {
-			continue
-		}
-		orig := originalPositions[id]
-		result[id] = PositionMapping{
-			OriginalLine: orig.OriginalLine,
-			OriginalCol:  orig.OriginalCol,
-			TempLine:     lineNum + 1,
-			TempCol:      idx + 1,
-		}
-	}
-	return result
-}
-
-
-func InjectSchemataHelpers(fileToMutants map[string][]*Mutant, log *logger.Logger) error {
-	if log != nil {
-		log.Debug("InjectSchemataHelpers called with %d files", len(fileToMutants))
-	}
-
-	type pkgInfo struct {
-		files   []string
-		pkgName string
-	}
-	pkgToInfo := make(map[string]*pkgInfo, len(fileToMutants))
-	for tempFile, mutants := range fileToMutants {
-		dir := filepath.Dir(tempFile)
-		info, ok := pkgToInfo[dir]
-		if !ok {
-			info = &pkgInfo{}
-			pkgToInfo[dir] = info
-		}
-		info.files = append(info.files, tempFile)
-
-		if info.pkgName == "" {
-			for _, m := range mutants {
-				if m.Site.FileAST != nil && m.Site.FileAST.Name != nil {
-					info.pkgName = m.Site.FileAST.Name.Name
-					break
-				}
-			}
-		}
-	}
-	
-	if log != nil {
-		log.Debug("Found %d unique package directories", len(pkgToInfo))
-	}
-
-	dirs := make([]string, 0, len(pkgToInfo))
-	for dir := range pkgToInfo {
-		dirs = append(dirs, dir)
-	}
-	sort.Strings(dirs)
-
-	for _, dir := range dirs {
-		info := pkgToInfo[dir]
-		if len(info.files) == 0 {
-			continue
-		}
-
-		pkgName := info.pkgName
-		if pkgName == "" {
-			pkgName = filepath.Base(dir)
-		}
-
-		const helperSentinel = "// GORGON_SCHEMATA"
-
-		helper := fmt.Sprintf(`package %s
-
-// GORGON_SCHEMATA
-
-import (
-	"os"
-	"strconv"
-)
-
-var activeMutantID int
-
-func init() {
-	if idStr := os.Getenv("GORGON_MUTANT_ID"); idStr != "" {
-		activeMutantID, _ = strconv.Atoi(idStr)
-	}
-}
-`, pkgName)
-
-		helperFile := filepath.Join(dir, "gorgon_schemata.go")
-		if log != nil {
-			log.Debug("Creating helper file: %s (package: %s)", helperFile, pkgName)
-		}
-		existing, _ := os.ReadFile(helperFile)
-		if bytes.Contains(existing, []byte(helperSentinel)) {
-			if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
-				return fmt.Errorf("failed to overwrite helper: %w", err)
-			}
-			if log != nil {
-				log.Debug("Overwrote existing helper file: %s", helperFile)
-			}
-			continue
-		}
-		if err := os.WriteFile(helperFile, []byte(helper), filePermissions); err != nil {
-			return fmt.Errorf("failed to write helper: %w", err)
-		}
-		if log != nil {
-			log.Debug("Created new helper file: %s", helperFile)
-		}
-	}
-	return nil
-}
-
-type posKey struct {
-	Line   int
-	Column int
-	Type   uint8
-}
-
-func buildPositionToMutantsMap(mutants []*Mutant) map[posKey][]schemata_nodes.MutantForSite {
-	posToMutants := make(map[posKey][]schemata_nodes.MutantForSite, len(mutants))
-	for _, mutant := range mutants {
-		key := posKey{
-			Line:   mutant.Site.Line,
-			Column: mutant.Site.Column,
-			Type:   schemata_nodes.NodeTypeToUint8(mutant.Site.Node),
-		}
-		posToMutants[key] = append(posToMutants[key], schemata_nodes.MutantForSite{
-			ID:            mutant.ID,
-			Op:            mutant.Operator,
-			ReturnType:    mutant.Site.ReturnType,
-			EnclosingFunc: mutant.Site.EnclosingFunc,
-		})
-	}
-	return posToMutants
-}
-
-func findConstNodes(file *ast.File) map[ast.Node]bool {
-	constNodes := make(map[ast.Node]bool)
 	ast.Inspect(file, func(n ast.Node) bool {
-		gd, ok := n.(*ast.GenDecl)
-		if !ok || gd.Tok != token.CONST {
+		be, ok := n.(*ast.BinaryExpr)
+		if !ok || (be.Op != token.EQL && be.Op != token.NEQ) {
 			return true
 		}
-		for _, spec := range gd.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, val := range vs.Values {
-				ast.Inspect(val, func(child ast.Node) bool {
-					if child != nil {
-						constNodes[child] = true
-					}
-					return true
-				})
-			}
-		}
-		return true
-	})
-	return constNodes
-}
-
-func applySchemataVisitor(cursor *astutil.Cursor, fset *token.FileSet, posToMutants map[posKey][]schemata_nodes.MutantForSite, constNodes map[ast.Node]bool, file *ast.File, visitedNodes map[*ast.Decl]bool) bool {
-	node := cursor.Node()
-	if node == nil {
-		return true
-	}
-
-	if cursor.Parent() != nil {
-		if _, ok := cursor.Parent().(*ast.ImportSpec); ok {
+		id, ok := be.X.(*ast.Ident)
+		if !ok || id.Name != "activeMutantID" {
 			return true
 		}
-		// Never wrap the X (range target) of a RangeStmt in an IIFE.
-		// The IIFE would return interface{} which cannot be ranged over.
-		if rangeStmt, ok := cursor.Parent().(*ast.RangeStmt); ok {
-			if node == rangeStmt.X {
-				return true
-			}
+		lit, ok := be.Y.(*ast.BasicLit)
+		if !ok || lit.Kind != token.INT {
+			return true
 		}
-
-		if parentExpr, ok := cursor.Parent().(ast.Expr); ok {
-			parentPos := schemata_nodes.GetNodePosition(parentExpr, fset)
-			parentKey := posKey{Line: parentPos.Line, Column: parentPos.Column, Type: schemata_nodes.NodeTypeToUint8(parentExpr)}
-			if _, hasMutants := posToMutants[parentKey]; hasMutants {
-				return true
-			}
+		v, err := strconv.Atoi(lit.Value)
+		if err != nil {
+			return true
 		}
-	}
-
-	if constNodes[node] {
-		return true
-	}
-
-	newPos := schemata_nodes.GetNodePosition(node, fset)
-	key := posKey{Line: newPos.Line, Column: newPos.Column, Type: schemata_nodes.NodeTypeToUint8(node)}
-	mutants, ok := posToMutants[key]
-	if !ok {
-		return true
-	}
-
-	returnType := ""
-	if len(mutants) > 0 {
-		returnType = mutants[0].ReturnType
-	}
-
-	schemata := createSchemataExpr(node, mutants, returnType, file)
-	if schemata == nil || schemata == node {
-		return true
-	}
-
-	if _, isExpr := node.(ast.Expr); isExpr {
-		if _, ok := schemata.(ast.Expr); ok {
-			safeReplace(cursor, schemata)
-		}
-	} else if isValidReplacement(node, schemata) {
-		safeReplace(cursor, schemata)
-	}
-
-	return true
-}
-
-func safeReplace(cursor *astutil.Cursor, replacement ast.Node) {
-	defer func() { _ = recover() }()
-	cursor.Replace(replacement)
-}
-
-func createSchemataExpr(original ast.Node, mutants []schemata_nodes.MutantForSite, returnType string, file *ast.File) ast.Node {
-	if len(mutants) == 0 {
-		return original
-	}
-
-	handler := schemata_nodes.GetHandler(original)
-	if handler != nil {
-		return handler(original, mutants, returnType, file)
-	}
-
-	return original
-}
-
-func isValidReplacement(original, replacement ast.Node) bool {
-	if original == nil || replacement == nil {
-		return false
-	}
-
-	typeOriginal := schemata_nodes.NodeTypeOf(original)
-	typeReplacement := schemata_nodes.NodeTypeOf(replacement)
-
-	if typeOriginal == typeReplacement {
-		return true
-	}
-
-	if validTypes, ok := validNodeTypeReplacements[typeOriginal]; ok {
-		for _, t := range validTypes {
-			if typeReplacement == t {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-func fixUnusedImports(file *ast.File) {
-	used := make(map[string]bool)
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		if _, ok := n.(*ast.ImportSpec); ok {
-			return false
-		}
-		if ident, ok := n.(*ast.Ident); ok {
-			used[ident.Name] = true
+		if _, seen := result[v]; !seen {
+			p := fset.Position(be.Pos())
+			result[v] = PositionMapping{TempLine: p.Line, TempCol: p.Column}
 		}
 		return true
 	})
-
-	for _, imp := range file.Imports {
-		if imp.Name != nil && imp.Name.Name == "_" {
-			continue
-		}
-		pkgName := getPackageNameFromImport(imp)
-		if !used[pkgName] {
-
-			if imp.Name == nil {
-				imp.Name = &ast.Ident{Name: "_", NamePos: imp.Path.Pos()}
-			}
-		}
-	}
-}
-
-func fixUnusedLoopVarsAfterMutationFast(file *ast.File) {
-	for _, decl := range file.Decls {
-		processDeclForLoopVars(decl)
-	}
-	// Also walk FuncLit bodies (e.g. closures passed to ast.Inspect),
-	// which are not reachable via the top-level decl walk above.
-	ast.Inspect(file, func(n ast.Node) bool {
-		if fl, ok := n.(*ast.FuncLit); ok && fl.Body != nil {
-			processStmtsForLoopVars(fl.Body.List)
-		}
-		return true
-	})
-}
-
-func processDeclForLoopVars(decl ast.Decl) {
-	switch d := decl.(type) {
-	case *ast.FuncDecl:
-		if d.Body == nil {
-			return
-		}
-		processStmtsForLoopVars(d.Body.List)
-	case *ast.GenDecl:
-
-	}
-}
-
-func processStmtsForLoopVars(stmts []ast.Stmt) {
-	for i, stmt := range stmts {
-		switch s := stmt.(type) {
-		case *ast.RangeStmt:
-			fixRangeStmt(s)
-		case *ast.ForStmt:
-			fixForStmt(s)
-		case *ast.IfStmt:
-			if s.Body != nil {
-				processStmtsForLoopVars(s.Body.List)
-			}
-			// Walk the entire else chain (else-if is an *ast.IfStmt, not a *ast.BlockStmt)
-			for else_ := s.Else; else_ != nil; {
-				switch e := else_.(type) {
-				case *ast.IfStmt:
-					if e.Body != nil {
-						processStmtsForLoopVars(e.Body.List)
-					}
-					else_ = e.Else
-				case *ast.BlockStmt:
-					processStmtsForLoopVars(e.List)
-					else_ = nil
-				default:
-					else_ = nil
-				}
-			}
-		case *ast.BlockStmt:
-			processStmtsForLoopVars(s.List)
-		case *ast.CaseClause:
-			processStmtsForLoopVars(s.Body)
-		case *ast.CommClause:
-			processStmtsForLoopVars(s.Body)
-		case *ast.SwitchStmt:
-			if s.Body != nil {
-				processStmtsForLoopVars(s.Body.List)
-			}
-		case *ast.TypeSwitchStmt:
-			if s.Body != nil {
-				processStmtsForLoopVars(s.Body.List)
-			}
-		case *ast.SelectStmt:
-			if s.Body != nil {
-				processStmtsForLoopVars(s.Body.List)
-			}
-		}
-		_ = i
-	}
-}
-
-func fixRangeStmt(rangeStmt *ast.RangeStmt) {
-	if rangeStmt.Body == nil {
-		return
-	}
-
-	processStmtsForLoopVars(rangeStmt.Body.List)
-
-	var loopVars []*ast.Ident
-	if key, ok := rangeStmt.Key.(*ast.Ident); ok && key.Name != "_" {
-		loopVars = append(loopVars, key)
-	}
-	if value, ok := rangeStmt.Value.(*ast.Ident); ok && value.Name != "_" {
-		loopVars = append(loopVars, value)
-	}
-
-	for _, loopVar := range loopVars {
-		if !isVariableUsedInBlockFast(loopVar.Name, rangeStmt.Body, loopVar) {
-			blankAssign := &ast.AssignStmt{
-				Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
-				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
-			}
-			rangeStmt.Body.List = append([]ast.Stmt{blankAssign}, rangeStmt.Body.List...)
-		}
-	}
-}
-
-func fixForStmt(forStmt *ast.ForStmt) {
-	if forStmt.Body == nil {
-		return
-	}
-
-	processStmtsForLoopVars(forStmt.Body.List)
-
-	var loopVars []*ast.Ident
-	if init, ok := forStmt.Init.(*ast.AssignStmt); ok {
-		for _, lhs := range init.Lhs {
-			if ident, ok := lhs.(*ast.Ident); ok && ident.Name != "_" {
-				loopVars = append(loopVars, ident)
-			}
-		}
-	}
-
-	for _, loopVar := range loopVars {
-		if !isVariableUsedInBlockFast(loopVar.Name, forStmt.Body, loopVar) {
-			blankAssign := &ast.AssignStmt{
-				Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
-				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{&ast.Ident{Name: loopVar.Name}},
-			}
-			forStmt.Body.List = append([]ast.Stmt{blankAssign}, forStmt.Body.List...)
-		}
-	}
-}
-
-func isVariableUsedInBlockFast(name string, block *ast.BlockStmt, declIdent *ast.Ident) bool {
-	if block == nil {
-		return false
-	}
-
-	used := false
-	ast.Inspect(block, func(n ast.Node) bool {
-		if ident, ok := n.(*ast.Ident); ok && ident.Name == name {
-
-			if declIdent != nil && ident.Pos() == declIdent.Pos() {
-				return true
-			}
-			used = true
-			return false
-		}
-		return true
-	})
-	return used
-}
-
-func getPackageNameFromImport(imp *ast.ImportSpec) string {
-	if imp.Name != nil {
-		return imp.Name.Name
-	}
-	path := strings.Trim(imp.Path.Value, `"`)
-	parts := strings.Split(path, "/")
-	last := parts[len(parts)-1]
-
-	// Handle pure major-version path components: .../v2, .../v3 → use second-to-last
-	// e.g. github.com/foo/bar/v2 → "bar"
-	if len(last) > 1 && last[0] == 'v' {
-		if _, err := strconv.Atoi(last[1:]); err == nil && len(parts) >= 2 {
-			last = parts[len(parts)-2]
-		}
-	}
-
-	// Handle dot-version suffixes: yaml.v3 → "yaml", go-yaml.v2 → "go-yaml"
-	if idx := strings.LastIndex(last, "."); idx >= 0 {
-		suffix := last[idx+1:]
-		if len(suffix) > 1 && suffix[0] == 'v' {
-			if _, err := strconv.Atoi(suffix[1:]); err == nil {
-				last = last[:idx]
-			}
-		}
-	}
-	return last
+	return result
 }

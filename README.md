@@ -348,7 +348,7 @@ outputs:
   - junit:mutation-results.xml
 ```
 
-Survived mutants appear as test failures, compilation errors as errors, and untested mutants as skipped.
+Survived and untested mutants appear as test failures; killed and timed-out mutants as passed tests; compile errors, invalid mutants and mutants that could not be evaluated as skipped (with the reason). See [Understanding Results](docs/documentation/understanding-results.md) for what each status means and how the score is computed.
 
 ### SARIF
 

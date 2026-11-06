@@ -7,13 +7,11 @@ import (
 	"github.com/aclfe/gorgon/pkg/mutator"
 )
 
-
 type ConditionMutation struct {
 	name        string
 	nodeType    ast.Node
 	replaceWith string
 }
-
 
 func buildConditionMutator(m ConditionMutation) mutator.Operator {
 	return &conditionMutator{
@@ -33,6 +31,13 @@ func (m *conditionMutator) Name() string {
 	return m.name
 }
 
+func (m *conditionMutator) ConditionKind() mutator.ConditionKind {
+	if m.replaceWith == "true" {
+		return mutator.ConditionForceTrue
+	}
+	return mutator.ConditionForceFalse
+}
+
 func (m *conditionMutator) CanApply(n ast.Node) bool {
 	switch m.nodeType.(type) {
 	case *ast.IfStmt:
@@ -40,8 +45,6 @@ func (m *conditionMutator) CanApply(n ast.Node) bool {
 		if !ok || ie.Cond == nil {
 			return false
 		}
-		
-		
 		if ie.Init != nil {
 			assign, ok := ie.Init.(*ast.AssignStmt)
 			if !ok {
@@ -54,10 +57,10 @@ func (m *conditionMutator) CanApply(n ast.Node) bool {
 				return false
 			}
 		}
-		return isSafeCondition(ie.Cond)
+		return isSafeCondition(ie.Cond) && !isLiteral(ie.Cond, m.replaceWith)
 	case *ast.ForStmt:
 		fs, ok := n.(*ast.ForStmt)
-		return ok && fs.Cond != nil && isSafeCondition(fs.Cond)
+		return ok && fs.Cond != nil && isSafeCondition(fs.Cond) && !isLiteral(fs.Cond, m.replaceWith)
 	default:
 		return false
 	}
@@ -72,9 +75,9 @@ func (m *conditionMutator) Mutate(n ast.Node) ast.Node {
 		}
 		return &ast.IfStmt{
 			If:   ie.If,
-			Init: ie.Init, 
+			Init: ie.Init,
 			Cond: &ast.Ident{
-				NamePos: ie.Cond.Pos(), 
+				NamePos: ie.Cond.Pos(),
 				Name:    m.replaceWith,
 			},
 			Body: ie.Body,
@@ -89,7 +92,7 @@ func (m *conditionMutator) Mutate(n ast.Node) ast.Node {
 			For:  fs.For,
 			Init: fs.Init,
 			Cond: &ast.Ident{
-				NamePos: fs.Cond.Pos(), 
+				NamePos: fs.Cond.Pos(),
 				Name:    m.replaceWith,
 			},
 			Post: fs.Post,
@@ -108,6 +111,17 @@ func (m *conditionMutator) MutateWithContext(n ast.Node, _ mutator.Context) ast.
 	return m.Mutate(n)
 }
 
+func isLiteral(cond ast.Expr, lit string) bool {
+	for {
+		p, ok := cond.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		cond = p.X
+	}
+	id, ok := cond.(*ast.Ident)
+	return ok && id.Name == lit
+}
 
 func isSafeCondition(expr ast.Expr) bool {
 	switch e := expr.(type) {
@@ -131,7 +145,6 @@ func isSafeCondition(expr ast.Expr) bool {
 	case *ast.CallExpr:
 		return true
 	default:
-		
 		return false
 	}
 }

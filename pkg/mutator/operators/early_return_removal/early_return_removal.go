@@ -21,15 +21,31 @@ func (EarlyReturnRemoval) CanApplyWithContext(n ast.Node, ctx mutator.Context) b
 	if !ok {
 		return false
 	}
-	if ret.Results == nil || len(ret.Results) == 0 {
+	if len(ret.Results) == 0 {
 		return false
 	}
-	return isInsideIfBlockFast(n, ctx.Parent)
+	return isInsideIfBlockFast(n, ctx.Parent, ctx.File)
 }
 
-func isInsideIfBlockFast(n ast.Node, parent ast.Node) bool {
-	_, ok := parent.(*ast.IfStmt)
-	return ok
+func isInsideIfBlockFast(n ast.Node, parent ast.Node, file *ast.File) bool {
+	block, ok := parent.(*ast.BlockStmt)
+	if !ok || file == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(file, func(x ast.Node) bool {
+		if found {
+			return false
+		}
+		if ifs, ok := x.(*ast.IfStmt); ok {
+			if ifs.Body == block || ifs.Else == block {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
 }
 
 func (EarlyReturnRemoval) Mutate(n ast.Node) ast.Node {
@@ -38,16 +54,13 @@ func (EarlyReturnRemoval) Mutate(n ast.Node) ast.Node {
 
 func (EarlyReturnRemoval) MutateWithContext(n ast.Node, ctx mutator.Context) ast.Node {
 	ret, ok := n.(*ast.ReturnStmt)
-	if !ok || ret.Results == nil || len(ret.Results) == 0 {
+	if !ok || len(ret.Results) == 0 {
 		return nil
 	}
-	if !isInsideIfBlockFast(n, ctx.Parent) {
+	if !isInsideIfBlockFast(n, ctx.Parent, ctx.File) {
 		return nil
 	}
-	return &ast.ReturnStmt{
-		Return:  ret.Return,
-		Results: nil,
-	}
+	return &ast.EmptyStmt{Semicolon: ret.Return, Implicit: true}
 }
 
 func init() {
